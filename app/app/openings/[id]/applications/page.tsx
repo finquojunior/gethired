@@ -9,15 +9,23 @@ import BoardView from './BoardView';
 
 export const dynamic = 'force-dynamic';
 
+// fixed order-by fragments only — never user input
+const SORTS: Record<string, string> = {
+  score: 'a.score desc nulls last, a.created_at desc',
+  newest: 'a.created_at desc',
+  oldest: 'a.created_at asc',
+  name: 'a.name asc',
+};
+
 export default async function ApplicationsPage({
   params,
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ stage?: string; status?: string; from?: string; to?: string; view?: string }>;
+  searchParams: Promise<{ stage?: string; status?: string; from?: string; to?: string; view?: string; sort?: string }>;
 }) {
   const { id } = await params;
-  const { stage, status = 'active', from = '', to = '', view } = await searchParams;
+  const { stage, status = 'active', from = '', to = '', view, sort = 'score' } = await searchParams;
   const board = view === 'board';
   const isDate = (s: string) => /^\d{4}-\d{2}-\d{2}$/.test(s);
   const openingId = Number(id);
@@ -68,7 +76,7 @@ export default async function ApplicationsPage({
        and a.status = $3
        and ($4::date is null or a.created_at >= $4::date)
        and ($5::date is null or a.created_at < $5::date + 1)
-     order by a.score desc nulls last, a.created_at desc`,
+     order by ${SORTS[sort] ?? SORTS.score}`,
     [openingId, stageId, status, isDate(from) ? from : null, isDate(to) ? to : null]
   );
 
@@ -134,8 +142,17 @@ export default async function ApplicationsPage({
           <label className="field-label" htmlFor="to">to</label>
           <input id="to" type="date" name="to" defaultValue={to} className="input w-40 py-1.5" />
         </div>
-        <button className="btn-quiet">Filter</button>
-        {(from || to) && (
+        <div>
+          <label className="field-label" htmlFor="sort">Sort by</label>
+          <select id="sort" name="sort" defaultValue={sort} className="input w-36 py-1.5">
+            <option value="score">Score</option>
+            <option value="newest">Newest</option>
+            <option value="oldest">Oldest</option>
+            <option value="name">Name</option>
+          </select>
+        </div>
+        <button className="btn-quiet">Apply</button>
+        {(from || to || sort !== 'score') && (
           <Link href={base} className="pb-2 text-ink-soft underline">clear</Link>
         )}
       </form>
@@ -172,11 +189,15 @@ export default async function ApplicationsPage({
                 <td className="px-4 py-3">
                   <input type="checkbox" name="appId" value={a.id} className="accent-pine" />
                 </td>
-                <td className="px-4 py-3">
-                  <Link href={`/app/candidates/${a.id}`} className="font-medium hover:underline">
-                    {a.name}
+                <td className="p-0">
+                  <Link
+                    href={`/app/candidates/${a.id}`}
+                    className="block px-4 py-3"
+                    title="Open candidate profile"
+                  >
+                    <span className="font-medium text-pine hover:underline">{a.name} →</span>
+                    <span className="block text-ink-soft">{a.email}</span>
                   </Link>
-                  <div className="text-ink-soft">{a.email}</div>
                 </td>
                 <td className="px-4 py-3">
                   {a.score != null && Number(a.max_score) > 0

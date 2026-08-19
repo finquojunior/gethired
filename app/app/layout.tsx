@@ -15,6 +15,7 @@ export default async function InternalLayout({ children }: { children: React.Rea
           <nav className="flex flex-wrap gap-1 text-sm md:mt-8 md:flex-col">
             <NavLink href="/app/openings">Openings</NavLink>
             <NavLink href="/app/candidates">Candidates</NavLink>
+            <NavLink href="/app/interviews">Interviews</NavLink>
             <NavLink href="/app/team">Team</NavLink>
             <NavLink href="/app/emails">Emails</NavLink>
             <NavLink href="/app/reports">Reports</NavLink>

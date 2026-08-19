@@ -65,6 +65,20 @@ function FieldInput({
       return (
         <input type="number" className="input" value={String(value ?? '')} onChange={(e) => onChange(e.target.value)} />
       );
+    case 'salary':
+      return (
+        <div className="flex items-center gap-2">
+          <span className="rounded-md border border-line bg-paper px-3 py-2 text-sm text-ink-soft">₹ INR</span>
+          <input
+            type="text"
+            inputMode="numeric"
+            placeholder="e.g. 450000"
+            className="input"
+            value={String(value ?? '')}
+            onChange={(e) => onChange(e.target.value)}
+          />
+        </div>
+      );
     case 'date':
       return (
         <input type="date" className="input" value={String(value ?? '')} onChange={(e) => onChange(e.target.value)} />

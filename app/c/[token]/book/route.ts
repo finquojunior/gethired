@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { q } from '@/lib/db';
 import { audit } from '@/lib/audit';
+import { staffEmails } from '@/lib/slots';
 import { appUrl, icsEvent, sendEmail } from '@/lib/email';
 import { fmtDateTimeFull } from '@/lib/tz';
 
@@ -39,13 +40,14 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ token: str
       interviewer: string;
       meeting_link: string;
       interviewer_email: string | null;
+      panel: string[];
     }>(
       `update public.slots sl set application_id = $1
        from public.profiles p
        where sl.id = $2 and sl.stage_id = $3 and sl.application_id is null
          and sl.starts_at > now() and p.id = sl.interviewer_id
        returning sl.starts_at, sl.duration_mins, p.full_name as interviewer, sl.meeting_link,
-         (select u.email from auth.users u where u.id = p.id) as interviewer_email`,
+         (select u.email from auth.users u where u.id = p.id) as interviewer_email, sl.panel`,
       [a.id, slotId, a.stage_id]
     ));
   } catch (e) {
@@ -76,11 +78,12 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ token: str
     },
     ics,
   });
-  if (slot.interviewer_email) {
+  const panelEmails = await staffEmails(slot.panel ?? []);
+  for (const to of [slot.interviewer_email, ...panelEmails].filter(Boolean) as string[]) {
     await sendEmail({
       applicationId: a.id,
       template: 'interviewer_booked',
-      to: slot.interviewer_email,
+      to,
       vars: {
         name: a.name,
         role: a.title,

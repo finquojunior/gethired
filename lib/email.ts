@@ -40,6 +40,11 @@ export const DEFAULT_TEMPLATES: Record<string, { subject: string; body: string; 
     body: `Hi {{name}},\n\nA reminder about your interview for {{role}}:\n\n{{when}} ({{duration}} minutes) with {{interviewer}}.\n{{link}}\n\nGood luck!\n`,
     vars: ['name', 'role', 'when', 'duration', 'interviewer', 'link'],
   },
+  stage_update: {
+    subject: 'Application update — {{role}}',
+    body: `Hi {{name}},\n\nGood news — your application for {{role}} has moved forward to the {{stage}} stage.\n\nTrack your application any time:\n{{portal_link}}\n`,
+    vars: ['name', 'role', 'stage', 'portal_link'],
+  },
   rejection: {
     subject: 'Update on your application — {{role}}',
     body: `Hi {{name}},\n\nThank you for applying for {{role}}. After careful review we won't be moving forward with your application this time.\n\nWe'd love to see you apply again for future roles.\n`,

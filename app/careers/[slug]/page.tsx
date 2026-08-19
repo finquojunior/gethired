@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { q } from '@/lib/db';
+import { renderRich } from '@/lib/richtext';
 import type { FormSchema } from '@/lib/form-schema';
 import ApplyForm from './ApplyForm';
 
@@ -78,12 +79,18 @@ export default async function OpeningPublicPage({
         </p>
       )}
       {o.description && (
-        <p className="mt-6 whitespace-pre-line text-ink-soft">{o.description}</p>
+        <div
+          className="mt-6 space-y-2 text-ink-soft"
+          dangerouslySetInnerHTML={{ __html: renderRich(o.description) }}
+        />
       )}
       {o.notes && (
         <div className="mt-6 rounded-lg border border-amber/40 bg-amber/10 p-4">
           <p className="text-sm font-semibold text-amber">Before you apply</p>
-          <p className="mt-1 whitespace-pre-line text-sm">{o.notes}</p>
+          <div
+            className="mt-1 space-y-1 text-sm"
+            dangerouslySetInnerHTML={{ __html: renderRich(o.notes) }}
+          />
         </div>
       )}
       <div className="mt-10 rounded-lg border border-line bg-card p-4 sm:p-6">

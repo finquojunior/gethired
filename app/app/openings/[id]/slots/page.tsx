@@ -29,11 +29,13 @@ export default async function SlotsPage({ params }: { params: Promise<{ id: stri
     duration_mins: number;
     stage: string;
     interviewer: string;
+    panel_names: string | null;
     candidate_id: number | null;
     candidate: string | null;
   }>(
     `select sl.id, sl.starts_at, sl.duration_mins, st.name as stage,
-            p.full_name as interviewer, a.id as candidate_id, a.name as candidate
+            p.full_name as interviewer, a.id as candidate_id, a.name as candidate,
+            (select string_agg(pp.full_name, ', ') from public.profiles pp where pp.id = any(sl.panel)) as panel_names
      from public.slots sl
      join public.stages st on st.id = sl.stage_id
      join public.profiles p on p.id = sl.interviewer_id
@@ -73,8 +75,8 @@ export default async function SlotsPage({ params }: { params: Promise<{ id: stri
             </select>
           </div>
           <div>
-            <label className="field-label">Interviewer</label>
-            <select name="interviewerId" className="input w-44">
+            <label className="field-label">Interview panel (⌘/Ctrl-click for multiple; first = primary)</label>
+            <select name="interviewerIds" multiple size={Math.min(4, people.length)} className="input w-52">
               {people.map((p) => (
                 <option key={p.id} value={p.id}>{p.full_name}</option>
               ))}
@@ -122,7 +124,10 @@ export default async function SlotsPage({ params }: { params: Promise<{ id: stri
                 <span className="text-ink-soft"> · {s.duration_mins}m</span>
               </td>
               <td className="px-4 py-2.5">{s.stage}</td>
-              <td className="px-4 py-2.5">{s.interviewer}</td>
+              <td className="px-4 py-2.5">
+                {s.interviewer}
+                {s.panel_names && <span className="text-ink-soft"> + {s.panel_names}</span>}
+              </td>
               <td className="px-4 py-2.5">
                 {s.candidate_id ? (
                   <Link href={`/app/candidates/${s.candidate_id}`} className="text-pine underline">

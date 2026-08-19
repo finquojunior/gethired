@@ -25,6 +25,7 @@ const FIELD_TYPES: Array<[FieldType, string]> = [
   ['email', 'Email'],
   ['phone', 'Phone'],
   ['url', 'Link / URL'],
+  ['salary', 'Salary (₹ INR)'],
 ];
 
 export default function FormBuilder({

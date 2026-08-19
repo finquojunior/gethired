@@ -70,6 +70,24 @@ test('validation rejects out-of-range values', () => {
   assert.equal(r3.errors.stack, 'Pick from the listed options');
 });
 
+test('salary field validates and formats INR', () => {
+  const s: FormSchema = {
+    pages: [{ title: 'p', fields: [{ id: 'sal', type: 'salary', label: 'Expected CTC', required: true }] }],
+  };
+  assert.equal(validateAnswers(s, { sal: '4,50,000' }).clean.sal, '₹4,50,000');
+  assert.equal(validateAnswers(s, { sal: 'abc' }).errors.sal, 'Enter an amount in INR');
+});
+
+test('rich text renders subset and escapes HTML', async () => {
+  const { renderRich } = await import('../lib/richtext.ts');
+  const html = renderRich('**bold** and *em*\n- one\n- two\n<script>alert(1)</script>');
+  assert.ok(html.includes('<strong>bold</strong>'));
+  assert.ok(html.includes('<em>em</em>'));
+  assert.ok(html.includes('<li>one</li>'));
+  assert.ok(!html.includes('<script>'));
+  assert.ok(html.includes('&lt;script&gt;'));
+});
+
 test('max score sums best options; checkboxes sum positive points', () => {
   // exp: best Yes = 10; stack (checkboxes): JS 5 + Go 3 = 8
   assert.equal(computeMaxScore(schema), 18);

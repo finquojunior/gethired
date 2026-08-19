@@ -85,6 +85,14 @@ export async function updateOpening(formData: FormData) {
   const id = Number(formData.get('id'));
   const status = String(formData.get('status') ?? 'draft');
   if (!['draft', 'open', 'paused', 'closed'].includes(status)) return;
+  const newSlug = slugify(String(formData.get('slug') ?? ''));
+  if (!newSlug) redirect(`/app/openings/${id}?e=slug`);
+  try {
+    await q(`update public.openings set slug = $2 where id = $1`, [id, newSlug]);
+  } catch (err) {
+    if ((err as { code?: string }).code === '23505') redirect(`/app/openings/${id}?e=slug`);
+    throw err;
+  }
   const closeDate = String(formData.get('close_date') ?? '');
   const closeAt = /^\d{4}-\d{2}-\d{2}$/.test(closeDate)
     ? orgTimeToUtc(closeDate, '23:59').toISOString()
@@ -305,7 +313,11 @@ export async function createSlots(formData: FormData) {
   await requireStaff();
   const openingId = Number(formData.get('openingId'));
   const stageId = Number(formData.get('stageId'));
-  const interviewerId = String(formData.get('interviewerId'));
+  // first selected person is the primary interviewer; the rest form the panel
+  const panelIds = formData.getAll('interviewerIds').map(String).filter(Boolean);
+  const interviewerId = panelIds[0];
+  const panel = panelIds.slice(1);
+  if (!interviewerId) return;
   const date = String(formData.get('date')); // YYYY-MM-DD
   const from = String(formData.get('from')); // HH:MM
   const to = String(formData.get('to'));
@@ -317,15 +329,15 @@ export async function createSlots(formData: FormData) {
   const start = orgTimeToUtc(date, from);
   const end = orgTimeToUtc(date, to);
   const values: string[] = [];
-  const params: unknown[] = [openingId, stageId, interviewerId, duration, meetingLink];
+  const params: unknown[] = [openingId, stageId, interviewerId, duration, meetingLink, panel];
   let p = params.length;
   for (let t = start; t.getTime() + duration * 60_000 <= end.getTime(); t = new Date(t.getTime() + duration * 60_000)) {
-    values.push(`($1, $2, $3, $${++p}, $4, $5)`);
+    values.push(`($1, $2, $3, $${++p}, $4, $5, $6)`);
     params.push(t.toISOString());
   }
   if (values.length === 0) return;
   await q(
-    `insert into public.slots (opening_id, stage_id, interviewer_id, starts_at, duration_mins, meeting_link)
+    `insert into public.slots (opening_id, stage_id, interviewer_id, starts_at, duration_mins, meeting_link, panel)
      values ${values.join(', ')}`,
     params
   );

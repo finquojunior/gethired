@@ -8,7 +8,7 @@ import { currentUser, isStaff } from '@/lib/auth';
 import { appUrl, icsEvent, portalUrl, sendCustomEmail, sendEmail } from '@/lib/email';
 import { fmtDateTimeFull } from '@/lib/tz';
 import { audit } from '@/lib/audit';
-import { freeFutureSlots } from '@/lib/slots';
+import { freeFutureSlots, staffEmails } from '@/lib/slots';
 import { RESUME_EXTS, RESUME_MAX_BYTES, saveUpload } from '@/lib/storage';
 
 const REJECTION_DELAY_MINUTES = 30; // undo window: restore cancels the pending email
@@ -28,7 +28,15 @@ async function notifyStage(applicationIds: number[], stageId: number) {
      where s.id = $1`,
     [stageId]
   );
-  if (!stage || (stage.kind !== 'task' && stage.kind !== 'interview')) return;
+  if (!stage) return;
+  // every stage move emails the candidate: task/interview get their specific
+  // instructions, everything else (shortlist, offer, …) a progress update
+  const template =
+    stage.kind === 'interview'
+      ? 'interview_invite'
+      : stage.kind === 'task'
+        ? 'task_assigned'
+        : 'stage_update';
 
   const { rows: apps } = await q<{ id: number; name: string; email: string; portal_token: string }>(
     `select id, name, email, portal_token from public.applications where id = any($1)`,
@@ -37,11 +45,12 @@ async function notifyStage(applicationIds: number[], stageId: number) {
   for (const a of apps) {
     await sendEmail({
       applicationId: a.id,
-      template: stage.kind === 'interview' ? 'interview_invite' : 'task_assigned',
+      template,
       to: a.email,
       vars: {
         name: a.name,
         role: stage.title,
+        stage: stage.name,
         brief: stage.brief || 'Task details will follow.',
         portal_link: portalUrl(a.portal_token),
       },
@@ -292,13 +301,13 @@ export async function staffBookSlot(formData: FormData) {
   if (!a || !a.stage_id || !slotId) return;
   const {
     rows: [slot],
-  } = await q<{ starts_at: Date; duration_mins: number; interviewer: string; meeting_link: string; interviewer_email: string | null }>(
+  } = await q<{ starts_at: Date; duration_mins: number; interviewer: string; meeting_link: string; interviewer_email: string | null; panel: string[] }>(
     `update public.slots sl set application_id = $1
      from public.profiles p
      where sl.id = $2 and sl.stage_id = $3 and sl.application_id is null
        and sl.starts_at > now() and p.id = sl.interviewer_id
      returning sl.starts_at, sl.duration_mins, p.full_name as interviewer, sl.meeting_link,
-       (select u.email from auth.users u where u.id = p.id) as interviewer_email`,
+       (select u.email from auth.users u where u.id = p.id) as interviewer_email, sl.panel`,
     [a.id, slotId, a.stage_id]
   );
   if (!slot) return;
@@ -319,11 +328,12 @@ export async function staffBookSlot(formData: FormData) {
     },
     ics,
   });
-  if (slot.interviewer_email) {
+  const panelEmails = await staffEmails(slot.panel ?? []);
+  for (const to of [slot.interviewer_email, ...panelEmails].filter(Boolean) as string[]) {
     await sendEmail({
       applicationId: a.id,
       template: 'interviewer_booked',
-      to: slot.interviewer_email,
+      to,
       vars: {
         name: a.name, role: a.title, when,
         duration: String(slot.duration_mins), profile_link: appUrl(`/app/candidates/${a.id}`),

@@ -3,6 +3,7 @@ import BackButton from '@/components/BackButton';
 import { notFound } from 'next/navigation';
 import { q } from '@/lib/db';
 import SubmitButton from '@/components/SubmitButton';
+import RichTextArea from '@/components/RichTextArea';
 import { POSTER_ACCEPT } from '@/lib/uploads';
 import { updateOpening } from '../actions';
 
@@ -72,11 +73,27 @@ export default async function OpeningPage({
         </p>
       )}
 
+      {e === 'slug' && (
+        <p className="mt-4 rounded-md bg-rust/10 px-4 py-3 text-sm text-rust">
+          That public link is empty or already used by another opening — pick a different one.
+        </p>
+      )}
+
       <form action={updateOpening} className="mt-8 max-w-2xl space-y-4">
         <input type="hidden" name="id" value={o.id} />
         <div>
           <label className="field-label" htmlFor="title">Title</label>
           <input id="title" name="title" defaultValue={o.title} required className="input" />
+        </div>
+        <div>
+          <label className="field-label" htmlFor="slug">
+            Public link — /careers/…
+          </label>
+          <input id="slug" name="slug" defaultValue={o.slug} required className="input font-mono text-sm" />
+          <p className="mt-1 text-xs text-ink-soft">
+            The link doesn&apos;t change automatically when the title changes. Careful editing it
+            after sharing — links already posted in ads keep pointing at the old address.
+          </p>
         </div>
         <div className="flex flex-col gap-4 sm:flex-row">
           <div className="flex-1">
@@ -121,25 +138,18 @@ export default async function OpeningPage({
         </div>
         <div>
           <label className="field-label" htmlFor="description">Description (shown on the public page)</label>
-          <textarea
-            id="description"
-            name="description"
-            rows={6}
-            defaultValue={o.description}
-            className="input"
-          />
+          <RichTextArea id="description" name="description" rows={6} defaultValue={o.description} />
         </div>
         <div>
           <label className="field-label" htmlFor="notes">
             Important notes (highlighted to candidates before they apply)
           </label>
-          <textarea
+          <RichTextArea
             id="notes"
             name="notes"
             rows={3}
             defaultValue={o.notes}
             placeholder={'e.g. Work from office (Kochi). Immediate joiners preferred.\nShortlisted candidates get a task round.'}
-            className="input"
           />
         </div>
         <div>

@@ -295,7 +295,15 @@ export default async function CandidatePage({ params }: { params: Promise<{ id: 
           </section>
 
           <section>
-            <h2 className="font-display text-lg font-semibold">Interviews</h2>
+            <div className="flex items-center justify-between">
+              <h2 className="font-display text-lg font-semibold">Interviews</h2>
+              <Link
+                href={`/app/openings/${a.opening_id}/slots`}
+                className="text-sm text-pine underline"
+              >
+                Manage slots →
+              </Link>
+            </div>
             <ul className="mt-3 space-y-2 text-sm">
               {slots.map((s, i) => (
                 <li key={i} className="flex items-center justify-between rounded-lg border border-line bg-card p-3">

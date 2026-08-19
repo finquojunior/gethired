@@ -13,7 +13,8 @@ export type FieldType =
   | 'date'
   | 'email'
   | 'phone'
-  | 'url';
+  | 'url'
+  | 'salary';
 
 export interface Condition {
   fieldId: string;
@@ -126,6 +127,13 @@ export function validateAnswers(
         const n = Number(raw);
         if (!Number.isFinite(n)) errors[f.id] = 'Enter a number';
         else clean[f.id] = n;
+        break;
+      }
+      case 'salary': {
+        // INR amount; tolerate commas ("4,50,000")
+        const n = Number(String(raw).replace(/,/g, ''));
+        if (!Number.isFinite(n) || n < 0) errors[f.id] = 'Enter an amount in INR';
+        else clean[f.id] = `₹${n.toLocaleString('en-IN')}`;
         break;
       }
       case 'date': {

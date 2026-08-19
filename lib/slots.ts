@@ -41,6 +41,16 @@ export async function freeFutureSlots(
   return freed.length;
 }
 
+/** Emails for a set of staff ids (panel members) — only those with an email. */
+export async function staffEmails(ids: string[]): Promise<string[]> {
+  if (ids.length === 0) return [];
+  const { rows } = await q<{ email: string }>(
+    `select u.email from auth.users u where u.id = any($1) and u.email is not null`,
+    [ids]
+  );
+  return rows.map((r) => r.email);
+}
+
 /** Application ids holding a booking, resolved from a portal token. */
 export async function applicationByToken(token: string): Promise<number | null> {
   const {
