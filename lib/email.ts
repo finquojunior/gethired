@@ -117,6 +117,15 @@ export async function attemptSend(id: number): Promise<void> {
 
   const key = process.env.RESEND_API_KEY;
   if (!key) {
+    if (process.env.NODE_ENV === 'production') {
+      // never silently swallow candidate email in production
+      await q(
+        `update public.email_log set status = 'failed', attempts = attempts + 1,
+           error = 'RESEND_API_KEY is not set in this environment' where id = $1`,
+        [id]
+      );
+      return;
+    }
     // dev: the log row IS the outbox; mark delivered
     await q(`update public.email_log set status = 'sent', sent_at = now() where id = $1`, [id]);
     return;
