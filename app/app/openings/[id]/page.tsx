@@ -200,6 +200,8 @@ export default async function OpeningPage({
           <p className="mt-2 text-sm text-ink-soft">
             Download a complete archive of this opening — every candidate&apos;s data as
             JSON/CSV plus all resumes, task submissions, and the poster — as a single zip.
+            The zip is saved to <strong>your computer only</strong>; the system keeps no copy,
+            so store it somewhere safe before deleting below.
           </p>
           <a href={`/app/openings/${o.id}/archive`} className="btn-quiet mt-3">
             Download full archive (.zip)
