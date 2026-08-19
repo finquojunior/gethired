@@ -14,8 +14,10 @@ import { Readable } from 'node:stream';
 export const FILES_ROOT = path.join(process.cwd(), 'db', 'files');
 export { RESUME_MAX_BYTES, RESUME_EXTS, TASK_MAX_BYTES, TASK_EXTS } from '@/lib/uploads';
 
-const SUPA = process.env.SUPABASE_URL;
-const SUPA_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const SUPA = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
+// accept both the classic service_role key and the new-style secret key that
+// the Vercel-Supabase integration provisions
+const SUPA_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_SECRET_KEY;
 const useSupabase = Boolean(SUPA && SUPA_KEY);
 
 if (process.env.VERCEL && !useSupabase) {
