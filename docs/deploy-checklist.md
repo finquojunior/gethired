@@ -27,7 +27,7 @@
 | `SUPABASE_URL` | project URL (uploads go to Supabase Storage; deploy fails closed without it) |
 | `SUPABASE_SERVICE_ROLE_KEY` | service role key (server-side only, never NEXT_PUBLIC) |
 | `RESEND_API_KEY` + `EMAIL_FROM` | for real email delivery (domain must be verified in Resend) |
-| `ORG_NAME`, `ORG_TZ` | branding + timezone (defaults: ThinkForge, Asia/Kolkata) |
+| `ORG_NAME`, `ORG_TZ` | branding + timezone (defaults: Finquo Junior, Asia/Kolkata) |
 
 vercel.json already schedules `/api/cron` hourly.
 

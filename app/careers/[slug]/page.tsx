@@ -6,7 +6,7 @@ import ApplyForm from './ApplyForm';
 
 export const revalidate = 60; // ad-burst traffic hits cache, not Postgres
 
-const ORG = process.env.ORG_NAME ?? 'ThinkForge';
+const ORG = process.env.ORG_NAME ?? 'Finquo Junior';
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;

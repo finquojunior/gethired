@@ -4,7 +4,7 @@ import { q } from '@/lib/db';
 
 export const revalidate = 60; // ad-burst traffic hits cache, not Postgres
 
-const ORG = process.env.ORG_NAME ?? 'ThinkForge';
+const ORG = process.env.ORG_NAME ?? 'Finquo Junior';
 
 export const metadata: Metadata = {
   title: `Careers at ${ORG}`,
