@@ -21,13 +21,19 @@ export async function addUser(formData: FormData) {
   const password = String(formData.get('password') ?? '');
   if (!name || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) || !ROLES.includes(role)) return;
   if (password && password.length < 8) return;
-  const {
+  // hosted Supabase's auth.users has no plain unique(email) constraint,
+  // so upsert-by-email must be a lookup-then-insert
+  let {
     rows: [u],
-  } = await q<{ id: string }>(
-    `insert into auth.users (email) values ($1) on conflict (email) do update set email = excluded.email
-     returning id`,
-    [email]
-  );
+  } = await q<{ id: string }>(`select id from auth.users where email = $1`, [email]);
+  if (!u) {
+    ({
+      rows: [u],
+    } = await q<{ id: string }>(
+      `insert into auth.users (id, email) values (gen_random_uuid(), $1) returning id`,
+      [email]
+    ));
+  }
   await q(
     `insert into public.profiles (id, full_name, role, password_hash)
      values ($1, $2, $3, $4)
