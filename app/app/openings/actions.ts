@@ -8,7 +8,7 @@ import { currentUser, isStaff } from '@/lib/auth';
 import { audit } from '@/lib/audit';
 import { orgTimeToUtc } from '@/lib/tz';
 import { EMPTY_SCHEMA, type FormSchema } from '@/lib/form-schema';
-import { saveUpload } from '@/lib/storage';
+import { deleteFile, saveUpload } from '@/lib/storage';
 import { POSTER_EXTS, POSTER_MAX_BYTES } from '@/lib/uploads';
 
 const DEFAULT_STAGES: Array<[string, string]> = [
@@ -190,6 +190,57 @@ export async function fetchOpeningQuestions(openingId: number) {
     [openingId]
   );
   return form ? form.schema.pages.flatMap((p) => p.fields) : [];
+}
+
+/**
+ * Admin-only, irreversible: wipe an opening and everything under it —
+ * applications, feedback, notes, history, emails, slots, forms, stages, and
+ * every stored file. The UI requires typing the slug to confirm; download the
+ * archive first.
+ */
+export async function deleteOpeningData(formData: FormData) {
+  const user = await currentUser();
+  if (user.role !== 'admin') throw new Error('Admins only');
+  const openingId = Number(formData.get('openingId'));
+  const confirm = String(formData.get('confirmSlug') ?? '').trim();
+
+  const {
+    rows: [opening],
+  } = await q<{ slug: string; poster_path: string }>(
+    `select slug, poster_path from public.openings where id = $1`,
+    [openingId]
+  );
+  if (!opening) return;
+  if (confirm !== opening.slug) redirect(`/app/openings/${openingId}?e=confirm`);
+
+  // collect file paths before the cascade removes the rows
+  const { rows: files } = await q<{ p: string }>(
+    `select resume_path as p from public.applications where opening_id = $1 and resume_path <> ''
+     union all
+     select s.file_path from public.submissions s
+       join public.applications a on a.id = s.application_id
+     where a.opening_id = $1 and s.file_path <> ''`,
+    [openingId]
+  );
+  const {
+    rows: [{ n: candidates }],
+  } = await q<{ n: number }>(
+    `select count(*)::int as n from public.applications where opening_id = $1`,
+    [openingId]
+  );
+
+  await q(`delete from public.openings where id = $1`, [openingId]);
+  for (const f of files) await deleteFile(f.p);
+  if (opening.poster_path) await deleteFile(opening.poster_path);
+
+  await audit(user.id, 'delete_opening_data', 'opening', openingId, {
+    slug: opening.slug,
+    candidates,
+    files: files.length,
+  });
+  revalidatePath('/app/openings');
+  revalidatePath('/careers');
+  redirect('/app/openings');
 }
 
 // --- stages ---

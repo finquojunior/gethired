@@ -4,8 +4,9 @@ import { notFound } from 'next/navigation';
 import { q } from '@/lib/db';
 import SubmitButton from '@/components/SubmitButton';
 import RichTextArea from '@/components/RichTextArea';
+import { currentUser } from '@/lib/auth';
 import { POSTER_ACCEPT } from '@/lib/uploads';
-import { updateOpening } from '../actions';
+import { deleteOpeningData, updateOpening } from '../actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,6 +19,7 @@ export default async function OpeningPage({
 }) {
   const { id } = await params;
   const { e } = await searchParams;
+  const user = await currentUser();
   const {
     rows: [o],
   } = await q<{
@@ -191,6 +193,42 @@ export default async function OpeningPage({
         </div>
         <SubmitButton className="btn-primary" pendingLabel="Saving…">Save changes</SubmitButton>
       </form>
+
+      {user.role === 'admin' && (
+        <section className="mt-12 max-w-2xl rounded-lg border border-rust/40 bg-rust/5 p-5">
+          <h2 className="font-display text-lg font-semibold text-rust">Danger zone (admins only)</h2>
+          <p className="mt-2 text-sm text-ink-soft">
+            Download a complete archive of this opening — every candidate&apos;s data as
+            JSON/CSV plus all resumes, task submissions, and the poster — as a single zip.
+          </p>
+          <a href={`/app/openings/${o.id}/archive`} className="btn-quiet mt-3">
+            Download full archive (.zip)
+          </a>
+          <hr className="my-5 border-rust/20" />
+          <p className="text-sm text-ink-soft">
+            Permanently delete this opening and <strong>everything</strong> under it: all
+            applications, resumes, submissions, feedback, notes, emails, slots, forms, and
+            stages. This cannot be undone — download the archive first.
+          </p>
+          {e === 'confirm' && (
+            <p className="mt-2 rounded-md bg-rust/10 px-3 py-2 text-sm text-rust">
+              The confirmation didn&apos;t match — type the public link name exactly: {o.slug}
+            </p>
+          )}
+          <form action={deleteOpeningData} className="mt-3 flex flex-wrap items-end gap-2">
+            <input type="hidden" name="openingId" value={o.id} />
+            <div className="min-w-56 flex-1">
+              <label className="field-label" htmlFor="confirmSlug">
+                Type <code className="rounded bg-paper px-1">{o.slug}</code> to confirm
+              </label>
+              <input id="confirmSlug" name="confirmSlug" autoComplete="off" className="input" />
+            </div>
+            <SubmitButton className="btn-quiet border-rust text-rust" pendingLabel="Deleting…">
+              Delete everything
+            </SubmitButton>
+          </form>
+        </section>
+      )}
     </div>
   );
 }

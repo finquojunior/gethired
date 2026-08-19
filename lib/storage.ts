@@ -48,6 +48,36 @@ export async function saveUpload(kind: Kind, file: File): Promise<string> {
   return relPath;
 }
 
+/** Read a stored file fully into memory (for archives). Null if missing. */
+export async function readFileBuffer(relPath: string): Promise<Buffer | null> {
+  const file = await getFile(relPath.split('/'));
+  if (!file) return null;
+  const chunks: Buffer[] = [];
+  const reader = file.body.getReader();
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(Buffer.from(value));
+  }
+  return Buffer.concat(chunks);
+}
+
+/** Delete a stored file; missing files are not an error. */
+export async function deleteFile(relPath: string): Promise<void> {
+  if (!relPath || relPath.includes('..')) return;
+  if (useSupabase) {
+    await fetch(`${SUPA}/storage/v1/object/${relPath}`, {
+      method: 'DELETE',
+      headers: { authorization: `Bearer ${SUPA_KEY}` },
+    }).catch(() => {});
+  } else {
+    const abs = path.resolve(FILES_ROOT, relPath);
+    if (abs.startsWith(FILES_ROOT + path.sep)) {
+      await import('node:fs/promises').then((fs) => fs.rm(abs, { force: true })).catch(() => {});
+    }
+  }
+}
+
 /** Fetch a stored file for serving. Null on traversal attempts or missing files. */
 export async function getFile(
   parts: string[]
