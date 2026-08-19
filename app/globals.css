@@ -1,0 +1,82 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-ink: #16233b;
+  --color-ink-soft: #46536b;
+  --color-paper: #f4f6f5;
+  --color-card: #ffffff;
+  --color-pine: #0f5c4e;
+  --color-pine-deep: #0b4a3f;
+  --color-pine-wash: #e3efec;
+  --color-amber: #c77d1f;
+  --color-rust: #b3452e;
+  --color-line: #dde3e0;
+  --font-display: var(--font-bricolage), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+body {
+  background: var(--color-paper);
+  color: var(--color-ink);
+}
+
+/* signature: the pipeline track — dotted rail with a filled node */
+.track {
+  position: relative;
+  border-bottom: 2px dotted var(--color-line);
+  padding-bottom: 0.75rem;
+}
+.track::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: -5px;
+  width: 8px;
+  height: 8px;
+  border-radius: 9999px;
+  background: var(--color-pine);
+}
+
+/* keyboard focus is always visible */
+:focus-visible {
+  outline: 2px solid var(--color-pine);
+  outline-offset: 2px;
+}
+
+/* display headings: size-specific tracking and leading */
+h1 {
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+
+.btn-primary,
+.btn-quiet {
+  @apply inline-flex items-center gap-1.5 rounded-md px-3.5 py-2 text-sm font-medium transition-colors;
+}
+
+/* instant pointer-down feedback */
+@media (prefers-reduced-motion: no-preference) {
+  .btn-primary,
+  .btn-quiet {
+    transition:
+      transform 100ms ease-out,
+      background-color 150ms,
+      border-color 150ms;
+  }
+  .btn-primary:active,
+  .btn-quiet:active {
+    transform: scale(0.97);
+  }
+}
+.btn-primary {
+  @apply bg-pine text-white hover:bg-pine-deep;
+}
+.btn-quiet {
+  @apply border border-line bg-card text-ink hover:border-pine;
+}
+.field-label {
+  @apply mb-1 block text-sm font-medium text-ink;
+}
+.input {
+  @apply w-full rounded-md border border-line bg-card px-3 py-2 text-sm text-ink outline-none focus:border-pine;
+}
