@@ -45,6 +45,11 @@ export const DEFAULT_TEMPLATES: Record<string, { subject: string; body: string; 
     body: `Hi {{name}},\n\nGood news — your application for {{role}} has moved forward to the {{stage}} stage.\n\nTrack your application any time:\n{{portal_link}}\n`,
     vars: ['name', 'role', 'stage', 'portal_link'],
   },
+  hired: {
+    subject: 'Congratulations — {{role}}!',
+    body: `Hi {{name}},\n\nCongratulations! We're delighted to let you know you've been selected for {{role}}.\n\nOur team will reach out shortly with the next steps and your offer details.\n\nWelcome aboard!`,
+    vars: ['name', 'role'],
+  },
   rejection: {
     subject: 'Update on your application — {{role}}',
     body: `Hi {{name}},\n\nThank you for applying for {{role}}. After careful review we won't be moving forward with your application this time.\n\nWe'd love to see you apply again for future roles.\n`,

@@ -140,11 +140,21 @@ export async function bulkPipeline(formData: FormData) {
     );
     await audit(user.id, 'restore', 'application', ids.join(','));
   } else if (intent === 'hire') {
-    await q(
-      `update public.applications set status = 'hired'
-       where id = any($1) and opening_id = $2 and status = 'active'`,
+    const { rows: hired } = await q<{ id: number; name: string; email: string; title: string }>(
+      `update public.applications a set status = 'hired'
+       from public.openings o
+       where a.id = any($1) and a.opening_id = $2 and o.id = a.opening_id and a.status = 'active'
+       returning a.id, a.name, a.email, o.title`,
       [ids, openingId]
     );
+    for (const a of hired) {
+      await sendEmail({
+        applicationId: a.id,
+        template: 'hired',
+        to: a.email,
+        vars: { name: a.name, role: a.title },
+      });
+    }
     await audit(user.id, 'hire', 'application', ids.join(','));
   }
   revalidatePath(`/app/openings/${openingId}/applications`);
