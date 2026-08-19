@@ -1,0 +1,22 @@
+name: cron
+# Vercel Hobby only allows daily crons, so the frequent tick lives here:
+# delivers the email outbox (incl. 30-min delayed rejections), interview
+# reminders, feedback nudges, and auto-close.
+# Requires two repository secrets:
+#   CRON_URL    e.g. https://hiring.yourdomain.com/api/cron
+#   CRON_SECRET same value as the Vercel env var
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch: {}
+
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call /api/cron
+        run: |
+          if [ -z "${{ secrets.CRON_URL }}" ]; then
+            echo "CRON_URL secret not set — skipping"; exit 0
+          fi
+          curl -sf -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" "${{ secrets.CRON_URL }}"
