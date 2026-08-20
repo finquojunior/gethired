@@ -6,16 +6,16 @@ import { fmtDate } from '@/lib/tz';
 import SubmitButton from '@/components/SubmitButton';
 import { bulkPipeline } from '@/app/app/candidates/actions';
 import BoardView from './BoardView';
+import {
+  FEEDBACK_JOIN,
+  PIPELINE_SORTS as SORTS,
+  PIPELINE_WHERE,
+  isDate,
+  pipelineCtxParams,
+  pipelineParams,
+} from '@/lib/pipeline';
 
 export const dynamic = 'force-dynamic';
-
-// fixed order-by fragments only — never user input
-const SORTS: Record<string, string> = {
-  score: 'a.score desc nulls last, a.created_at desc',
-  newest: 'a.created_at desc',
-  oldest: 'a.created_at asc',
-  name: 'a.name asc',
-};
 
 export default async function ApplicationsPage({
   params,
@@ -27,7 +27,6 @@ export default async function ApplicationsPage({
   const { id } = await params;
   const { stage, status = 'active', from = '', to = '', view, sort = 'score' } = await searchParams;
   const board = view === 'board';
-  const isDate = (s: string) => /^\d{4}-\d{2}-\d{2}$/.test(s);
   const openingId = Number(id);
   const {
     rows: [opening],
@@ -54,6 +53,7 @@ export default async function ApplicationsPage({
   );
 
   const stageId = stage ? Number(stage) : null;
+  const ctx = { stage, status, from, to, sort };
   const { rows: apps } = await q<{
     id: number;
     name: string;
@@ -65,20 +65,21 @@ export default async function ApplicationsPage({
     stage_id: number | null;
     status: string;
     created_at: Date;
+    avg_rating: string | null;
+    rating_count: number | null;
   }>(
     `select a.id, a.name, a.email, a.score, a.max_score, f.version, s.name as stage,
-            a.current_stage_id as stage_id, a.status, a.created_at
+            a.current_stage_id as stage_id, a.status, a.created_at,
+            fb.avg_rating, fb.rating_count
      from public.applications a
      join public.forms f on f.id = a.form_id
      left join public.stages s on s.id = a.current_stage_id
-     where a.opening_id = $1
-       and ($2::bigint is null or a.current_stage_id = $2)
-       and a.status = $3
-       and ($4::date is null or a.created_at >= $4::date)
-       and ($5::date is null or a.created_at < $5::date + 1)
+     ${FEEDBACK_JOIN}
+     where ${PIPELINE_WHERE}
      order by ${SORTS[sort] ?? SORTS.score}`,
-    [openingId, stageId, status, isDate(from) ? from : null, isDate(to) ? to : null]
+    pipelineParams(openingId, ctx)
   );
+  const ctxQs = pipelineCtxParams(openingId, ctx);
 
   const tab = (href: string, label: string, active: boolean, count?: number) => (
     <Link
@@ -145,7 +146,8 @@ export default async function ApplicationsPage({
         <div>
           <label className="field-label" htmlFor="sort">Sort by</label>
           <select id="sort" name="sort" defaultValue={sort} className="input w-36 py-1.5">
-            <option value="score">Score</option>
+            <option value="score">Form score</option>
+            <option value="feedback">Feedback</option>
             <option value="newest">Newest</option>
             <option value="oldest">Oldest</option>
             <option value="name">Name</option>
@@ -178,7 +180,8 @@ export default async function ApplicationsPage({
             <tr className="border-b border-line text-left text-xs uppercase tracking-wide text-ink-soft">
               <th className="w-10 px-4 py-3" />
               <th className="px-4 py-3">Candidate</th>
-              <th className="px-4 py-3">Score</th>
+              <th className="px-4 py-3">Form score</th>
+              <th className="px-4 py-3">Feedback</th>
               <th className="px-4 py-3">Stage</th>
               <th className="px-4 py-3">Applied</th>
             </tr>
@@ -191,7 +194,7 @@ export default async function ApplicationsPage({
                 </td>
                 <td className="p-0">
                   <Link
-                    href={`/app/candidates/${a.id}`}
+                    href={`/app/candidates/${a.id}?${ctxQs}`}
                     className="block px-4 py-3"
                     title="Open candidate profile"
                   >
@@ -205,13 +208,25 @@ export default async function ApplicationsPage({
                     : (a.score ?? '—')}
                   <span className="ml-1.5 text-xs text-ink-soft">v{a.version}</span>
                 </td>
+                <td className="px-4 py-3">
+                  {a.avg_rating != null ? (
+                    <>
+                      <span className="text-amber">{'★'.repeat(Math.round(Number(a.avg_rating)))}</span>
+                      <span className="ml-1.5 text-xs text-ink-soft">
+                        {Number(a.avg_rating).toFixed(1)} ({a.rating_count})
+                      </span>
+                    </>
+                  ) : (
+                    '—'
+                  )}
+                </td>
                 <td className="px-4 py-3">{a.stage ?? '—'}</td>
                 <td className="px-4 py-3 text-ink-soft">{fmtDate(a.created_at)}</td>
               </tr>
             ))}
             {apps.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-4 py-10 text-center text-ink-soft">
+                <td colSpan={6} className="px-4 py-10 text-center text-ink-soft">
                   Nothing here.
                 </td>
               </tr>

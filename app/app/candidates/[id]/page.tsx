@@ -7,6 +7,7 @@ import { fmtDate, fmtDateTime } from '@/lib/tz';
 import { allFields, type FormSchema } from '@/lib/form-schema';
 import SubmitButton from '@/components/SubmitButton';
 import LinkifyText from '@/components/LinkifyText';
+import { FEEDBACK_JOIN, PIPELINE_SORTS, PIPELINE_WHERE, pipelineParams, type PipelineCtx } from '@/lib/pipeline';
 import {
   addFeedback,
   addNote,
@@ -26,8 +27,15 @@ const STATUS_STYLE: Record<string, string> = {
   withdrawn: 'bg-line text-ink-soft',
 };
 
-export default async function CandidatePage({ params }: { params: Promise<{ id: string }> }) {
+export default async function CandidatePage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ o?: string } & PipelineCtx>;
+}) {
   const { id } = await params;
+  const { o, ...ctx } = await searchParams;
   const appId = Number(id);
 
   const {
@@ -130,6 +138,23 @@ export default async function CandidatePage({ params }: { params: Promise<{ id: 
         ).rows
       : [];
 
+  // prev/next within the pipeline list the reviewer came from (?o=… carries its filters)
+  const navQs = new URLSearchParams({ o: String(o ?? ''), ...ctx } as Record<string, string>).toString();
+  let nav: { prev?: number; next?: number; pos: number; total: number } | null = null;
+  if (Number(o) === a.opening_id) {
+    const { rows: ids } = await q<{ id: number }>(
+      `select a.id from public.applications a
+       ${FEEDBACK_JOIN}
+       where ${PIPELINE_WHERE}
+       order by ${PIPELINE_SORTS[ctx.sort ?? ''] ?? PIPELINE_SORTS.score}`,
+      pipelineParams(a.opening_id, ctx)
+    );
+    const i = ids.findIndex((r) => r.id === appId);
+    if (i !== -1) {
+      nav = { prev: ids[i - 1]?.id, next: ids[i + 1]?.id, pos: i + 1, total: ids.length };
+    }
+  }
+
   const { rows: alsoApplied } = await q<{ id: number; title: string; status: string }>(
     `select a2.id, o.title, a2.status
      from public.applications a2 join public.openings o on o.id = a2.opening_id
@@ -159,9 +184,29 @@ export default async function CandidatePage({ params }: { params: Promise<{ id: 
     })),
   ].sort((x, y) => y.at.getTime() - x.at.getTime());
 
+  const navArrow = (id: number | undefined, label: string) =>
+    id ? (
+      <Link href={`/app/candidates/${id}?${navQs}`} className="btn-quiet !py-1">
+        {label}
+      </Link>
+    ) : (
+      <span className="btn-quiet !py-1 cursor-default opacity-40">{label}</span>
+    );
+
   return (
     <div>
-      <BackButton fallback="/app/candidates" />
+      <div className="flex items-center justify-between">
+        <BackButton fallback="/app/candidates" />
+        {nav && (
+          <div className="mb-3 flex items-center gap-2 text-sm">
+            {navArrow(nav.prev, '← Prev')}
+            <span className="text-ink-soft">
+              {nav.pos} of {nav.total}
+            </span>
+            {navArrow(nav.next, 'Next →')}
+          </div>
+        )}
+      </div>
       <div className="track flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="text-sm text-ink-soft">
