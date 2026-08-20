@@ -3,6 +3,7 @@ import { q } from '@/lib/db';
 import { fmtSlot } from '@/lib/tz';
 import { TASK_ACCEPT } from '@/lib/uploads';
 import { allFields, type FormSchema } from '@/lib/form-schema';
+import LinkifyText from '@/components/LinkifyText';
 
 export const dynamic = 'force-dynamic';
 
@@ -196,7 +197,7 @@ export default async function PortalPage({
               <div key={k}>
                 <dt className="text-ink-soft">{labels.get(k) ?? k}</dt>
                 <dd className="mt-0.5 whitespace-pre-line font-medium">
-                  {Array.isArray(v) ? v.join(', ') : String(v)}
+                  <LinkifyText value={v} />
                 </dd>
               </div>
             ))}

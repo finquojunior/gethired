@@ -6,6 +6,7 @@ import { portalUrl } from '@/lib/email';
 import { fmtDate, fmtDateTime } from '@/lib/tz';
 import { allFields, type FormSchema } from '@/lib/form-schema';
 import SubmitButton from '@/components/SubmitButton';
+import LinkifyText from '@/components/LinkifyText';
 import {
   addFeedback,
   addNote,
@@ -266,7 +267,7 @@ export default async function CandidatePage({ params }: { params: Promise<{ id: 
                 <div key={k}>
                   <dt className="text-ink-soft">{labels.get(k) ?? k}</dt>
                   <dd className="mt-0.5 whitespace-pre-line font-medium">
-                    {Array.isArray(v) ? v.join(', ') : String(v)}
+                    <LinkifyText value={v} />
                   </dd>
                 </div>
               ))}
