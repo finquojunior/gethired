@@ -7,7 +7,7 @@ export default async function InternalLayout({ children }: { children: React.Rea
   const user = await currentUser();
   return (
     <div className="flex min-h-screen flex-col md:flex-row">
-      <aside className="flex w-full shrink-0 items-center justify-between gap-4 bg-ink px-4 py-3 text-white md:w-52 md:flex-col md:items-stretch md:py-6">
+      <aside className="sticky top-0 z-20 flex w-full shrink-0 items-center justify-between gap-4 bg-ink px-4 py-3 text-white md:h-screen md:w-52 md:flex-col md:items-stretch md:overflow-y-auto md:py-6">
         <div className="flex items-center gap-6 md:block">
           <Link href="/app" className="font-display text-xl font-bold tracking-tight">
             gethired<span className="text-pine-wash">·</span>
