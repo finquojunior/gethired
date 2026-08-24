@@ -6,6 +6,8 @@
     "db:stop": "node scripts/db.mjs stop",
     "db:reset": "node scripts/db.mjs reset",
     "db:check": "node scripts/db.mjs check",
+    "db:dump": "node scripts/db.mjs dump",
+    "db:restore": "node scripts/db.mjs restore",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",

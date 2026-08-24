@@ -1,11 +1,42 @@
-# gethired
+<div align="center">
 
-End-to-end hiring pipeline for **Finquo Junior** — replaces the old
+<img src="https://readme-typing-svg.demolab.com?font=Fira+Code&weight=600&size=28&duration=3000&pause=800&color=10B981&center=true&vCenter=true&width=520&lines=gethired;apply+%E2%86%92+screen+%E2%86%92+interview+%E2%86%92+hire;one+system%2C+zero+spreadsheets" alt="gethired — apply, screen, interview, hire" />
+
+**End-to-end hiring pipeline for Finquo Junior** — replaces the old
 Meta-forms + WhatsApp + Excel workflow with one system: candidates apply and
 track their application online; the team manages the entire funnel from
 screening to hire.
 
-Live at **hiring.finquojunior.com** · Next.js 15 + Postgres (Supabase) + Vercel
+[![Next.js](https://img.shields.io/badge/Next.js-15-black?logo=next.js&logoColor=white)](https://nextjs.org)
+[![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)](https://react.dev)
+[![Postgres](https://img.shields.io/badge/Postgres-17-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
+[![Deployed on Vercel](https://img.shields.io/badge/Vercel-deployed-black?logo=vercel)](https://vercel.com)
+
+Live at **[hiring.finquojunior.com](https://hiring.finquojunior.com)**
+
+</div>
+
+---
+
+## The pipeline
+
+```mermaid
+flowchart LR
+    A([📝 Applied]) --> B([🔍 Screening])
+    B --> C([⭐ Shortlisted])
+    C --> D([🧪 Task round])
+    D --> E([🎤 Interview])
+    E --> F([📄 Offer])
+    F --> G([🎉 Hired])
+    B -. rejection email<br/>30-min undo .-> X([Rejected])
+    D -.-> X
+    E -.-> X
+```
+
+Every stage transition emails the candidate automatically — received,
+shortlisted, task instructions, interview invite + calendar file, reminders,
+offer, hired, rejection.
 
 ## What it does
 
@@ -16,15 +47,12 @@ Live at **hiring.finquojunior.com** · Next.js 15 + Postgres (Supabase) + Vercel
   salary in ₹), conditional logic, per-answer scoring, required consent
 - Private tokenized portal: track status, book interview slots, upload task
   submissions, withdraw
-- Email at every step: received, shortlisted/stage updates, task with
-  instructions, interview invite, booking confirmation with calendar invite,
-  reminders, offer, hired, rejection (30-min undo window)
 
 **Staff** (`/login` → `/app`, role-based: admin / hr / dept head / interviewer)
 - Dashboard: today's interviews, new applications, pending feedback, funnels
 - Pipeline per opening: list + drag-and-drop board views, bulk stage moves,
-  filters (stage/status/date), sorting, CSV export
-- Candidate profiles: answers, inline resume preview, feedback with ratings,
+  filters, sorting, feedback stars, prev/next candidate navigation, CSV export
+- Candidate profiles: answers, inline resume preview, star-rated feedback,
   notes, tags, timeline of every event and email
 - Interview scheduling: slot batches with meeting links and multi-person
   panels; everyone involved gets emailed; feedback nudges after interviews
@@ -33,45 +61,111 @@ Live at **hiring.finquojunior.com** · Next.js 15 + Postgres (Supabase) + Vercel
 - Manual add-candidate + CSV import for walk-ins/referrals
 - Reports: funnel, source performance (which ad produced which hire),
   time-to-hire
-- Admin: staff management, editable email templates, error log (every error
-  any user hits, auto-captured), full activity log, per-opening archive
-  download (zip with all data + files) and guarded permanent deletion
+- Admin: staff management, editable email templates, error log, full activity
+  log, per-opening archive download (zip) and guarded permanent deletion
 
 ## Stack
 
 Next.js 15 (App Router) · Postgres 17 (Supabase hosted / embedded locally) ·
-Supabase Storage · Resend email · Vercel · GitHub Actions cron. Zero runtime
-dependencies beyond `next`, `react`, and `pg`.
+Supabase Storage · Resend email · Vercel · GitHub Actions cron.
+Zero runtime dependencies beyond `next`, `react`, and `pg`.
 
-## Local development
+## 🚀 Getting started
+
+### Prerequisites
+
+| Requirement | Version | Notes |
+| --- | --- | --- |
+| **Node.js** | 20.19+ (22 LTS recommended) | ships `npm` |
+| **Git** | any recent | — |
+
+That's it. **No Docker, no system Postgres, no Supabase CLI needed locally** —
+the database runs from project-local binaries (`embedded-postgres`).
+
+### 1. Clone and install
 
 ```bash
+git clone https://github.com/NXYH/gethired.git
+cd gethired
 npm install
-npm run db:start   # project-local Postgres (no Docker), migrations + seed
-npm run dev        # http://localhost:3000
 ```
 
-Sign in with `dev-admin@example.com` / `devadmin`. Emails are captured in the
-Emails tab (not delivered) unless `RESEND_API_KEY` is set.
+### 2. Environment
+
+Local dev works **without any env vars** (sane defaults, emails captured
+in-app instead of delivered). To customize, copy the example:
+
+```bash
+cp .env.example .env
+```
+
+See [`.env.example`](.env.example) for every variable and when it's required.
+
+### 3. Database
+
+```bash
+npm run db:start     # boots project-local Postgres on 127.0.0.1:54322,
+                     # applies all migrations, seeds the dev admin
+npm run db:restore   # (optional) load the checked-in snapshot from db/dump.json
+```
+
+### 4. Run
+
+```bash
+npm run dev          # → http://localhost:3000
+```
+
+| Where | URL | Credentials |
+| --- | --- | --- |
+| Careers site | http://localhost:3000/careers | none needed |
+| Staff app | http://localhost:3000/login | `dev-admin@example.com` / `devadmin` |
+
+Outbound emails appear in the app's **Emails** tab (not delivered) unless
+`RESEND_API_KEY` is set.
+
+### 5. Verify
+
+```bash
+npm test             # unit tests: form logic, scoring, validation, rich text
+npm run db:check     # schema + RLS assertions on a throwaway database
+```
+
+## All scripts
 
 | Script | What it does |
 | --- | --- |
+| `npm run dev` | dev server at http://localhost:3000 |
+| `npm run build` / `start` | production build / serve |
+| `npm test` | unit tests |
 | `npm run db:start` / `db:stop` / `db:reset` | manage the local database |
+| `npm run db:dump` / `db:restore` | snapshot local data to/from `db/dump.json` |
 | `npm run db:check` | schema + RLS assertions on a throwaway database |
-| `npm test` | unit tests (form logic, scoring, validation, rich text) |
 | `node scripts/purge.mjs <days> --dry-run` | data-retention anonymization |
 
-Migrations live in `supabase/migrations/` and apply unchanged to hosted
-Supabase via `supabase db push`.
+## Project layout
+
+```
+app/         Next.js App Router — careers site, candidate portal, staff app, API
+components/  shared React components
+lib/         domain logic: pipeline, forms, email, auth, storage
+db/          local Postgres home: data/ (cluster, gitignored), dump.json, shim.sql
+supabase/    migrations/ — apply locally via db:start, to prod via supabase db push
+scripts/     db.mjs (local Postgres runner), purge.mjs (retention)
+tests/       node:test unit tests
+docs/        deploy runbook, security audit, reviews
+```
 
 ## Deployment
 
 Full runbook: [`docs/deploy-checklist.md`](docs/deploy-checklist.md) —
 Supabase setup, every required env var, first-admin creation, cron secrets,
-and the post-deploy smoke test. The scheduled tick (email outbox, reminders,
-auto-close) runs from `.github/workflows/cron.yml` every 15 minutes.
+and the post-deploy smoke test.
 
-`GET /api/health` reports `ok`, `email_configured`, `storage_configured`.
+- Migrations in `supabase/migrations/` apply unchanged to hosted Supabase via
+  `supabase db push`
+- The scheduled tick (email outbox, reminders, auto-close) runs from
+  [`.github/workflows/cron.yml`](.github/workflows/cron.yml) every 15 minutes
+- `GET /api/health` reports `ok`, `email_configured`, `storage_configured`
 
 ## Docs
 

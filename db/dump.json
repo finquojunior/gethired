@@ -1,0 +1,189 @@
+[
+ {
+  "table": "auth.users",
+  "has_identity": false,
+  "rows": [
+   {
+    "id": "00000000-0000-0000-0000-000000000001",
+    "email": "dev-admin@example.com",
+    "created_at": "2026-08-18T16:26:31.980575+05:30"
+   }
+  ]
+ },
+ {
+  "table": "public.applications",
+  "has_identity": true,
+  "rows": []
+ },
+ {
+  "table": "public.audit_log",
+  "has_identity": true,
+  "rows": [
+   {
+    "id": 153,
+    "action": "login",
+    "detail": {
+     "ip": "::1"
+    },
+    "entity": "profile",
+    "actor_id": "00000000-0000-0000-0000-000000000001",
+    "entity_id": "00000000-0000-0000-0000-000000000001",
+    "created_at": "2026-08-19T13:55:38.69109+05:30"
+   },
+   {
+    "id": 154,
+    "action": "applied",
+    "detail": {
+     "opening": "Archive Test"
+    },
+    "entity": "application",
+    "actor_id": null,
+    "entity_id": "152",
+    "created_at": "2026-08-19T14:10:35.56943+05:30"
+   },
+   {
+    "id": 155,
+    "action": "login",
+    "detail": {
+     "ip": "::1"
+    },
+    "entity": "profile",
+    "actor_id": "00000000-0000-0000-0000-000000000001",
+    "entity_id": "00000000-0000-0000-0000-000000000001",
+    "created_at": "2026-08-19T14:10:35.637402+05:30"
+   },
+   {
+    "id": 156,
+    "action": "archive_download",
+    "detail": {
+     "candidates": 1
+    },
+    "entity": "opening",
+    "actor_id": "00000000-0000-0000-0000-000000000001",
+    "entity_id": "3",
+    "created_at": "2026-08-19T14:10:35.793502+05:30"
+   },
+   {
+    "id": 157,
+    "action": "login",
+    "detail": {
+     "ip": "::1"
+    },
+    "entity": "profile",
+    "actor_id": "00000000-0000-0000-0000-000000000001",
+    "entity_id": "00000000-0000-0000-0000-000000000001",
+    "created_at": "2026-08-19T14:11:14.147225+05:30"
+   },
+   {
+    "id": 158,
+    "action": "delete_opening_data",
+    "detail": {
+     "slug": "archive-test",
+     "files": 1,
+     "candidates": 1
+    },
+    "entity": "opening",
+    "actor_id": "00000000-0000-0000-0000-000000000001",
+    "entity_id": "3",
+    "created_at": "2026-08-19T14:12:06.087526+05:30"
+   }
+  ]
+ },
+ {
+  "table": "public.email_log",
+  "has_identity": true,
+  "rows": []
+ },
+ {
+  "table": "public.email_templates",
+  "has_identity": false,
+  "rows": []
+ },
+ {
+  "table": "public.error_log",
+  "has_identity": true,
+  "rows": []
+ },
+ {
+  "table": "public.feedback",
+  "has_identity": true,
+  "rows": []
+ },
+ {
+  "table": "public.forms",
+  "has_identity": true,
+  "rows": []
+ },
+ {
+  "table": "public.notes",
+  "has_identity": true,
+  "rows": []
+ },
+ {
+  "table": "public.opening_members",
+  "has_identity": false,
+  "rows": []
+ },
+ {
+  "table": "public.openings",
+  "has_identity": true,
+  "rows": []
+ },
+ {
+  "table": "public.profiles",
+  "has_identity": false,
+  "rows": [
+   {
+    "id": "00000000-0000-0000-0000-000000000001",
+    "role": "admin",
+    "full_name": "Dev Admin",
+    "created_at": "2026-08-18T16:26:31.980877+05:30",
+    "password_hash": "9088fcd5f853e1a9633674d7c365f32c:7956d555d92afdfd6e4fde334511ec2f23a0d8a92f9a50f659dfef28d28ea015d0c6a165112bfee05da46a6fb278f325bee90a3e2b97bec72cb48cedced1ab4d"
+   }
+  ]
+ },
+ {
+  "table": "public.slots",
+  "has_identity": true,
+  "rows": []
+ },
+ {
+  "table": "public.stage_history",
+  "has_identity": true,
+  "rows": []
+ },
+ {
+  "table": "public.stages",
+  "has_identity": true,
+  "rows": []
+ },
+ {
+  "table": "public.submissions",
+  "has_identity": true,
+  "rows": []
+ },
+ {
+  "table": "storage.buckets",
+  "has_identity": false,
+  "rows": [
+   {
+    "id": "resumes",
+    "name": "resumes",
+    "public": false,
+    "created_at": "2026-08-18T16:26:31.947281+05:30"
+   },
+   {
+    "id": "submissions",
+    "name": "submissions",
+    "public": false,
+    "created_at": "2026-08-18T16:26:31.947281+05:30"
+   },
+   {
+    "id": "posters",
+    "name": "posters",
+    "public": false,
+    "created_at": "2026-08-19T10:15:04.207572+05:30"
+   }
+  ]
+ }
+]

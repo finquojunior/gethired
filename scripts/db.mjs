@@ -4,7 +4,7 @@
 // Usage: node scripts/db.mjs <start|stop|reset|migrate|check>
 
 import { execFileSync } from 'node:child_process';
-import { existsSync, readdirSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
@@ -142,6 +142,81 @@ async function check() {
   console.log('db check: all assertions passed');
 }
 
+// dump/restore app data as JSON (embedded-postgres ships no pg_dump/psql)
+const DUMP = path.join(ROOT, 'db', 'dump.json');
+const DATA_SCHEMAS = ['public', 'auth', 'storage'];
+
+async function dataTables(c) {
+  const { rows } = await c.query(
+    `select format('%I.%I', t.schemaname, t.tablename) tbl,
+            exists (select 1 from pg_attribute a
+                    where a.attrelid = format('%I.%I', t.schemaname, t.tablename)::regclass
+                      and a.attidentity = 'a') has_identity
+     from pg_tables t where t.schemaname = any($1) order by 1`,
+    [DATA_SCHEMAS]
+  );
+  return rows;
+}
+
+async function dump() {
+  const c = await client(DB);
+  const out = [];
+  for (const { tbl, has_identity } of await dataTables(c)) {
+    const { rows } = await c.query(
+      `select coalesce(jsonb_agg(to_jsonb(x)), '[]'::jsonb) j from ${tbl} x`
+    );
+    out.push({ table: tbl, has_identity, rows: rows[0].j });
+  }
+  await c.end();
+  writeFileSync(DUMP, JSON.stringify(out, null, 1));
+  const n = out.reduce((sum, t) => sum + t.rows.length, 0);
+  console.log(`dumped ${n} rows from ${out.length} tables to db/dump.json`);
+}
+
+async function restore() {
+  const tables = JSON.parse(readFileSync(DUMP, 'utf8'));
+  const c = await client(DB);
+  try {
+    await c.query('begin');
+    // replica role skips FK checks so table order doesn't matter (local superuser)
+    await c.query(`set local session_replication_role = replica`);
+    for (const { table } of tables) await c.query(`truncate ${table} cascade`);
+    for (const { table, has_identity, rows } of tables) {
+      if (!rows.length) continue;
+      await c.query(
+        `insert into ${table} ${has_identity ? 'overriding system value ' : ''}
+         select * from jsonb_populate_recordset(null::${table}, $1::jsonb)`,
+        [JSON.stringify(rows)]
+      );
+    }
+    // bump identity sequences past the restored max ids
+    const { rows: seqs } = await c.query(
+      `select seq.oid::regclass::text seq, dep.refobjid::regclass::text tbl,
+              quote_ident(col.attname) col
+       from pg_class seq
+       join pg_depend dep on dep.objid = seq.oid and dep.deptype in ('a', 'i')
+       join pg_attribute col on col.attrelid = dep.refobjid and col.attnum = dep.refobjsubid
+       join pg_namespace ns on ns.oid = seq.relnamespace
+       where seq.relkind = 'S' and ns.nspname = any($1)`,
+      [DATA_SCHEMAS]
+    );
+    for (const s of seqs) {
+      await c.query(
+        `select setval($1, coalesce((select max(${s.col}) from ${s.tbl}), 0) + 1, false)`,
+        [s.seq]
+      );
+    }
+    await c.query('commit');
+    const n = tables.reduce((sum, t) => sum + t.rows.length, 0);
+    console.log(`restored ${n} rows into ${tables.length} tables`);
+  } catch (e) {
+    await c.query('rollback');
+    throw e;
+  } finally {
+    await c.end();
+  }
+}
+
 function assert(cond, msg) {
   if (!cond) throw new Error(`ASSERT FAILED: ${msg}`);
   console.log(`ok: ${msg}`);
@@ -169,10 +244,16 @@ switch (cmd) {
   case 'migrate':
     await migrate();
     break;
+  case 'dump':
+    await dump();
+    break;
+  case 'restore':
+    await restore();
+    break;
   case 'check':
     await check();
     break;
   default:
-    console.error('usage: node scripts/db.mjs <start|stop|reset|migrate|check>');
+    console.error('usage: node scripts/db.mjs <start|stop|reset|migrate|check|dump|restore>');
     process.exit(1);
 }
