@@ -57,6 +57,7 @@ export default async function OpeningPage({
             Form{o.published_version ? ` · v${o.published_version}` : ' · unpublished'}
           </Link>
           <Link href={`/app/openings/${o.id}/stages`} className="btn-quiet">Stages</Link>
+          <Link href={`/app/openings/${o.id}/task`} className="btn-quiet">Task</Link>
           <Link href={`/app/openings/${o.id}/team`} className="btn-quiet">Team</Link>
           <Link href={`/app/openings/${o.id}/slots`} className="btn-quiet">Slots</Link>
           <Link href={`/app/openings/${o.id}/applications`} className="btn-quiet">

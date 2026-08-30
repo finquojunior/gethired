@@ -4,6 +4,7 @@ import { fmtSlot } from '@/lib/tz';
 import { TASK_ACCEPT } from '@/lib/uploads';
 import { allFields, type FormSchema } from '@/lib/form-schema';
 import LinkifyText from '@/components/LinkifyText';
+import { briefLinks } from '@/lib/brief';
 
 export const dynamic = 'force-dynamic';
 
@@ -39,12 +40,15 @@ export default async function PortalPage({
     stage_id: number | null;
     stage_kind: string | null;
     stage_brief: string | null;
+    stage_brief_file: string | null;
+    stage_brief_links: string | null;
     answers: Record<string, unknown>;
     schema: FormSchema;
     created_at: Date;
   }>(
     `select a.id, a.name, a.status, o.title, s.id as stage_id, s.kind as stage_kind,
-            s.brief as stage_brief, a.answers, f.schema, a.created_at
+            s.brief as stage_brief, s.brief_file_path as stage_brief_file,
+            s.brief_links as stage_brief_links, a.answers, f.schema, a.created_at
      from public.applications a
      join public.openings o on o.id = a.opening_id
      join public.forms f on f.id = a.form_id
@@ -90,6 +94,7 @@ export default async function PortalPage({
       ).rows
     : [];
 
+  const taskLinks = showTask ? briefLinks(a.stage_brief_links) : [];
   const fmt = fmtSlot;
   const canCancel = booking && booking.starts_at.getTime() - Date.now() > 24 * 3600_000;
 
@@ -174,6 +179,24 @@ export default async function PortalPage({
           <p className="mt-2 whitespace-pre-line text-sm">
             {a.stage_brief || 'Task details will be shared with you by email.'}
           </p>
+          {taskLinks.length > 0 && (
+            <ul className="mt-3 space-y-1 text-sm">
+              {taskLinks.map((l) => (
+                <li key={l}>
+                  <a href={l} target="_blank" rel="noopener" className="break-all text-pine underline">
+                    {l}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          )}
+          {a.stage_brief_file && (
+            <p className="mt-3">
+              <a href={`/c/${token}/brief`} className="btn-quiet inline-flex">
+                Download task brief document
+              </a>
+            </p>
+          )}
           {submissions.length > 0 && (
             <p className="mt-3 rounded-md bg-pine-wash px-3 py-2 text-sm text-pine-deep">
               Submitted {fmt(submissions[0].created_at)}. You can submit again to replace it.

@@ -42,7 +42,12 @@ export default async function StagesPage({ params }: { params: Promise<{ id: str
       </h1>
       <p className="mt-4 text-sm text-ink-soft">
         Candidates move through these in order. The brief on task and interview stages is emailed
-        to candidates and shown on their status page.
+        to candidates and shown on their status page. Task briefs, documents, and links are managed
+        on the{' '}
+        <Link href={`/app/openings/${openingId}/task`} className="text-pine underline">
+          Task tab
+        </Link>
+        .
       </p>
 
       <div className="mt-8 space-y-3">

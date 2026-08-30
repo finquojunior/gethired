@@ -9,7 +9,7 @@ import { audit } from '@/lib/audit';
 import { orgTimeToUtc } from '@/lib/tz';
 import { EMPTY_SCHEMA, type FormSchema } from '@/lib/form-schema';
 import { deleteFile, saveUpload } from '@/lib/storage';
-import { POSTER_EXTS, POSTER_MAX_BYTES } from '@/lib/uploads';
+import { POSTER_EXTS, POSTER_MAX_BYTES, TASK_EXTS, TASK_MAX_BYTES } from '@/lib/uploads';
 
 const DEFAULT_STAGES: Array<[string, string]> = [
   ['Applied', 'screen'],
@@ -219,7 +219,9 @@ export async function deleteOpeningData(formData: FormData) {
      union all
      select s.file_path from public.submissions s
        join public.applications a on a.id = s.application_id
-     where a.opening_id = $1 and s.file_path <> ''`,
+     where a.opening_id = $1 and s.file_path <> ''
+     union all
+     select brief_file_path from public.stages where opening_id = $1 and brief_file_path <> ''`,
     [openingId]
   );
   const {
@@ -277,6 +279,53 @@ export async function updateStage(formData: FormData) {
     ]
   );
   revalidatePath(`/app/openings/${openingId}/stages`);
+}
+
+/** Save a task stage's brief text, reference links, and optional document. */
+export async function updateTaskMaterials(formData: FormData) {
+  const user = await requireStaff();
+  const openingId = Number(formData.get('openingId'));
+  const stageId = Number(formData.get('stageId'));
+
+  const {
+    rows: [stage],
+  } = await q<{ brief_file_path: string }>(
+    `select brief_file_path from public.stages where id = $1 and opening_id = $2 and kind = 'task'`,
+    [stageId, openingId]
+  );
+  if (!stage) return;
+
+  // document: null keeps the current one, '' removes it, a path replaces it
+  let docPath: string | null = null;
+  const doc = formData.get('document');
+  if (doc instanceof File && doc.size > 0) {
+    if (doc.size > TASK_MAX_BYTES || !TASK_EXTS.has(path.extname(doc.name).toLowerCase())) {
+      redirect(`/app/openings/${openingId}/task?e=file`);
+    }
+    docPath = await saveUpload('briefs', doc);
+  } else if (formData.get('removeDocument')) {
+    docPath = '';
+  }
+
+  // keep only http(s) lines so the portal never renders junk as a link
+  const links = String(formData.get('links') ?? '')
+    .split('\n')
+    .map((l) => l.trim())
+    .filter((l) => /^https?:\/\//i.test(l))
+    .slice(0, 20)
+    .join('\n');
+
+  await q(
+    `update public.stages set brief = $2, brief_links = $3,
+       brief_file_path = coalesce($4, brief_file_path)
+     where id = $1`,
+    [stageId, String(formData.get('brief') ?? '').trim(), links, docPath]
+  );
+  if (docPath !== null && stage.brief_file_path) await deleteFile(stage.brief_file_path);
+
+  await audit(user.id, 'update_task_materials', 'stage', stageId);
+  revalidatePath(`/app/openings/${openingId}/task`);
+  revalidatePath('/app/tasks');
 }
 
 // bound with (openingId, stageId, dir) — submitter name/value is not

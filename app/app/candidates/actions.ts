@@ -8,6 +8,7 @@ import { currentUser, isStaff } from '@/lib/auth';
 import { appUrl, icsEvent, portalUrl, sendCustomEmail, sendEmail } from '@/lib/email';
 import { fmtDateTimeFull } from '@/lib/tz';
 import { audit } from '@/lib/audit';
+import { composeBriefEmail } from '@/lib/brief';
 import { freeFutureSlots, staffEmails } from '@/lib/slots';
 import { RESUME_EXTS, RESUME_MAX_BYTES, saveUpload } from '@/lib/storage';
 
@@ -22,8 +23,8 @@ async function requireStaff() {
 async function notifyStage(applicationIds: number[], stageId: number) {
   const {
     rows: [stage],
-  } = await q<{ name: string; kind: string; brief: string; title: string }>(
-    `select s.name, s.kind, s.brief, o.title
+  } = await q<{ name: string; kind: string; brief: string; brief_file_path: string; brief_links: string; title: string }>(
+    `select s.name, s.kind, s.brief, s.brief_file_path, s.brief_links, o.title
      from public.stages s join public.openings o on o.id = s.opening_id
      where s.id = $1`,
     [stageId]
@@ -51,7 +52,14 @@ async function notifyStage(applicationIds: number[], stageId: number) {
         name: a.name,
         role: stage.title,
         stage: stage.name,
-        brief: stage.brief || 'Task details will follow.',
+        brief:
+          stage.kind === 'task'
+            ? composeBriefEmail(
+                stage.brief,
+                stage.brief_links,
+                stage.brief_file_path ? `${portalUrl(a.portal_token)}/brief` : ''
+              )
+            : stage.brief || 'Task details will follow.',
         portal_link: portalUrl(a.portal_token),
       },
     });

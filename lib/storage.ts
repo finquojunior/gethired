@@ -24,7 +24,7 @@ if (process.env.VERCEL && !useSupabase) {
   throw new Error('SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY are required on Vercel (ephemeral disk)');
 }
 
-type Kind = 'resumes' | 'submissions' | 'posters';
+type Kind = 'resumes' | 'submissions' | 'posters' | 'briefs';
 
 /** Store an upload; returns the relative path ("<kind>/<random>.<ext>"). */
 export async function saveUpload(kind: Kind, file: File): Promise<string> {
