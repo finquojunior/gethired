@@ -12,8 +12,6 @@ import { composeBriefEmail } from '@/lib/brief';
 import { freeFutureSlots, staffEmails } from '@/lib/slots';
 import { RESUME_EXTS, RESUME_MAX_BYTES, saveUpload } from '@/lib/storage';
 
-const REJECTION_DELAY_MINUTES = 30; // undo window: restore cancels the pending email
-
 async function requireStaff() {
   const user = await currentUser();
   if (!isStaff(user)) throw new Error('Not allowed');
@@ -114,7 +112,7 @@ export async function bulkPipeline(formData: FormData) {
     const stageId = Number(formData.get('stageId'));
     if (!stageId) return;
     await moveApplications(user.id, openingId, ids, stageId);
-  } else if (intent === 'reject') {
+  } else if (intent === 'reject_send' || intent === 'reject_draft') {
     const { rows: apps } = await q<{ id: number; name: string; email: string; title: string }>(
       `update public.applications a set status = 'rejected'
        from public.openings o
@@ -123,16 +121,15 @@ export async function bulkPipeline(formData: FormData) {
       [ids, openingId]
     );
     await freeSlots(apps.map((a) => a.id), null);
-    if (formData.get('sendRejectEmail')) {
-      for (const a of apps) {
-        await sendEmail({
-          applicationId: a.id,
-          template: 'rejection',
-          to: a.email,
-          vars: { name: a.name, role: a.title },
-          delayMinutes: REJECTION_DELAY_MINUTES,
-        });
-      }
+    for (const a of apps) {
+      await sendEmail({
+        applicationId: a.id,
+        template: 'rejection',
+        to: a.email,
+        vars: { name: a.name, role: a.title },
+        // drafts sit in the Emails tab until staff send them manually
+        draft: intent === 'reject_draft',
+      });
     }
     await audit(user.id, 'reject', 'application', ids.join(','));
   } else if (intent === 'restore') {
@@ -140,10 +137,10 @@ export async function bulkPipeline(formData: FormData) {
       `update public.applications set status = 'active' where id = any($1) and opening_id = $2`,
       [ids, openingId]
     );
-    // undo window: cancel rejection emails still waiting in the outbox
+    // cancel rejection emails not yet delivered (drafts or queued retries)
     await q(
       `update public.email_log set status = 'cancelled'
-       where application_id = any($1) and template = 'rejection' and status = 'pending'`,
+       where application_id = any($1) and template = 'rejection' and status in ('draft', 'pending', 'failed')`,
       [ids]
     );
     await audit(user.id, 'restore', 'application', ids.join(','));

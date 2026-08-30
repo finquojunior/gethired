@@ -2,11 +2,12 @@ import Link from 'next/link';
 import { q } from '@/lib/db';
 import { fmtDateTime } from '@/lib/tz';
 import SubmitButton from '@/components/SubmitButton';
-import { cancelEmail, processOutbox } from './actions';
+import { cancelEmail, processOutbox, sendDraft } from './actions';
 
 export const dynamic = 'force-dynamic';
 
 const STATUS_STYLE: Record<string, string> = {
+  draft: 'bg-amber/15 text-amber',
   sent: 'bg-pine-wash text-pine-deep',
   pending: 'bg-amber/15 text-amber',
   failed: 'bg-rust/10 text-rust',
@@ -44,8 +45,8 @@ export default async function EmailsPage() {
         </form>
       </div>
       <p className="mt-4 text-sm text-ink-soft">
-        Every email the system sends is logged here. Pending emails (like rejection emails in
-        their undo window) go out automatically; failed ones retry up to 3 times.
+        Every email the system sends is logged here. Drafts (from &quot;Reject + draft email&quot;)
+        wait until you send them; failed sends retry up to 3 times.
         {!process.env.RESEND_API_KEY && ' No RESEND_API_KEY is set, so emails are logged but not delivered.'}
       </p>
 
@@ -72,7 +73,15 @@ export default async function EmailsPage() {
                   <Link href={`/app/candidates/${e.application_id}`} className="text-pine underline">
                     {e.candidate}
                   </Link>
-                  {e.status === 'pending' && (
+                  {e.status === 'draft' && (
+                    <form action={sendDraft}>
+                      <input type="hidden" name="emailId" value={e.id} />
+                      <SubmitButton className="text-pine underline" pendingLabel="Sending…">
+                        Send now
+                      </SubmitButton>
+                    </form>
+                  )}
+                  {(e.status === 'pending' || e.status === 'draft') && (
                     <form action={cancelEmail}>
                       <input type="hidden" name="emailId" value={e.id} />
                       <SubmitButton className="text-rust underline" pendingLabel="…">

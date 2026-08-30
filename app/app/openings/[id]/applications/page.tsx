@@ -247,11 +247,8 @@ export default async function ApplicationsPage({
             {status === 'active' ? (
               <>
                 <SubmitButton name="intent" value="hire" className="btn-quiet text-pine-deep" pendingLabel="Hiring…">Mark hired</SubmitButton>
-                <SubmitButton name="intent" value="reject" className="btn-quiet text-rust" pendingLabel="Rejecting…">Reject</SubmitButton>
-                <label className="flex items-center gap-1.5 text-ink-soft">
-                  <input type="checkbox" name="sendRejectEmail" value="1" className="accent-pine" />
-                  send rejection email (30 min undo window)
-                </label>
+                <SubmitButton name="intent" value="reject_send" className="btn-quiet text-rust" pendingLabel="Rejecting…">Reject + email now</SubmitButton>
+                <SubmitButton name="intent" value="reject_draft" className="btn-quiet text-rust" pendingLabel="Rejecting…" title="Rejects and drafts the email — send it manually from the Emails tab">Reject + draft email</SubmitButton>
               </>
             ) : (
               <SubmitButton name="intent" value="restore" className="btn-quiet" pendingLabel="Restoring…">Restore to active</SubmitButton>

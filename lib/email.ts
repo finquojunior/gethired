@@ -82,7 +82,8 @@ export async function sendEmail(input: {
   to: string;
   vars: Record<string, string>;
   ics?: string;
-  delayMinutes?: number;
+  /** Log the email as a draft; staff send it manually from the Emails tab. */
+  draft?: boolean;
 }): Promise<void> {
   if (!input.to) return;
   const fallback = DEFAULT_TEMPLATES[input.template];
@@ -95,12 +96,11 @@ export async function sendEmail(input: {
   const tpl = override ?? fallback;
   if (!tpl) throw new Error(`unknown email template: ${input.template}`);
 
-  const sendAfter = new Date(Date.now() + (input.delayMinutes ?? 0) * 60_000);
   const {
     rows: [row],
   } = await q<{ id: number }>(
-    `insert into public.email_log (application_id, template, to_email, subject, body, ics, status, send_after)
-     values ($1, $2, $3, $4, $5, $6, 'pending', $7) returning id`,
+    `insert into public.email_log (application_id, template, to_email, subject, body, ics, status)
+     values ($1, $2, $3, $4, $5, $6, $7) returning id`,
     [
       input.applicationId,
       input.template,
@@ -108,10 +108,10 @@ export async function sendEmail(input: {
       render(tpl.subject, input.vars),
       render(tpl.body, input.vars),
       input.ics ?? '',
-      sendAfter.toISOString(),
+      input.draft ? 'draft' : 'pending',
     ]
   );
-  if (!input.delayMinutes) await attemptSend(row.id);
+  if (!input.draft) await attemptSend(row.id);
 }
 
 /** Deliver one outbox row. Used inline and by the cron retry loop. */
