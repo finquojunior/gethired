@@ -368,6 +368,12 @@ export async function deleteStage(formData: FormData) {
   );
   if (active > 0) throw new Error('Move candidates out of this stage first');
   if (booked > 0) throw new Error('This stage has booked future interviews — cancel them first');
+  const {
+    rows: [old],
+  } = await q<{ brief_file_path: string }>(
+    `select brief_file_path from public.stages where id = $1`,
+    [stageId]
+  );
   await tx(async (c) => {
     // don't orphan historical candidates: park them in the first remaining stage
     await c.query(
@@ -378,6 +384,7 @@ export async function deleteStage(formData: FormData) {
     );
     await c.query(`delete from public.stages where id = $1 and opening_id = $2`, [stageId, openingId]);
   });
+  if (old?.brief_file_path) await deleteFile(old.brief_file_path);
   await audit(user.id, 'delete', 'stage', stageId);
   revalidatePath(`/app/openings/${openingId}/stages`);
 }
