@@ -5,8 +5,9 @@ const nextConfig: NextConfig = {
   // when instrumentation.ts is compiled for non-node runtimes)
   serverExternalPackages: ['pg'],
   experimental: {
-    // staff add-candidate uploads resumes (5MB) and CSVs through server actions
-    serverActions: { bodySizeLimit: '12mb' },
+    // local-dev uploads ride through server actions (tasks are 16MB); on
+    // Vercel anything over ~4.5MB goes browser→Supabase Storage instead
+    serverActions: { bodySizeLimit: '17mb' },
   },
   async headers() {
     return [

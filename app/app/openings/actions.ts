@@ -9,7 +9,7 @@ import { audit } from '@/lib/audit';
 import { orgTimeToUtc } from '@/lib/tz';
 import { EMPTY_SCHEMA, type FormSchema } from '@/lib/form-schema';
 import { deleteFile, saveUpload } from '@/lib/storage';
-import { POSTER_EXTS, POSTER_MAX_BYTES, TASK_EXTS, TASK_MAX_BYTES } from '@/lib/uploads';
+import { POSTER_EXTS, POSTER_MAX_BYTES, TASK_EXTS, TASK_MAX_BYTES, uploadedPathRe } from '@/lib/uploads';
 
 const DEFAULT_STAGES: Array<[string, string]> = [
   ['Applied', 'screen'],
@@ -298,7 +298,12 @@ export async function updateTaskMaterials(formData: FormData) {
   // document: null keeps the current one, '' removes it, a path replaces it
   let docPath: string | null = null;
   const doc = formData.get('document');
-  if (doc instanceof File && doc.size > 0) {
+  const preUploaded = String(formData.get('documentPath') ?? '');
+  if (preUploaded) {
+    // browser already uploaded straight to storage (Vercel body-size cap)
+    if (!uploadedPathRe('briefs').test(preUploaded)) redirect(`/app/openings/${openingId}/task?e=file`);
+    docPath = preUploaded;
+  } else if (doc instanceof File && doc.size > 0) {
     if (doc.size > TASK_MAX_BYTES || !TASK_EXTS.has(path.extname(doc.name).toLowerCase())) {
       redirect(`/app/openings/${openingId}/task?e=file`);
     }

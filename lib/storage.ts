@@ -26,6 +26,27 @@ if (process.env.VERCEL && !useSupabase) {
 
 type Kind = 'resumes' | 'submissions' | 'posters' | 'briefs';
 
+// Vercel caps request bodies at ~4.5MB, so large files can't ride through the
+// server — browsers upload straight to Supabase Storage via signed URLs. On
+// local disk there's no cap, so the through-the-server path stays.
+export const directUploads = useSupabase;
+
+/** Mint a browser-direct signed upload URL. Null when on local disk. */
+export async function createSignedUpload(
+  kind: Kind,
+  ext: string
+): Promise<{ url: string; path: string } | null> {
+  if (!useSupabase) return null;
+  const name = `${randomBytes(12).toString('hex')}${ext}`;
+  const res = await fetch(`${SUPA}/storage/v1/object/upload/sign/${kind}/${name}`, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${SUPA_KEY}` },
+  });
+  if (!res.ok) throw new Error(`sign upload failed: ${res.status} ${await res.text()}`);
+  const { url } = (await res.json()) as { url: string };
+  return { url: `${SUPA}/storage/v1${url}`, path: `${kind}/${name}` };
+}
+
 /** Store an upload; returns the relative path ("<kind>/<random>.<ext>"). */
 export async function saveUpload(kind: Kind, file: File): Promise<string> {
   const name = `${randomBytes(12).toString('hex')}${path.extname(file.name).toLowerCase()}`;

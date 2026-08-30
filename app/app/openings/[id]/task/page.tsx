@@ -2,9 +2,11 @@ import Link from 'next/link';
 import BackButton from '@/components/BackButton';
 import { notFound } from 'next/navigation';
 import { q } from '@/lib/db';
-import { TASK_ACCEPT } from '@/lib/uploads';
+import { TASK_ACCEPT, TASK_MAX_BYTES } from '@/lib/uploads';
 import { briefLinks } from '@/lib/brief';
+import { directUploads } from '@/lib/storage';
 import SubmitButton from '@/components/SubmitButton';
+import DirectUploadForm from '@/components/DirectUploadForm';
 import { updateTaskMaterials } from '../../actions';
 
 export const dynamic = 'force-dynamic';
@@ -59,7 +61,7 @@ export default async function TaskPage({
 
       {errorCode === 'file' && (
         <p className="mt-4 rounded-md bg-rust/10 px-4 py-3 text-sm text-rust">
-          Document upload failed. Use PDF, Word, or ZIP up to 10 MB.
+          Document upload failed. Use PDF, Word, or ZIP up to 16 MB.
         </p>
       )}
 
@@ -75,14 +77,19 @@ export default async function TaskPage({
 
       <div className="mt-8 space-y-6">
         {tasks.map((t) => (
-          <form
+          <DirectUploadForm
             key={t.id}
+            direct={directUploads}
+            signUrl={`/app/openings/${openingId}/task/upload-url`}
+            fileField="document"
+            maxBytes={TASK_MAX_BYTES}
             action={updateTaskMaterials}
             encType="multipart/form-data"
             className="rounded-lg border border-line bg-card p-5"
           >
             <input type="hidden" name="openingId" value={openingId} />
             <input type="hidden" name="stageId" value={t.id} />
+            <input type="hidden" name="documentPath" defaultValue="" />
             <div className="flex flex-wrap items-center gap-3">
               <h2 className="font-display text-lg font-semibold">{t.name}</h2>
               <span className="text-sm text-ink-soft">{t.active} active in this stage</span>
@@ -118,7 +125,7 @@ export default async function TaskPage({
               </div>
 
               <div>
-                <label className="field-label">Brief document (PDF, Word, or ZIP up to 10 MB)</label>
+                <label className="field-label">Brief document (PDF, Word, or ZIP up to 16 MB)</label>
                 {t.brief_file_path && (
                   <p className="mb-2 flex items-center gap-3 text-sm">
                     <a
@@ -147,7 +154,7 @@ export default async function TaskPage({
                 )}
               </div>
             </div>
-          </form>
+          </DirectUploadForm>
         ))}
       </div>
     </div>

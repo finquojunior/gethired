@@ -1,9 +1,11 @@
 import { notFound } from 'next/navigation';
 import { q } from '@/lib/db';
 import { fmtSlot } from '@/lib/tz';
-import { TASK_ACCEPT } from '@/lib/uploads';
+import { TASK_ACCEPT, TASK_MAX_BYTES } from '@/lib/uploads';
 import { allFields, type FormSchema } from '@/lib/form-schema';
 import LinkifyText from '@/components/LinkifyText';
+import DirectUploadForm from '@/components/DirectUploadForm';
+import { directUploads } from '@/lib/storage';
 import { briefLinks } from '@/lib/brief';
 
 export const dynamic = 'force-dynamic';
@@ -115,7 +117,7 @@ export default async function PortalPage({
       )}
       {errorCode === 'file' && (
         <p className="mt-4 rounded-md bg-rust/10 px-4 py-3 text-sm text-rust">
-          Upload failed. Use PDF, Word, or ZIP up to 10 MB.
+          Upload failed. Use PDF, Word, or ZIP up to 16 MB.
         </p>
       )}
 
@@ -202,11 +204,22 @@ export default async function PortalPage({
               Submitted {fmt(submissions[0].created_at)}. You can submit again to replace it.
             </p>
           )}
-          <form method="post" action={`/c/${token}/task`} encType="multipart/form-data" className="mt-4 space-y-3">
+          <DirectUploadForm
+            direct={directUploads}
+            signUrl={`/c/${token}/upload-url`}
+            fileField="file"
+            maxBytes={TASK_MAX_BYTES}
+            method="post"
+            action={`/c/${token}/task`}
+            encType="multipart/form-data"
+            className="mt-4 space-y-3"
+          >
+            <input type="hidden" name="filePath" defaultValue="" />
+            <input type="hidden" name="fileSig" defaultValue="" />
             <input type="file" name="file" required accept={TASK_ACCEPT} className="input" />
             <textarea name="note" rows={2} placeholder="Anything we should know? (links, context)" className="input" />
             <button className="btn-primary">Submit task</button>
-          </form>
+          </DirectUploadForm>
         </div>
       )}
 

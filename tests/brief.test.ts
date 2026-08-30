@@ -1,6 +1,15 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { briefLinks, composeBriefEmail } from '../lib/brief.ts';
+import { uploadedPathRe } from '../lib/uploads.ts';
+
+test('uploadedPathRe accepts only paths shaped like our minted uploads', () => {
+  assert.ok(uploadedPathRe('briefs').test('briefs/0123456789abcdef01234567.pdf'));
+  assert.ok(uploadedPathRe('submissions').test('submissions/0123456789abcdef01234567.zip'));
+  assert.ok(!uploadedPathRe('briefs').test('submissions/0123456789abcdef01234567.pdf'));
+  assert.ok(!uploadedPathRe('briefs').test('briefs/../resumes/x.pdf'));
+  assert.ok(!uploadedPathRe('briefs').test('briefs/0123456789abcdef01234567.exe'));
+});
 
 test('briefLinks keeps only http(s) lines, trimmed', () => {
   assert.deepEqual(

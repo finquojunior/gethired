@@ -37,6 +37,18 @@ export function verifyPassword(password: string, stored: string): boolean {
 
 const sign = (payload: string) => createHmac('sha256', SECRET).update(payload).digest('hex');
 
+// Direct-to-storage uploads: the path we minted for a candidate is signed so
+// the submit request can't point at someone else's stored file.
+export function signUploadPath(applicationId: number, relPath: string): string {
+  return sign(`upload:${applicationId}:${relPath}`);
+}
+
+export function verifyUploadPath(applicationId: number, relPath: string, sig: string): boolean {
+  const expected = Buffer.from(signUploadPath(applicationId, relPath));
+  const given = Buffer.from(sig);
+  return given.length === expected.length && timingSafeEqual(given, expected);
+}
+
 export async function createSession(userId: string): Promise<void> {
   const expiry = Date.now() + SESSION_DAYS * 86_400_000;
   const payload = `${userId}.${expiry}`;
