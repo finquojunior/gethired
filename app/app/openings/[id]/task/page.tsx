@@ -4,7 +4,8 @@ import { notFound } from 'next/navigation';
 import { q } from '@/lib/db';
 import { fmtDateTime } from '@/lib/tz';
 import { TASK_ACCEPT, TASK_MAX_BYTES } from '@/lib/uploads';
-import { briefLinks } from '@/lib/brief';
+import { briefLinks, parseSubmissionFields } from '@/lib/brief';
+import SubmissionFieldsEditor from '@/components/SubmissionFieldsEditor';
 import { directUploads } from '@/lib/storage';
 import SubmitButton from '@/components/SubmitButton';
 import DirectUploadForm from '@/components/DirectUploadForm';
@@ -33,10 +34,11 @@ export default async function TaskPage({
     brief: string;
     brief_file_path: string;
     brief_links: string;
+    submission_fields: unknown;
     active: number;
     submitted: number;
   }>(
-    `select s.id, s.name, s.brief, s.brief_file_path, s.brief_links,
+    `select s.id, s.name, s.brief, s.brief_file_path, s.brief_links, s.submission_fields,
             (select count(*)::int from public.applications a
               where a.current_stage_id = s.id and a.status = 'active') as active,
             (select count(distinct su.application_id)::int from public.submissions su
@@ -176,6 +178,19 @@ export default async function TaskPage({
                   </p>
                 )}
                 <input type="file" name="document" accept={TASK_ACCEPT} className="input" />
+              </div>
+
+              <div>
+                <label className="field-label">What candidates must submit</label>
+                <p className="mb-2 text-xs text-ink-soft">
+                  Each requirement appears as its own titled submission slot in the candidate
+                  portal. Optional ones are marked as such; candidates can always add extra
+                  free-form submissions too.
+                </p>
+                <SubmissionFieldsEditor
+                  name="submissionFields"
+                  initial={parseSubmissionFields(t.submission_fields)}
+                />
               </div>
 
               <div className="flex items-center gap-3">

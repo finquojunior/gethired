@@ -3,6 +3,29 @@
 // document (stages.brief_file_path), and reference links (stages.brief_links,
 // one URL per line). No node imports — used in tests and client-adjacent code.
 
+export type SubmissionField = {
+  id: string;
+  title: string;
+  kind: 'file' | 'link' | 'either';
+  required: boolean;
+};
+
+/** Validate/normalize a stage's submission_fields value (jsonb or client JSON). */
+export function parseSubmissionFields(raw: unknown): SubmissionField[] {
+  const arr = Array.isArray(raw) ? raw : [];
+  return arr.slice(0, 20).flatMap((i): SubmissionField[] => {
+    if (typeof i !== 'object' || i === null) return [];
+    const o = i as Record<string, unknown>;
+    const title = String(o.title ?? '').trim().slice(0, 200);
+    if (!title) return [];
+    const kind = o.kind === 'file' || o.kind === 'link' ? o.kind : 'either';
+    const id = /^[a-zA-Z0-9-]{1,40}$/.test(String(o.id ?? ''))
+      ? String(o.id)
+      : globalThis.crypto.randomUUID();
+    return [{ id, title, kind, required: Boolean(o.required) }];
+  });
+}
+
 /** Parse the newline-separated links column into clean http(s) URLs. */
 export function briefLinks(raw: string | null | undefined): string[] {
   return (raw ?? '')

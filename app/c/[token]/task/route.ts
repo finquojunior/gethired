@@ -6,6 +6,7 @@ import { clientIp, rateLimit } from '@/lib/ratelimit';
 import { verifyUploadPath } from '@/lib/auth';
 import { saveUpload, TASK_EXTS, TASK_MAX_BYTES } from '@/lib/storage';
 import { uploadedPathRe } from '@/lib/uploads';
+import { parseSubmissionFields } from '@/lib/brief';
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ token: string }> }) {
   const { token } = await ctx.params;
@@ -18,8 +19,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ token: str
 
   const {
     rows: [a],
-  } = await q<{ id: number; stage_id: number | null; kind: string | null }>(
-    `select a.id, a.current_stage_id as stage_id, s.kind
+  } = await q<{ id: number; stage_id: number | null; kind: string | null; submission_fields: unknown }>(
+    `select a.id, a.current_stage_id as stage_id, s.kind, s.submission_fields
      from public.applications a
      left join public.stages s on s.id = a.current_stage_id
      where a.portal_token = $1 and a.status = 'active'`,
@@ -31,7 +32,15 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ token: str
   const file = fd.get('file');
   const note = String(fd.get('note') ?? '').trim().slice(0, 2000);
 
-  const title = String(fd.get('title') ?? '').trim().slice(0, 200);
+  // a submission either answers an admin-defined requirement (field id wins:
+  // the title and kind come from the definition) or is free-form with a title
+  const fieldId = String(fd.get('field') ?? '');
+  const field = fieldId
+    ? parseSubmissionFields(a.submission_fields).find((f) => f.id === fieldId)
+    : undefined;
+  if (fieldId && !field) return back('?e=file');
+
+  const title = field?.title ?? String(fd.get('title') ?? '').trim().slice(0, 200);
   const link = String(fd.get('link') ?? '').trim().slice(0, 500);
   if (!title) return back('?e=file');
   if (link && !/^https?:\/\//i.test(link)) return back('?e=file');
@@ -52,12 +61,13 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ token: str
     relPath = await saveUpload('submissions', file);
   }
 
-  // every submission needs something in it: a file, a link, or both
-  if (!relPath && !link) return back('?e=file');
+  // every submission needs something in it, matching its requirement's kind
+  const wrongKind = field && ((field.kind === 'file' && !relPath) || (field.kind === 'link' && !link));
+  if ((!relPath && !link) || wrongKind) return back('?e=file');
 
   await q(
-    `insert into public.submissions (application_id, stage_id, title, file_path, link_url, note) values ($1, $2, $3, $4, $5, $6)`,
-    [a.id, a.stage_id, title, relPath, link, note]
+    `insert into public.submissions (application_id, stage_id, field_id, title, file_path, link_url, note) values ($1, $2, $3, $4, $5, $6, $7)`,
+    [a.id, a.stage_id, field?.id ?? '', title, relPath, link, note]
   );
   await audit(null, 'submitted_task', 'application', a.id);
   return back();

@@ -8,6 +8,7 @@ import { currentUser, isStaff } from '@/lib/auth';
 import { audit } from '@/lib/audit';
 import { orgTimeToUtc } from '@/lib/tz';
 import { EMPTY_SCHEMA, type FormSchema } from '@/lib/form-schema';
+import { parseSubmissionFields } from '@/lib/brief';
 import { deleteFile, saveUpload } from '@/lib/storage';
 import { POSTER_EXTS, POSTER_MAX_BYTES, TASK_EXTS, TASK_MAX_BYTES, uploadedPathRe } from '@/lib/uploads';
 
@@ -320,11 +321,25 @@ export async function updateTaskMaterials(formData: FormData) {
     .slice(0, 20)
     .join('\n');
 
+  let fields: unknown = [];
+  try {
+    fields = JSON.parse(String(formData.get('submissionFields') ?? '[]'));
+  } catch {
+    /* malformed client JSON → keep empty */
+  }
+
   await q(
     `update public.stages set brief = $2, brief_links = $3,
-       brief_file_path = coalesce($4, brief_file_path)
+       brief_file_path = coalesce($4, brief_file_path),
+       submission_fields = $5
      where id = $1`,
-    [stageId, String(formData.get('brief') ?? '').trim(), links, docPath]
+    [
+      stageId,
+      String(formData.get('brief') ?? '').trim(),
+      links,
+      docPath,
+      JSON.stringify(parseSubmissionFields(fields)),
+    ]
   );
   if (docPath !== null && stage.brief_file_path) await deleteFile(stage.brief_file_path);
 

@@ -6,7 +6,7 @@ import { allFields, type FormSchema } from '@/lib/form-schema';
 import LinkifyText from '@/components/LinkifyText';
 import DirectUploadForm from '@/components/DirectUploadForm';
 import { directUploads } from '@/lib/storage';
-import { briefLinks } from '@/lib/brief';
+import { briefLinks, parseSubmissionFields } from '@/lib/brief';
 
 export const dynamic = 'force-dynamic';
 
@@ -44,13 +44,14 @@ export default async function PortalPage({
     stage_brief: string | null;
     stage_brief_file: string | null;
     stage_brief_links: string | null;
+    submission_fields: unknown;
     answers: Record<string, unknown>;
     schema: FormSchema;
     created_at: Date;
   }>(
     `select a.id, a.name, a.status, o.title, s.id as stage_id, s.kind as stage_kind,
             s.brief as stage_brief, s.brief_file_path as stage_brief_file,
-            s.brief_links as stage_brief_links, a.answers, f.schema, a.created_at
+            s.brief_links as stage_brief_links, s.submission_fields, a.answers, f.schema, a.created_at
      from public.applications a
      join public.openings o on o.id = a.opening_id
      join public.forms f on f.id = a.form_id
@@ -88,8 +89,8 @@ export default async function PortalPage({
 
   const submissions = showTask
     ? (
-        await q<{ id: number; title: string; file_path: string; link_url: string; created_at: Date }>(
-          `select id, title, file_path, link_url, created_at from public.submissions
+        await q<{ id: number; title: string; field_id: string; file_path: string; link_url: string; created_at: Date }>(
+          `select id, title, field_id, file_path, link_url, created_at from public.submissions
            where application_id = $1 and stage_id = $2 order by id desc`,
           [a.id, a.stage_id]
         )
@@ -97,6 +98,12 @@ export default async function PortalPage({
     : [];
 
   const taskLinks = showTask ? briefLinks(a.stage_brief_links) : [];
+  const requirements = showTask ? parseSubmissionFields(a.submission_fields) : [];
+  // newest submission per requirement (rows arrive newest-first)
+  const doneByField = new Map<string, Date>();
+  for (const s of submissions) {
+    if (s.field_id && !doneByField.has(s.field_id)) doneByField.set(s.field_id, s.created_at);
+  }
   const fmt = fmtSlot;
   const canCancel = booking && booking.starts_at.getTime() - Date.now() > 24 * 3600_000;
 
@@ -217,6 +224,57 @@ export default async function PortalPage({
               </ul>
             </div>
           )}
+          {requirements.map((r) => {
+            const done = doneByField.get(r.id);
+            return (
+              <DirectUploadForm
+                key={r.id}
+                direct={directUploads}
+                signUrl={`/c/${token}/upload-url`}
+                fileField="file"
+                maxBytes={TASK_MAX_BYTES}
+                method="post"
+                action={`/c/${token}/task`}
+                encType="multipart/form-data"
+                className="mt-4 space-y-3 rounded-md border border-line p-4"
+              >
+                <input type="hidden" name="field" value={r.id} />
+                <input type="hidden" name="filePath" defaultValue="" />
+                <input type="hidden" name="fileSig" defaultValue="" />
+                <p className="text-sm font-medium">
+                  {r.title}{' '}
+                  <span className={`text-xs font-normal ${r.required ? 'text-rust' : 'text-ink-soft'}`}>
+                    {r.required ? 'required' : 'optional'}
+                  </span>
+                </p>
+                {done && (
+                  <p className="text-xs text-pine-deep">
+                    Submitted {fmt(done)} — submitting again adds a new version.
+                  </p>
+                )}
+                {r.kind !== 'link' && (
+                  <input
+                    type="file"
+                    name="file"
+                    required={r.kind === 'file'}
+                    accept={TASK_ACCEPT}
+                    className="input"
+                  />
+                )}
+                {r.kind !== 'file' && (
+                  <input
+                    type="url"
+                    name="link"
+                    required={r.kind === 'link'}
+                    placeholder="https://…"
+                    className="input"
+                  />
+                )}
+                <button className="btn-primary">{done ? 'Submit new version' : 'Submit'}</button>
+              </DirectUploadForm>
+            );
+          })}
+
           <DirectUploadForm
             direct={directUploads}
             signUrl={`/c/${token}/upload-url`}
@@ -230,7 +288,11 @@ export default async function PortalPage({
             <input type="hidden" name="filePath" defaultValue="" />
             <input type="hidden" name="fileSig" defaultValue="" />
             <p className="text-sm font-medium">
-              {submissions.length > 0 ? 'Add another submission' : 'Add a submission'}
+              {requirements.length > 0
+                ? 'Anything else (optional)'
+                : submissions.length > 0
+                  ? 'Add another submission'
+                  : 'Add a submission'}
             </p>
             <p className="text-xs text-ink-soft">
               Submit as many pieces as your task needs — give each one a title, with a file, a

@@ -1,6 +1,21 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { briefLinks, composeBriefEmail } from '../lib/brief.ts';
+import { briefLinks, composeBriefEmail, parseSubmissionFields } from '../lib/brief.ts';
+
+test('parseSubmissionFields normalizes and rejects junk', () => {
+  const out = parseSubmissionFields([
+    { id: 'abc-123', title: '  Source code  ', kind: 'file', required: 1 },
+    { id: '<script>', title: 'Demo', kind: 'nonsense', required: false },
+    { title: '' }, // no title → dropped
+    'garbage',
+  ]);
+  assert.equal(out.length, 2);
+  assert.deepEqual(out[0], { id: 'abc-123', title: 'Source code', kind: 'file', required: true });
+  assert.equal(out[1].title, 'Demo');
+  assert.equal(out[1].kind, 'either'); // unknown kind falls back
+  assert.match(out[1].id, /^[0-9a-f-]{36}$/); // invalid id replaced with uuid
+  assert.deepEqual(parseSubmissionFields('not an array'), []);
+});
 import { uploadedPathRe } from '../lib/uploads.ts';
 
 test('uploadedPathRe accepts only paths shaped like our minted uploads', () => {
