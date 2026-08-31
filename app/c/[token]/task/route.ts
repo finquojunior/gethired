@@ -18,8 +18,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ token: str
 
   const {
     rows: [a],
-  } = await q<{ id: number; stage_id: number | null; kind: string | null }>(
-    `select a.id, a.current_stage_id as stage_id, s.kind
+  } = await q<{ id: number; stage_id: number | null; kind: string | null; submission_mode: string | null }>(
+    `select a.id, a.current_stage_id as stage_id, s.kind, s.submission_mode
      from public.applications a
      left join public.stages s on s.id = a.current_stage_id
      where a.portal_token = $1 and a.status = 'active'`,
@@ -31,28 +31,36 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ token: str
   const file = fd.get('file');
   const note = String(fd.get('note') ?? '').trim().slice(0, 2000);
 
+  const mode = a.submission_mode ?? 'file';
+  const link = String(fd.get('link') ?? '').trim().slice(0, 500);
+  if (link && !/^https?:\/\//i.test(link)) return back('?e=file');
+
   // browser already uploaded straight to storage (Vercel body-size cap); the
   // signed path proves we minted it for this application
   const pre = String(fd.get('filePath') ?? '');
-  let relPath: string;
+  let relPath = '';
   if (pre) {
     if (!uploadedPathRe('submissions').test(pre) || !verifyUploadPath(a.id, pre, String(fd.get('fileSig') ?? ''))) {
       return back('?e=file');
     }
     relPath = pre;
-  } else if (
-    !(file instanceof File) ||
-    file.size === 0 ||
-    file.size > TASK_MAX_BYTES ||
-    !TASK_EXTS.has(path.extname(file.name).toLowerCase())
-  ) {
-    return back('?e=file');
-  } else {
+  } else if (file instanceof File && file.size > 0) {
+    if (file.size > TASK_MAX_BYTES || !TASK_EXTS.has(path.extname(file.name).toLowerCase())) {
+      return back('?e=file');
+    }
     relPath = await saveUpload('submissions', file);
   }
+
+  // what the stage's submission mode requires
+  const needsFile = mode === 'file' || mode === 'both';
+  const needsLink = mode === 'link' || mode === 'both';
+  if ((needsFile && !relPath) || (needsLink && !link) || (mode === 'either' && !relPath && !link)) {
+    return back('?e=file');
+  }
+
   await q(
-    `insert into public.submissions (application_id, stage_id, file_path, note) values ($1, $2, $3, $4)`,
-    [a.id, a.stage_id, relPath, note]
+    `insert into public.submissions (application_id, stage_id, file_path, link_url, note) values ($1, $2, $3, $4, $5)`,
+    [a.id, a.stage_id, relPath, mode === 'file' ? '' : link, note]
   );
   await audit(null, 'submitted_task', 'application', a.id);
   return back();

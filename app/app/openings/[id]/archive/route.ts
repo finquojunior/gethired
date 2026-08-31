@@ -65,7 +65,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
         [appIds]
       ),
       q<{ application_id: number; file_path: string; note: string; created_at: Date }>(
-        `select application_id, file_path, note, created_at from public.submissions
+        `select application_id, file_path, link_url, note, created_at from public.submissions
          where application_id = any($1)`,
         [appIds]
       ),

@@ -320,11 +320,19 @@ export async function updateTaskMaterials(formData: FormData) {
     .slice(0, 20)
     .join('\n');
 
+  const mode = String(formData.get('submissionMode') ?? 'file');
   await q(
     `update public.stages set brief = $2, brief_links = $3,
-       brief_file_path = coalesce($4, brief_file_path)
+       brief_file_path = coalesce($4, brief_file_path),
+       submission_mode = $5
      where id = $1`,
-    [stageId, String(formData.get('brief') ?? '').trim(), links, docPath]
+    [
+      stageId,
+      String(formData.get('brief') ?? '').trim(),
+      links,
+      docPath,
+      ['file', 'link', 'either', 'both'].includes(mode) ? mode : 'file',
+    ]
   );
   if (docPath !== null && stage.brief_file_path) await deleteFile(stage.brief_file_path);
 

@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { q } from '@/lib/db';
 import { fmtDate } from '@/lib/tz';
 import SubmitButton from '@/components/SubmitButton';
+import SelectAll from '@/components/SelectAll';
 import { bulkPipeline } from '@/app/app/candidates/actions';
 import BoardView from './BoardView';
 import {
@@ -178,7 +179,7 @@ export default async function ApplicationsPage({
         <div className="overflow-x-auto rounded-lg border border-line bg-card"><table className="w-full text-sm">
           <thead>
             <tr className="border-b border-line text-left text-xs uppercase tracking-wide text-ink-soft">
-              <th className="w-10 px-4 py-3" />
+              <th className="w-10 px-4 py-3"><SelectAll name="appId" /></th>
               <th className="px-4 py-3">Candidate</th>
               <th className="px-4 py-3">Form score</th>
               <th className="px-4 py-3">Feedback</th>

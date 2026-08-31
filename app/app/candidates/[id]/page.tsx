@@ -97,8 +97,8 @@ export default async function CandidatePage({
          where n.application_id = $1 order by n.created_at desc`,
         [appId]
       ),
-      q<{ id: number; file_path: string; note: string; stage: string | null; created_at: Date }>(
-        `select su.id, su.file_path, su.note, s.name as stage, su.created_at
+      q<{ id: number; file_path: string; link_url: string; note: string; stage: string | null; created_at: Date }>(
+        `select su.id, su.file_path, su.link_url, su.note, s.name as stage, su.created_at
          from public.submissions su
          left join public.stages s on s.id = su.stage_id
          where su.application_id = $1 order by su.created_at desc`,
@@ -324,9 +324,21 @@ export default async function CandidatePage({
             <ul className="mt-3 space-y-2 text-sm">
               {subs.map((s) => (
                 <li key={s.id} className="rounded-lg border border-line bg-card p-3">
-                  <a href={`/api/files/${s.file_path}`} target="_blank" className="font-medium text-pine underline">
-                    Submission
-                  </a>
+                  {s.file_path && (
+                    <a href={`/api/files/${s.file_path}`} target="_blank" className="font-medium text-pine underline">
+                      Submitted file
+                    </a>
+                  )}
+                  {s.link_url && (
+                    <a
+                      href={s.link_url}
+                      target="_blank"
+                      rel="noopener"
+                      className={`font-medium text-pine underline ${s.file_path ? 'ml-3' : ''}`}
+                    >
+                      Submitted link ↗
+                    </a>
+                  )}
                   <span className="ml-2 text-ink-soft">
                     {s.stage ?? ''} · {fmt(s.created_at)}
                   </span>

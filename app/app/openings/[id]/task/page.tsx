@@ -33,10 +33,11 @@ export default async function TaskPage({
     brief: string;
     brief_file_path: string;
     brief_links: string;
+    submission_mode: string;
     active: number;
     submitted: number;
   }>(
-    `select s.id, s.name, s.brief, s.brief_file_path, s.brief_links,
+    `select s.id, s.name, s.brief, s.brief_file_path, s.brief_links, s.submission_mode,
             (select count(*)::int from public.applications a
               where a.current_stage_id = s.id and a.status = 'active') as active,
             (select count(distinct su.application_id)::int from public.submissions su
@@ -173,6 +174,16 @@ export default async function TaskPage({
                   </p>
                 )}
                 <input type="file" name="document" accept={TASK_ACCEPT} className="input" />
+              </div>
+
+              <div>
+                <label className="field-label">Candidates submit</label>
+                <select name="submissionMode" defaultValue={t.submission_mode} className="input w-72">
+                  <option value="file">A file upload</option>
+                  <option value="link">A link (GitHub, Drive, deployed site…)</option>
+                  <option value="either">Either a file or a link</option>
+                  <option value="both">Both a file and a link</option>
+                </select>
               </div>
 
               <div className="flex items-center gap-3">

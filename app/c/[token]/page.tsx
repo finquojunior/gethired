@@ -44,13 +44,14 @@ export default async function PortalPage({
     stage_brief: string | null;
     stage_brief_file: string | null;
     stage_brief_links: string | null;
+    submission_mode: string | null;
     answers: Record<string, unknown>;
     schema: FormSchema;
     created_at: Date;
   }>(
     `select a.id, a.name, a.status, o.title, s.id as stage_id, s.kind as stage_kind,
             s.brief as stage_brief, s.brief_file_path as stage_brief_file,
-            s.brief_links as stage_brief_links, a.answers, f.schema, a.created_at
+            s.brief_links as stage_brief_links, s.submission_mode, a.answers, f.schema, a.created_at
      from public.applications a
      join public.openings o on o.id = a.opening_id
      join public.forms f on f.id = a.form_id
@@ -97,6 +98,7 @@ export default async function PortalPage({
     : [];
 
   const taskLinks = showTask ? briefLinks(a.stage_brief_links) : [];
+  const taskMode = a.submission_mode ?? 'file';
   const fmt = fmtSlot;
   const canCancel = booking && booking.starts_at.getTime() - Date.now() > 24 * 3600_000;
 
@@ -117,7 +119,8 @@ export default async function PortalPage({
       )}
       {errorCode === 'file' && (
         <p className="mt-4 rounded-md bg-rust/10 px-4 py-3 text-sm text-rust">
-          Upload failed. Use PDF, Word, or ZIP up to 16 MB.
+          Submission failed — check what the task asks for: a file (PDF, Word, or ZIP up to 16 MB)
+          and/or a valid link starting with http.
         </p>
       )}
 
@@ -216,8 +219,35 @@ export default async function PortalPage({
           >
             <input type="hidden" name="filePath" defaultValue="" />
             <input type="hidden" name="fileSig" defaultValue="" />
-            <input type="file" name="file" required accept={TASK_ACCEPT} className="input" />
-            <textarea name="note" rows={2} placeholder="Anything we should know? (links, context)" className="input" />
+            {taskMode !== 'link' && (
+              <div>
+                <label className="field-label">
+                  {taskMode === 'either' ? 'Your work as a file (or paste a link below)' : 'Your work as a file'}
+                </label>
+                <input
+                  type="file"
+                  name="file"
+                  required={taskMode === 'file' || taskMode === 'both'}
+                  accept={TASK_ACCEPT}
+                  className="input"
+                />
+              </div>
+            )}
+            {taskMode !== 'file' && (
+              <div>
+                <label className="field-label">
+                  {taskMode === 'either' ? 'Or a link to your work' : 'Link to your work'}
+                </label>
+                <input
+                  type="url"
+                  name="link"
+                  required={taskMode === 'link' || taskMode === 'both'}
+                  placeholder="https://github.com/… or https://drive.google.com/…"
+                  className="input"
+                />
+              </div>
+            )}
+            <textarea name="note" rows={2} placeholder="Anything we should know? (context)" className="input" />
             <button className="btn-primary">Submit task</button>
           </DirectUploadForm>
         </div>
