@@ -18,8 +18,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ token: str
 
   const {
     rows: [a],
-  } = await q<{ id: number; stage_id: number | null; kind: string | null; submission_mode: string | null }>(
-    `select a.id, a.current_stage_id as stage_id, s.kind, s.submission_mode
+  } = await q<{ id: number; stage_id: number | null; kind: string | null }>(
+    `select a.id, a.current_stage_id as stage_id, s.kind
      from public.applications a
      left join public.stages s on s.id = a.current_stage_id
      where a.portal_token = $1 and a.status = 'active'`,
@@ -31,8 +31,9 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ token: str
   const file = fd.get('file');
   const note = String(fd.get('note') ?? '').trim().slice(0, 2000);
 
-  const mode = a.submission_mode ?? 'file';
+  const title = String(fd.get('title') ?? '').trim().slice(0, 200);
   const link = String(fd.get('link') ?? '').trim().slice(0, 500);
+  if (!title) return back('?e=file');
   if (link && !/^https?:\/\//i.test(link)) return back('?e=file');
 
   // browser already uploaded straight to storage (Vercel body-size cap); the
@@ -51,16 +52,12 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ token: str
     relPath = await saveUpload('submissions', file);
   }
 
-  // what the stage's submission mode requires
-  const needsFile = mode === 'file' || mode === 'both';
-  const needsLink = mode === 'link' || mode === 'both';
-  if ((needsFile && !relPath) || (needsLink && !link) || (mode === 'either' && !relPath && !link)) {
-    return back('?e=file');
-  }
+  // every submission needs something in it: a file, a link, or both
+  if (!relPath && !link) return back('?e=file');
 
   await q(
-    `insert into public.submissions (application_id, stage_id, file_path, link_url, note) values ($1, $2, $3, $4, $5)`,
-    [a.id, a.stage_id, relPath, mode === 'file' ? '' : link, note]
+    `insert into public.submissions (application_id, stage_id, title, file_path, link_url, note) values ($1, $2, $3, $4, $5, $6)`,
+    [a.id, a.stage_id, title, relPath, link, note]
   );
   await audit(null, 'submitted_task', 'application', a.id);
   return back();

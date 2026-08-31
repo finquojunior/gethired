@@ -44,14 +44,13 @@ export default async function PortalPage({
     stage_brief: string | null;
     stage_brief_file: string | null;
     stage_brief_links: string | null;
-    submission_mode: string | null;
     answers: Record<string, unknown>;
     schema: FormSchema;
     created_at: Date;
   }>(
     `select a.id, a.name, a.status, o.title, s.id as stage_id, s.kind as stage_kind,
             s.brief as stage_brief, s.brief_file_path as stage_brief_file,
-            s.brief_links as stage_brief_links, s.submission_mode, a.answers, f.schema, a.created_at
+            s.brief_links as stage_brief_links, a.answers, f.schema, a.created_at
      from public.applications a
      join public.openings o on o.id = a.opening_id
      join public.forms f on f.id = a.form_id
@@ -89,8 +88,8 @@ export default async function PortalPage({
 
   const submissions = showTask
     ? (
-        await q<{ created_at: Date }>(
-          `select created_at from public.submissions
+        await q<{ id: number; title: string; file_path: string; link_url: string; created_at: Date }>(
+          `select id, title, file_path, link_url, created_at from public.submissions
            where application_id = $1 and stage_id = $2 order by id desc`,
           [a.id, a.stage_id]
         )
@@ -98,7 +97,6 @@ export default async function PortalPage({
     : [];
 
   const taskLinks = showTask ? briefLinks(a.stage_brief_links) : [];
-  const taskMode = a.submission_mode ?? 'file';
   const fmt = fmtSlot;
   const canCancel = booking && booking.starts_at.getTime() - Date.now() > 24 * 3600_000;
 
@@ -203,9 +201,21 @@ export default async function PortalPage({
             </p>
           )}
           {submissions.length > 0 && (
-            <p className="mt-3 rounded-md bg-pine-wash px-3 py-2 text-sm text-pine-deep">
-              Submitted {fmt(submissions[0].created_at)}. You can submit again to replace it.
-            </p>
+            <div className="mt-3 rounded-md bg-pine-wash px-3 py-2 text-sm text-pine-deep">
+              <p className="font-medium">Your submissions</p>
+              <ul className="mt-1 space-y-1">
+                {submissions.map((s) => (
+                  <li key={s.id}>
+                    {s.title || 'Submission'}
+                    <span className="opacity-70">
+                      {' '}
+                      · {[s.file_path && 'file', s.link_url && 'link'].filter(Boolean).join(' + ')} ·{' '}
+                      {fmt(s.created_at)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
           <DirectUploadForm
             direct={directUploads}
@@ -219,36 +229,39 @@ export default async function PortalPage({
           >
             <input type="hidden" name="filePath" defaultValue="" />
             <input type="hidden" name="fileSig" defaultValue="" />
-            {taskMode !== 'link' && (
-              <div>
-                <label className="field-label">
-                  {taskMode === 'either' ? 'Your work as a file (or paste a link below)' : 'Your work as a file'}
-                </label>
-                <input
-                  type="file"
-                  name="file"
-                  required={taskMode === 'file' || taskMode === 'both'}
-                  accept={TASK_ACCEPT}
-                  className="input"
-                />
-              </div>
-            )}
-            {taskMode !== 'file' && (
-              <div>
-                <label className="field-label">
-                  {taskMode === 'either' ? 'Or a link to your work' : 'Link to your work'}
-                </label>
-                <input
-                  type="url"
-                  name="link"
-                  required={taskMode === 'link' || taskMode === 'both'}
-                  placeholder="https://github.com/… or https://drive.google.com/…"
-                  className="input"
-                />
-              </div>
-            )}
+            <p className="text-sm font-medium">
+              {submissions.length > 0 ? 'Add another submission' : 'Add a submission'}
+            </p>
+            <p className="text-xs text-ink-soft">
+              Submit as many pieces as your task needs — give each one a title, with a file, a
+              link, or both.
+            </p>
+            <div>
+              <label className="field-label">Title</label>
+              <input
+                type="text"
+                name="title"
+                required
+                maxLength={200}
+                placeholder="e.g. Source code, Live demo, Design file…"
+                className="input"
+              />
+            </div>
+            <div>
+              <label className="field-label">File (optional — PDF, Word, or ZIP up to 16 MB)</label>
+              <input type="file" name="file" accept={TASK_ACCEPT} className="input" />
+            </div>
+            <div>
+              <label className="field-label">Link (optional)</label>
+              <input
+                type="url"
+                name="link"
+                placeholder="https://github.com/… or https://drive.google.com/…"
+                className="input"
+              />
+            </div>
             <textarea name="note" rows={2} placeholder="Anything we should know? (context)" className="input" />
-            <button className="btn-primary">Submit task</button>
+            <button className="btn-primary">Submit</button>
           </DirectUploadForm>
         </div>
       )}

@@ -33,11 +33,10 @@ export default async function TaskPage({
     brief: string;
     brief_file_path: string;
     brief_links: string;
-    submission_mode: string;
     active: number;
     submitted: number;
   }>(
-    `select s.id, s.name, s.brief, s.brief_file_path, s.brief_links, s.submission_mode,
+    `select s.id, s.name, s.brief, s.brief_file_path, s.brief_links,
             (select count(*)::int from public.applications a
               where a.current_stage_id = s.id and a.status = 'active') as active,
             (select count(distinct su.application_id)::int from public.submissions su
@@ -55,10 +54,13 @@ export default async function TaskPage({
     status: string;
     current_stage: string | null;
     submitted_at: Date | null;
+    submission_count: number;
   }>(
     `select s.id as stage_id, a.id, a.name, a.status, cs.name as current_stage,
             (select max(su.created_at) from public.submissions su
-              where su.application_id = a.id and su.stage_id = s.id) as submitted_at
+              where su.application_id = a.id and su.stage_id = s.id) as submitted_at,
+            (select count(*)::int from public.submissions su
+              where su.application_id = a.id and su.stage_id = s.id) as submission_count
      from public.stages s
      join public.applications a on a.opening_id = s.opening_id and (
        a.current_stage_id = s.id or exists (
@@ -176,16 +178,6 @@ export default async function TaskPage({
                 <input type="file" name="document" accept={TASK_ACCEPT} className="input" />
               </div>
 
-              <div>
-                <label className="field-label">Candidates submit</label>
-                <select name="submissionMode" defaultValue={t.submission_mode} className="input w-72">
-                  <option value="file">A file upload</option>
-                  <option value="link">A link (GitHub, Drive, deployed site…)</option>
-                  <option value="either">Either a file or a link</option>
-                  <option value="both">Both a file and a link</option>
-                </select>
-              </div>
-
               <div className="flex items-center gap-3">
                 <SubmitButton className="btn-primary" pendingLabel="Saving…">Save task</SubmitButton>
                 {!t.brief && !t.brief_file_path && briefLinks(t.brief_links).length === 0 && (
@@ -225,7 +217,8 @@ export default async function TaskPage({
                       <td className="py-2">
                         {c.submitted_at ? (
                           <span className="text-pine-deep">
-                            Submitted · {fmtDateTime(c.submitted_at)}
+                            {c.submission_count > 1 ? `${c.submission_count} submissions` : 'Submitted'} ·
+                            latest {fmtDateTime(c.submitted_at)}
                           </span>
                         ) : (
                           <span className="text-amber">Pending</span>
