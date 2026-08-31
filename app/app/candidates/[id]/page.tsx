@@ -5,6 +5,7 @@ import { q } from '@/lib/db';
 import { portalUrl } from '@/lib/email';
 import { fmtDate, fmtDateTime } from '@/lib/tz';
 import { allFields, type FormSchema } from '@/lib/form-schema';
+import { parseSubmissionFields } from '@/lib/brief';
 import SubmitButton from '@/components/SubmitButton';
 import LinkifyText from '@/components/LinkifyText';
 import { FEEDBACK_JOIN, PIPELINE_SORTS, PIPELINE_WHERE, pipelineParams, type PipelineCtx } from '@/lib/pipeline';
@@ -68,7 +69,7 @@ export default async function CandidatePage({
   );
   if (!a) notFound();
 
-  const [{ rows: stages }, { rows: history }, { rows: feedback }, { rows: notes }, { rows: subs }, { rows: slots }, { rows: emails }] =
+  const [{ rows: stages }, { rows: history }, { rows: feedback }, { rows: notes }, { rows: subs }, { rows: slots }, { rows: emails }, { rows: taskStages }] =
     await Promise.all([
       q<{ id: number; name: string }>(
         `select id, name from public.stages where opening_id = $1 order by position`,
@@ -97,8 +98,8 @@ export default async function CandidatePage({
          where n.application_id = $1 order by n.created_at desc`,
         [appId]
       ),
-      q<{ id: number; title: string; file_path: string; link_url: string; note: string; stage: string | null; created_at: Date }>(
-        `select su.id, su.title, su.file_path, su.link_url, su.note, s.name as stage, su.created_at
+      q<{ id: number; title: string; field_id: string; file_path: string; link_url: string; note: string; stage: string | null; created_at: Date }>(
+        `select su.id, su.title, su.field_id, su.file_path, su.link_url, su.note, s.name as stage, su.created_at
          from public.submissions su
          left join public.stages s on s.id = su.stage_id
          where su.application_id = $1 order by su.created_at desc`,
@@ -117,7 +118,19 @@ export default async function CandidatePage({
          where application_id = $1 order by id desc`,
         [appId]
       ),
+      q<{ stage: string; submission_fields: unknown }>(
+        `select name as stage, submission_fields from public.stages
+         where opening_id = $1 and kind = 'task' order by position`,
+        [a.opening_id]
+      ),
     ]);
+
+  // the task's asked-for items, so the profile shows all of them — submitted or not
+  const requirements = taskStages.flatMap((ts) =>
+    parseSubmissionFields(ts.submission_fields).map((f) => ({ ...f, stage: ts.stage }))
+  );
+  const reqIds = new Set(requirements.map((r) => r.id));
+  const extraSubs = subs.filter((s) => !reqIds.has(s.field_id));
 
   const {
     rows: [stageInfo],
@@ -322,12 +335,51 @@ export default async function CandidatePage({
           <section>
             <h2 className="font-display text-lg font-semibold">Task submissions</h2>
             <ul className="mt-3 space-y-2 text-sm">
-              {subs.map((s) => (
+              {requirements.map((r) => {
+                const rows = subs.filter((s) => s.field_id === r.id);
+                return (
+                  <li key={r.id} className="rounded-lg border border-line bg-card p-3">
+                    <span className="mr-2 font-medium">{r.title}</span>
+                    <span className={`mr-2 text-xs ${r.required ? 'text-rust' : 'text-ink-soft'}`}>
+                      {r.required ? 'required' : 'optional'}
+                    </span>
+                    {rows.length === 0 ? (
+                      <span className="text-amber">Not submitted yet</span>
+                    ) : (
+                      rows.map((s, i) => (
+                        <span key={s.id} className={i > 0 ? 'mt-1 block pl-4' : ''}>
+                          {s.file_path && (
+                            <a href={`/api/files/${s.file_path}`} target="_blank" className="font-medium text-pine underline">
+                              file
+                            </a>
+                          )}
+                          {s.link_url && (
+                            <a
+                              href={s.link_url}
+                              target="_blank"
+                              rel="noopener"
+                              className={`font-medium text-pine underline ${s.file_path ? 'ml-2' : ''}`}
+                            >
+                              link ↗
+                            </a>
+                          )}
+                          <span className="ml-2 text-ink-soft">
+                            {i > 0 && 'earlier version · '}
+                            {fmt(s.created_at)}
+                          </span>
+                          {s.note && <span className="ml-2 text-ink-soft">— {s.note}</span>}
+                        </span>
+                      ))
+                    )}
+                  </li>
+                );
+              })}
+              {extraSubs.map((s) => (
                 <li key={s.id} className="rounded-lg border border-line bg-card p-3">
-                  {s.title && <span className="mr-2 font-medium">{s.title}</span>}
+                  <span className="mr-2 font-medium">{s.title || 'Submission'}</span>
                   {s.file_path && (
                     <a href={`/api/files/${s.file_path}`} target="_blank" className="font-medium text-pine underline">
-                      Submitted file
+                      file
                     </a>
                   )}
                   {s.link_url && (
@@ -335,9 +387,9 @@ export default async function CandidatePage({
                       href={s.link_url}
                       target="_blank"
                       rel="noopener"
-                      className={`font-medium text-pine underline ${s.file_path ? 'ml-3' : ''}`}
+                      className={`font-medium text-pine underline ${s.file_path ? 'ml-2' : ''}`}
                     >
-                      Submitted link ↗
+                      link ↗
                     </a>
                   )}
                   <span className="ml-2 text-ink-soft">
@@ -346,7 +398,9 @@ export default async function CandidatePage({
                   {s.note && <p className="mt-1 whitespace-pre-line text-ink-soft">{s.note}</p>}
                 </li>
               ))}
-              {subs.length === 0 && <li className="text-ink-soft">Nothing submitted yet.</li>}
+              {requirements.length === 0 && subs.length === 0 && (
+                <li className="text-ink-soft">Nothing submitted yet.</li>
+              )}
             </ul>
           </section>
 
