@@ -6,8 +6,16 @@ import ContinueChip from '@/components/ContinueChip';
 export const dynamic = 'force-dynamic';
 
 export default async function DashboardPage() {
-  const [{ rows: interviews }, { rows: newApps }, { rows: pendingFeedback }, { rows: funnel }, { rows: [outbox] }] =
-    await Promise.all([
+  const [
+    { rows: interviews },
+    { rows: newApps },
+    { rows: pendingFeedback },
+    { rows: funnel },
+    { rows: [outbox] },
+    { rows: [stats] },
+    { rows: taskRound },
+    { rows: stale },
+  ] = await Promise.all([
       q<{ id: number; name: string; title: string; starts_at: Date; interviewer: string }>(
         `select a.id, a.name, o.title, sl.starts_at, p.full_name as interviewer
          from public.slots sl
@@ -47,6 +55,46 @@ export default async function DashboardPage() {
       q<{ pending: number }>(
         `select count(*)::int as pending from public.email_log where status in ('pending', 'failed')`
       ),
+      q<{ active: number; interviews7: number; offers: number; hired30: number }>(
+        `select
+           (select count(*)::int from public.applications where status = 'active') as active,
+           (select count(distinct sl.application_id)::int from public.slots sl
+             join public.applications a on a.id = sl.application_id
+             where sl.starts_at between now() and now() + interval '7 days' and a.status = 'active') as interviews7,
+           (select count(*)::int from public.applications a
+             join public.stages s on s.id = a.current_stage_id
+             where a.status = 'active' and s.kind = 'offer') as offers,
+           (select count(*)::int from public.applications
+             where status = 'hired' and updated_at > now() - interval '30 days') as hired30`
+      ),
+      // task round: per opening, candidates in a task stage and how many have submitted
+      q<{ opening_id: number; title: string; in_stage: number; submitted: number }>(
+        `select o.id as opening_id, o.title,
+                count(a.id)::int as in_stage,
+                count(a.id) filter (where exists (
+                  select 1 from public.submissions su
+                  where su.application_id = a.id and su.stage_id = s.id))::int as submitted
+         from public.stages s
+         join public.openings o on o.id = s.opening_id
+         join public.applications a on a.current_stage_id = s.id and a.status = 'active'
+         where s.kind = 'task'
+         group by o.id order by in_stage desc`
+      ),
+      // stale: active candidates with no stage movement for 14+ days
+      q<{ id: number; name: string; title: string; stage: string; last_move: Date }>(
+        `select a.id, a.name, o.title, s.name as stage,
+                greatest(a.created_at, coalesce(
+                  (select max(h.created_at) from public.stage_history h where h.application_id = a.id),
+                  a.created_at)) as last_move
+         from public.applications a
+         join public.openings o on o.id = a.opening_id
+         left join public.stages s on s.id = a.current_stage_id
+         where a.status = 'active'
+           and greatest(a.created_at, coalesce(
+                 (select max(h.created_at) from public.stage_history h where h.application_id = a.id),
+                 a.created_at)) < now() - interval '14 days'
+         order by last_move limit 10`
+      ),
     ]);
 
   const funnelByOpening = new Map<number, { title: string; stages: { stage: string; count: number }[] }>();
@@ -58,10 +106,24 @@ export default async function DashboardPage() {
   const card = 'rounded-lg border border-line bg-card p-5';
   return (
     <div>
-      <h1 className="track font-display text-3xl font-bold">Today</h1>
+      <h1 className="track font-display text-3xl font-bold">Dashboard</h1>
       <ContinueChip />
 
-      <div className="mt-8 grid gap-6 lg:grid-cols-2">
+      <div className="mt-8 grid grid-cols-2 gap-4 md:grid-cols-4">
+        {[
+          { label: 'Active candidates', value: stats.active },
+          { label: 'Interviews next 7 days', value: stats.interviews7 },
+          { label: 'At offer stage', value: stats.offers },
+          { label: 'Hired (30 days)', value: stats.hired30 },
+        ].map((s) => (
+          <div key={s.label} className={card}>
+            <div className="font-display text-3xl font-bold text-pine-deep">{s.value}</div>
+            <div className="mt-1 text-xs text-ink-soft">{s.label}</div>
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-6 grid gap-6 lg:grid-cols-2">
         <section className={card}>
           <h2 className="font-display text-lg font-semibold">Interviews in the next 24h</h2>
           <ul className="mt-3 space-y-2 text-sm">
@@ -108,6 +170,42 @@ export default async function DashboardPage() {
               </li>
             ))}
             {pendingFeedback.length === 0 && <li className="text-ink-soft">All caught up.</li>}
+          </ul>
+        </section>
+
+        <section className={card}>
+          <h2 className="font-display text-lg font-semibold">Task round</h2>
+          <ul className="mt-3 space-y-2 text-sm">
+            {taskRound.map((t) => (
+              <li key={t.opening_id} className="flex justify-between">
+                <Link href={`/app/openings/${t.opening_id}/task`} className="hover:underline">
+                  {t.title}
+                </Link>
+                <span>
+                  <span className="font-medium text-pine-deep">{t.submitted} submitted</span>
+                  <span className="text-ink-soft"> · {t.in_stage - t.submitted} awaiting</span>
+                </span>
+              </li>
+            ))}
+            {taskRound.length === 0 && <li className="text-ink-soft">Nobody in a task round.</li>}
+          </ul>
+        </section>
+
+        <section className={card}>
+          <h2 className="font-display text-lg font-semibold">Stuck for 14+ days</h2>
+          <p className="mt-1 text-xs text-ink-soft">Active candidates with no stage movement.</p>
+          <ul className="mt-3 space-y-2 text-sm">
+            {stale.map((s) => (
+              <li key={s.id} className="flex justify-between">
+                <Link href={`/app/candidates/${s.id}`} className="font-medium hover:underline">
+                  {s.name}
+                </Link>
+                <span className="text-ink-soft">
+                  {s.title} · {s.stage ?? '—'} · since {s.last_move.toISOString().slice(0, 10)}
+                </span>
+              </li>
+            ))}
+            {stale.length === 0 && <li className="text-ink-soft">Nobody stuck — pipeline is moving.</li>}
           </ul>
         </section>
 

@@ -1,10 +1,21 @@
 import Link from 'next/link';
 import { q } from '@/lib/db';
+import { fmtDateTime } from '@/lib/tz';
 
 export const dynamic = 'force-dynamic';
 
 export default async function ReportsPage() {
-  const [{ rows: funnel }, { rows: sources }, { rows: tth }, { rows: weekly }] = await Promise.all([
+  const [
+    { rows: funnel },
+    { rows: sources },
+    { rows: tth },
+    { rows: weekly },
+    { rows: reach },
+    { rows: ratings },
+    { rows: moves },
+    { rows: outcomes },
+    { rows: openings },
+  ] = await Promise.all([
     q<{
       opening_id: number;
       title: string;
@@ -46,16 +57,184 @@ export default async function ReportsPage() {
        where created_at > now() - interval '8 weeks'
        group by 1 order by 1`
     ),
+    // how far candidates get: ever entered a stage of each kind (history or current)
+    q<{ opening_id: number; title: string; applied: number; task: number; interview: number; offer: number; hired: number }>(
+      `select o.id as opening_id, o.title,
+              count(a.id)::int as applied,
+              count(a.id) filter (where exists (
+                select 1 from public.stages s
+                where s.kind = 'task' and (s.id = a.current_stage_id or exists (
+                  select 1 from public.stage_history h
+                  where h.application_id = a.id and h.to_stage_id = s.id))))::int as task,
+              count(a.id) filter (where exists (
+                select 1 from public.stages s
+                where s.kind = 'interview' and (s.id = a.current_stage_id or exists (
+                  select 1 from public.stage_history h
+                  where h.application_id = a.id and h.to_stage_id = s.id))))::int as interview,
+              count(a.id) filter (where exists (
+                select 1 from public.stages s
+                where s.kind = 'offer' and (s.id = a.current_stage_id or exists (
+                  select 1 from public.stage_history h
+                  where h.application_id = a.id and h.to_stage_id = s.id))))::int as offer,
+              count(a.id) filter (where a.status = 'hired')::int as hired
+       from public.openings o
+       join public.applications a on a.opening_id = o.id
+       group by o.id order by applied desc`
+    ),
+    q<{ title: string; avg_rating: string; n: number }>(
+      `select o.title, round(avg(f.rating), 1)::text as avg_rating, count(f.id)::int as n
+       from public.feedback f
+       join public.applications a on a.id = f.application_id
+       join public.openings o on o.id = a.opening_id
+       where f.rating is not null
+       group by o.id order by avg(f.rating) desc`
+    ),
+    q<{ when: Date; name: string; app_id: number; stage: string; title: string }>(
+      `select h.created_at as when, a.name, a.id as app_id, s.name as stage, o.title
+       from public.stage_history h
+       join public.applications a on a.id = h.application_id
+       join public.openings o on o.id = a.opening_id
+       left join public.stages s on s.id = h.to_stage_id
+       order by h.created_at desc limit 12`
+    ),
+    q<{ when: Date; name: string; app_id: number; status: string; title: string }>(
+      `select a.updated_at as when, a.name, a.id as app_id, a.status, o.title
+       from public.applications a
+       join public.openings o on o.id = a.opening_id
+       where a.status in ('hired', 'rejected')
+       order by a.updated_at desc limit 8`
+    ),
+    q<{ id: number; title: string }>(
+      `select id, title from public.openings order by created_at desc`
+    ),
   ]);
+
+  // one merged, newest-first activity feed from stage moves + final outcomes
+  const activity = [
+    ...moves.map((m) => ({
+      when: m.when,
+      app_id: m.app_id,
+      name: m.name,
+      text: `moved to ${m.stage ?? 'a removed stage'} · ${m.title}`,
+    })),
+    ...outcomes.map((o) => ({
+      when: o.when,
+      app_id: o.app_id,
+      name: o.name,
+      text: `${o.status} · ${o.title}`,
+    })),
+  ]
+    .sort((a, b) => b.when.getTime() - a.when.getTime())
+    .slice(0, 15);
 
   const maxWeekly = Math.max(1, ...weekly.map((w) => w.count));
   const card = 'rounded-lg border border-line bg-card p-5';
+
+  const pct = (n: number, of: number) => (of > 0 ? `${Math.round((n / of) * 100)}%` : '—');
 
   return (
     <div>
       <h1 className="track font-display text-3xl font-bold">Reports</h1>
 
-      <div className="mt-8 grid gap-6 lg:grid-cols-2">
+      <section className={`${card} mt-8`}>
+        <h2 className="font-display text-lg font-semibold">Generate a hiring report</h2>
+        <p className="mt-1 text-xs text-ink-soft">
+          Opens a print-ready report — use the Download PDF button there to save it. Pick a month,
+          or a custom range; leave both empty for the last 30 days.
+        </p>
+        <form action="/app/reports/print" className="mt-4 flex flex-wrap items-end gap-3">
+          <div>
+            <label className="field-label">Role</label>
+            <select name="opening" className="input w-56">
+              <option value="all">All roles</option>
+              {openings.map((o) => (
+                <option key={o.id} value={o.id}>{o.title}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="field-label">Month</label>
+            <input type="month" name="month" className="input" />
+          </div>
+          <span className="pb-2 text-sm text-ink-soft">or</span>
+          <div>
+            <label className="field-label">From</label>
+            <input type="date" name="from" className="input" />
+          </div>
+          <div>
+            <label className="field-label">To</label>
+            <input type="date" name="to" className="input" />
+          </div>
+          <button className="btn-primary">Open report</button>
+        </form>
+      </section>
+
+      <div className="mt-6 grid gap-6 lg:grid-cols-2">
+        <section className={card}>
+          <h2 className="font-display text-lg font-semibold">How far candidates get</h2>
+          <p className="mt-1 text-xs text-ink-soft">
+            Candidates who ever reached each round, with conversion from applied.
+          </p>
+          <div className="overflow-x-auto"><table className="mt-3 w-full text-sm">
+            <thead>
+              <tr className="text-left text-xs uppercase tracking-wide text-ink-soft">
+                <th className="py-1">Opening</th>
+                <th className="py-1 text-right">Applied</th>
+                <th className="py-1 text-right">Task</th>
+                <th className="py-1 text-right">Interview</th>
+                <th className="py-1 text-right">Offer</th>
+                <th className="py-1 text-right">Hired</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-line">
+              {reach.map((r) => (
+                <tr key={r.opening_id}>
+                  <td className="py-2">{r.title}</td>
+                  <td className="py-2 text-right font-medium">{r.applied}</td>
+                  <td className="py-2 text-right">{r.task} <span className="text-xs text-ink-soft">({pct(r.task, r.applied)})</span></td>
+                  <td className="py-2 text-right">{r.interview} <span className="text-xs text-ink-soft">({pct(r.interview, r.applied)})</span></td>
+                  <td className="py-2 text-right">{r.offer}</td>
+                  <td className="py-2 text-right text-pine-deep">{r.hired} <span className="text-xs text-ink-soft">({pct(r.hired, r.applied)})</span></td>
+                </tr>
+              ))}
+            </tbody>
+          </table></div>
+          {reach.length === 0 && <p className="mt-2 text-sm text-ink-soft">No applications yet.</p>}
+        </section>
+
+        <section className={card}>
+          <h2 className="font-display text-lg font-semibold">Recent hiring activity</h2>
+          <ul className="mt-3 space-y-2 text-sm">
+            {activity.map((ev, i) => (
+              <li key={i} className="flex justify-between gap-3">
+                <span>
+                  <Link href={`/app/candidates/${ev.app_id}`} className="font-medium hover:underline">
+                    {ev.name}
+                  </Link>{' '}
+                  <span className="text-ink-soft">{ev.text}</span>
+                </span>
+                <span className="shrink-0 text-xs text-ink-soft">{fmtDateTime(ev.when)}</span>
+              </li>
+            ))}
+            {activity.length === 0 && <li className="text-ink-soft">No activity yet.</li>}
+          </ul>
+        </section>
+
+        <section className={card}>
+          <h2 className="font-display text-lg font-semibold">Interview feedback by role</h2>
+          <ul className="mt-3 space-y-2 text-sm">
+            {ratings.map((r) => (
+              <li key={r.title} className="flex justify-between">
+                <span>{r.title}</span>
+                <span>
+                  <span className="font-medium">★ {r.avg_rating}</span>
+                  <span className="text-ink-soft"> · {r.n} rating(s)</span>
+                </span>
+              </li>
+            ))}
+            {ratings.length === 0 && <li className="text-ink-soft">No feedback recorded yet.</li>}
+          </ul>
+        </section>
         <section className={card}>
           <h2 className="font-display text-lg font-semibold">Funnel by opening</h2>
           <div className="overflow-x-auto"><table className="mt-3 w-full text-sm">

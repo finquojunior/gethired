@@ -2,6 +2,7 @@ import Link from 'next/link';
 import BackButton from '@/components/BackButton';
 import { notFound } from 'next/navigation';
 import { q } from '@/lib/db';
+import { fmtDateTime } from '@/lib/tz';
 import { TASK_ACCEPT, TASK_MAX_BYTES } from '@/lib/uploads';
 import { briefLinks } from '@/lib/brief';
 import { directUploads } from '@/lib/storage';
@@ -44,6 +45,35 @@ export default async function TaskPage({
     [openingId]
   );
 
+  // everyone who ever reached a task stage (currently in it, or moved through
+  // it per stage_history), with their latest submission for that stage
+  const { rows: candidates } = await q<{
+    stage_id: number;
+    id: number;
+    name: string;
+    status: string;
+    current_stage: string | null;
+    submitted_at: Date | null;
+  }>(
+    `select s.id as stage_id, a.id, a.name, a.status, cs.name as current_stage,
+            (select max(su.created_at) from public.submissions su
+              where su.application_id = a.id and su.stage_id = s.id) as submitted_at
+     from public.stages s
+     join public.applications a on a.opening_id = s.opening_id and (
+       a.current_stage_id = s.id or exists (
+         select 1 from public.stage_history h
+         where h.application_id = a.id and h.to_stage_id = s.id))
+     left join public.stages cs on cs.id = a.current_stage_id
+     where s.opening_id = $1 and s.kind = 'task'
+     order by submitted_at desc nulls last, a.name`,
+    [openingId]
+  );
+  const candidatesByStage = new Map<number, typeof candidates>();
+  for (const c of candidates) {
+    if (!candidatesByStage.has(c.stage_id)) candidatesByStage.set(c.stage_id, []);
+    candidatesByStage.get(c.stage_id)!.push(c);
+  }
+
   return (
     <div>
       <BackButton fallback={`/app/openings/${openingId}`} />
@@ -77,8 +107,8 @@ export default async function TaskPage({
 
       <div className="mt-8 space-y-6">
         {tasks.map((t) => (
+          <div key={t.id} className="space-y-4">
           <DirectUploadForm
-            key={t.id}
             direct={directUploads}
             signUrl={`/app/openings/${openingId}/task/upload-url`}
             fileField="document"
@@ -155,6 +185,51 @@ export default async function TaskPage({
               </div>
             </div>
           </DirectUploadForm>
+
+          <section className="rounded-lg border border-line bg-card p-5">
+            <h3 className="font-display text-lg font-semibold">Candidates in this task round</h3>
+            <p className="mt-1 text-xs text-ink-soft">
+              Everyone who reached {t.name}, including candidates who have since moved on.
+            </p>
+            <div className="mt-3 overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-xs uppercase tracking-wide text-ink-soft">
+                    <th className="py-1 pr-4">Candidate</th>
+                    <th className="py-1 pr-4">Now at</th>
+                    <th className="py-1">Task</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-line">
+                  {(candidatesByStage.get(t.id) ?? []).map((c) => (
+                    <tr key={c.id}>
+                      <td className="py-2 pr-4">
+                        <Link href={`/app/candidates/${c.id}`} className="font-medium hover:underline">
+                          {c.name}
+                        </Link>
+                      </td>
+                      <td className="py-2 pr-4 text-ink-soft">
+                        {c.status === 'active' ? c.current_stage ?? '—' : c.status}
+                      </td>
+                      <td className="py-2">
+                        {c.submitted_at ? (
+                          <span className="text-pine-deep">
+                            Submitted · {fmtDateTime(c.submitted_at)}
+                          </span>
+                        ) : (
+                          <span className="text-amber">Pending</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {(candidatesByStage.get(t.id) ?? []).length === 0 && (
+                <p className="mt-2 text-sm text-ink-soft">No candidates have reached this stage yet.</p>
+              )}
+            </div>
+          </section>
+          </div>
         ))}
       </div>
     </div>
