@@ -96,5 +96,5 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ token: str
     params
   );
   await audit(null, 'submitted_task', 'application', a.id);
-  return back();
+  return back('?ok=task');
 }

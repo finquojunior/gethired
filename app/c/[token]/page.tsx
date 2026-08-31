@@ -5,6 +5,8 @@ import { TASK_ACCEPT, TASK_MAX_BYTES } from '@/lib/uploads';
 import { allFields, type FormSchema } from '@/lib/form-schema';
 import LinkifyText from '@/components/LinkifyText';
 import TaskSubmitForm from '@/components/TaskSubmitForm';
+import Toaster from '@/components/Toaster';
+import PostForm from '@/components/PostForm';
 import { directUploads } from '@/lib/storage';
 import { briefLinks, parseSubmissionFields } from '@/lib/brief';
 
@@ -14,6 +16,18 @@ const STATUS_TEXT: Record<string, string> = {
   hired: 'You got the role — congratulations! Our team will contact you with next steps.',
   rejected: 'Thanks for your interest. We are not moving forward with your application this time.',
   withdrawn: 'This application has been withdrawn.',
+};
+
+const OK_TEXT: Record<string, string> = {
+  task: 'Submission received — thank you!',
+  booked: 'Your interview slot is booked. A confirmation email is on its way.',
+  cancelled: 'Booking cancelled. You can pick a new slot below.',
+  withdrawn: 'Your application has been withdrawn.',
+};
+
+const ERROR_TEXT: Record<string, string> = {
+  taken: 'That slot was just taken — pick another one.',
+  file: 'Submission failed — check what the task asks for: a file (PDF, Word, or ZIP up to 16 MB) and/or a valid link starting with http.',
 };
 
 const KIND_TEXT: Record<string, string> = {
@@ -28,10 +42,10 @@ export default async function PortalPage({
   searchParams,
 }: {
   params: Promise<{ token: string }>;
-  searchParams: Promise<{ e?: string }>;
+  searchParams: Promise<{ e?: string; ok?: string }>;
 }) {
   const { token } = await params;
-  const { e: errorCode } = await searchParams;
+  const { e: errorCode, ok: okCode } = await searchParams;
   const {
     rows: [a],
   } = await q<{
@@ -117,17 +131,16 @@ export default async function PortalPage({
       </p>
       <p className="mt-1 text-sm text-ink-soft">Applied {a.created_at.toISOString().slice(0, 10)}</p>
 
-      {errorCode === 'taken' && (
-        <p className="mt-4 rounded-md bg-rust/10 px-4 py-3 text-sm text-rust">
-          That slot was just taken — pick another one.
-        </p>
-      )}
-      {errorCode === 'file' && (
-        <p className="mt-4 rounded-md bg-rust/10 px-4 py-3 text-sm text-rust">
-          Submission failed — check what the task asks for: a file (PDF, Word, or ZIP up to 16 MB)
-          and/or a valid link starting with http.
-        </p>
-      )}
+      <Toaster
+        initial={
+          okCode && OK_TEXT[okCode]
+            ? { kind: 'success', message: OK_TEXT[okCode] }
+            : errorCode && ERROR_TEXT[errorCode]
+              ? { kind: 'error', message: ERROR_TEXT[errorCode] }
+              : null
+        }
+        cleanParams={['ok', 'e']}
+      />
 
       {showInterview && booking && (
         <div className="mt-8 rounded-lg border border-line bg-card p-5">
@@ -148,10 +161,10 @@ export default async function PortalPage({
           )}
           {a.stage_brief && <p className="mt-2 whitespace-pre-line text-sm text-ink-soft">{a.stage_brief}</p>}
           {canCancel ? (
-            <form method="post" action={`/c/${token}/cancel`} className="mt-4">
+            <PostForm pendingText="Cancelling…" method="post" action={`/c/${token}/cancel`} className="mt-4">
               <button className="btn-quiet text-rust">Cancel booking</button>
               <span className="ml-2 text-xs text-ink-soft">You can rebook another slot after cancelling.</span>
-            </form>
+            </PostForm>
           ) : (
             <p className="mt-3 text-xs text-ink-soft">
               Bookings can be changed up to 24 hours before the interview.
@@ -171,12 +184,12 @@ export default async function PortalPage({
           ) : (
             <div className="mt-4 grid grid-cols-2 gap-2">
               {openSlots.map((s) => (
-                <form key={s.id} method="post" action={`/c/${token}/book`}>
+                <PostForm key={s.id} pendingText="Booking…" method="post" action={`/c/${token}/book`}>
                   <input type="hidden" name="slotId" value={s.id} />
                   <button className="btn-quiet w-full justify-center">
                     {fmt(s.starts_at)}
                   </button>
-                </form>
+                </PostForm>
               ))}
             </div>
           )}
@@ -261,13 +274,13 @@ export default async function PortalPage({
       {a.status === 'active' && (
         <details className="mt-10 text-sm text-ink-soft">
           <summary className="cursor-pointer">No longer interested?</summary>
-          <form method="post" action={`/c/${token}/withdraw`} className="mt-3">
+          <PostForm pendingText="Withdrawing…" method="post" action={`/c/${token}/withdraw`} className="mt-3">
             <p className="mb-2">
               This withdraws your application for {a.title} and cancels any booked interview.
               It cannot be undone from this page.
             </p>
             <button className="btn-quiet text-rust">Withdraw my application</button>
-          </form>
+          </PostForm>
         </details>
       )}
     </main>

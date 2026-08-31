@@ -66,7 +66,16 @@ export default function TaskSubmitForm({
     }
 
     const withFiles = items.filter((it) => it.file);
-    if (!direct || withFiles.length === 0) return; // plain submit carries the files
+    if (!direct || withFiles.length === 0) {
+      // plain submit carries the files — but repaint the busy state first
+      e.preventDefault();
+      setBusy(true);
+      setTimeout(() => {
+        passthrough.current = true;
+        el.requestSubmit();
+      }, 0);
+      return;
+    }
     e.preventDefault();
     setBusy(true);
     setError('');
@@ -132,7 +141,7 @@ export default function TaskSubmitForm({
       ))}
       <textarea name="note" rows={2} placeholder="Anything we should know? (context)" className="input" />
       <button className="btn-primary" disabled={busy}>
-        {busy ? 'Uploading…' : 'Submit task'}
+        {busy ? 'Sending…' : 'Submit task'}
       </button>
       {error && <p className="text-sm text-rust">{error}</p>}
     </form>

@@ -94,5 +94,5 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ token: str
       ics,
     });
   }
-  return back();
+  return back('?ok=booked');
 }

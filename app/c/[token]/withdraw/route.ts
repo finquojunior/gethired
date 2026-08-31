@@ -16,5 +16,5 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ token: str
     await audit(null, 'withdrew', 'application', a.id);
     await freeFutureSlots([a.id], null);
   }
-  return NextResponse.redirect(new URL(`/c/${token}`, req.url), 303);
+  return NextResponse.redirect(new URL(`/c/${token}${a ? '?ok=withdrawn' : ''}`, req.url), 303);
 }

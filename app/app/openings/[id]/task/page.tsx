@@ -194,7 +194,7 @@ export default async function TaskPage({
               </div>
 
               <div className="flex items-center gap-3">
-                <SubmitButton className="btn-primary" pendingLabel="Saving…">Save task</SubmitButton>
+                <SubmitButton className="btn-primary" pendingLabel="Saving…" doneMessage="Task saved">Save task</SubmitButton>
                 {!t.brief && !t.brief_file_path && briefLinks(t.brief_links).length === 0 && (
                   <span className="text-sm text-rust">
                     Nothing set yet — candidates moved here would get &quot;Task details will follow.&quot;

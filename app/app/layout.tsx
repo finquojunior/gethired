@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { currentUser } from '@/lib/auth';
 import NavLink from '@/components/NavLink';
 import RememberPage from '@/components/RememberPage';
+import Toaster from '@/components/Toaster';
 
 export default async function InternalLayout({ children }: { children: React.ReactNode }) {
   const user = await currentUser();
@@ -38,6 +39,7 @@ export default async function InternalLayout({ children }: { children: React.Rea
       </aside>
       <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-6 md:px-8 md:py-10">
         <RememberPage />
+        <Toaster />
         {children}
       </main>
     </div>
