@@ -74,8 +74,8 @@ export default function SubmissionFieldsEditor({
         + Add requirement
       </button>
       {items.length === 0 && (
-        <p className="text-xs text-ink-soft">
-          No requirements defined — candidates get a single free-form submission form.
+        <p className="text-xs text-rust">
+          No requirements defined — candidates cannot submit anything until you add at least one.
         </p>
       )}
     </div>

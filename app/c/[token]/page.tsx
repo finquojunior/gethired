@@ -4,7 +4,7 @@ import { fmtSlot } from '@/lib/tz';
 import { TASK_ACCEPT, TASK_MAX_BYTES } from '@/lib/uploads';
 import { allFields, type FormSchema } from '@/lib/form-schema';
 import LinkifyText from '@/components/LinkifyText';
-import DirectUploadForm from '@/components/DirectUploadForm';
+import TaskSubmitForm from '@/components/TaskSubmitForm';
 import { directUploads } from '@/lib/storage';
 import { briefLinks, parseSubmissionFields } from '@/lib/brief';
 
@@ -224,107 +224,19 @@ export default async function PortalPage({
               </ul>
             </div>
           )}
-          {requirements.map((r) => {
-            const done = doneByField.get(r.id);
-            return (
-              <DirectUploadForm
-                key={r.id}
-                direct={directUploads}
-                signUrl={`/c/${token}/upload-url`}
-                fileField="file"
-                maxBytes={TASK_MAX_BYTES}
-                method="post"
-                action={`/c/${token}/task`}
-                encType="multipart/form-data"
-                className="mt-4 space-y-3 rounded-md border border-line p-4"
-              >
-                <input type="hidden" name="field" value={r.id} />
-                <input type="hidden" name="filePath" defaultValue="" />
-                <input type="hidden" name="fileSig" defaultValue="" />
-                <p className="text-sm font-medium">
-                  {r.title}{' '}
-                  <span className={`text-xs font-normal ${r.required ? 'text-rust' : 'text-ink-soft'}`}>
-                    {r.required ? 'required' : 'optional'}
-                  </span>
-                </p>
-                {done && (
-                  <p className="text-xs text-pine-deep">
-                    Submitted {fmt(done)} — submitting again adds a new version.
-                  </p>
-                )}
-                {r.kind !== 'link' && (
-                  <input
-                    type="file"
-                    name="file"
-                    required={r.kind === 'file'}
-                    accept={TASK_ACCEPT}
-                    className="input"
-                  />
-                )}
-                {r.kind !== 'file' && (
-                  <input
-                    type="url"
-                    name="link"
-                    required={r.kind === 'link'}
-                    placeholder="https://…"
-                    className="input"
-                  />
-                )}
-                <button className="btn-primary">{done ? 'Submit new version' : 'Submit'}</button>
-              </DirectUploadForm>
-            );
-          })}
-
-          <DirectUploadForm
-            direct={directUploads}
-            signUrl={`/c/${token}/upload-url`}
-            fileField="file"
-            maxBytes={TASK_MAX_BYTES}
-            method="post"
-            action={`/c/${token}/task`}
-            encType="multipart/form-data"
-            className="mt-4 space-y-3"
-          >
-            <input type="hidden" name="filePath" defaultValue="" />
-            <input type="hidden" name="fileSig" defaultValue="" />
-            <p className="text-sm font-medium">
-              {requirements.length > 0
-                ? 'Anything else (optional)'
-                : submissions.length > 0
-                  ? 'Add another submission'
-                  : 'Add a submission'}
-            </p>
-            <p className="text-xs text-ink-soft">
-              Submit as many pieces as your task needs — give each one a title, with a file, a
-              link, or both.
-            </p>
-            <div>
-              <label className="field-label">Title</label>
-              <input
-                type="text"
-                name="title"
-                required
-                maxLength={200}
-                placeholder="e.g. Source code, Live demo, Design file…"
-                className="input"
-              />
-            </div>
-            <div>
-              <label className="field-label">File (optional — PDF, Word, or ZIP up to 16 MB)</label>
-              <input type="file" name="file" accept={TASK_ACCEPT} className="input" />
-            </div>
-            <div>
-              <label className="field-label">Link (optional)</label>
-              <input
-                type="url"
-                name="link"
-                placeholder="https://github.com/… or https://drive.google.com/…"
-                className="input"
-              />
-            </div>
-            <textarea name="note" rows={2} placeholder="Anything we should know? (context)" className="input" />
-            <button className="btn-primary">Submit</button>
-          </DirectUploadForm>
+          {requirements.length > 0 && (
+            <TaskSubmitForm
+              action={`/c/${token}/task`}
+              signUrl={`/c/${token}/upload-url`}
+              direct={directUploads}
+              maxBytes={TASK_MAX_BYTES}
+              accept={TASK_ACCEPT}
+              requirements={requirements.map((r) => {
+                const done = doneByField.get(r.id);
+                return { ...r, done: done ? fmt(done) : null };
+              })}
+            />
+          )}
         </div>
       )}
 
