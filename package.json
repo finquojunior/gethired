@@ -16,6 +16,7 @@
   "devDependencies": {
     "@tailwindcss/postcss": "4.1.16",
     "@types/node": "22.18.13",
+    "@types/nodemailer": "^8.0.1",
     "@types/pg": "8.15.6",
     "@types/react": "19.2.5",
     "@types/react-dom": "19.2.3",
@@ -27,6 +28,7 @@
   },
   "dependencies": {
     "next": "15.5.23",
+    "nodemailer": "^9.1.0",
     "react": "19.2.0",
     "react-dom": "19.2.0"
   },

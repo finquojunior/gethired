@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { q } from '@/lib/db';
 import { fmtDateTime } from '@/lib/tz';
 import SubmitButton from '@/components/SubmitButton';
-import { cancelEmail, processOutbox, sendDraft } from './actions';
+import { cancelEmail, processOutbox, resendFailedEmail, sendDraft } from './actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,13 +23,14 @@ export default async function EmailsPage() {
     body: string;
     status: string;
     send_after: Date;
+    service: string;
     error: string;
     created_at: Date;
     application_id: number;
     candidate: string;
   }>(
     `select e.id, e.template, e.to_email, e.subject, e.body, e.status, e.send_after,
-            e.error, e.created_at, a.id as application_id, a.name as candidate
+            e.service, e.error, e.created_at, a.id as application_id, a.name as candidate
      from public.email_log e join public.applications a on a.id = e.application_id
      order by e.id desc limit 100`
   );
@@ -58,6 +59,11 @@ export default async function EmailsPage() {
                 <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_STYLE[e.status]}`}>
                   {e.status}
                 </span>
+                {e.service && (
+                  <span className="rounded-full bg-line px-2 py-0.5 text-xs text-ink-soft">
+                    via {e.service}
+                  </span>
+                )}
                 <span className="font-medium">{e.subject}</span>
                 <span className="text-ink-soft">
                   to {e.to_email} · {e.template} · {fmtDateTime(e.created_at)}
@@ -73,6 +79,29 @@ export default async function EmailsPage() {
                   <Link href={`/app/candidates/${e.application_id}`} className="text-pine underline">
                     {e.candidate}
                   </Link>
+                  {e.status === 'failed' && (
+                    <form action={resendFailedEmail} className="flex gap-3">
+                      <input type="hidden" name="emailId" value={e.id} />
+                      <SubmitButton
+                        name="service"
+                        value="resend"
+                        className="text-pine underline"
+                        pendingLabel="Sending…"
+                        doneMessage="Resend attempted — check the status"
+                      >
+                        Resend via Resend
+                      </SubmitButton>
+                      <SubmitButton
+                        name="service"
+                        value="gmail"
+                        className="text-pine underline"
+                        pendingLabel="Sending…"
+                        doneMessage="Resend attempted — check the status"
+                      >
+                        Resend via Gmail
+                      </SubmitButton>
+                    </form>
+                  )}
                   {e.status === 'draft' && (
                     <form action={sendDraft}>
                       <input type="hidden" name="emailId" value={e.id} />

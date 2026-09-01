@@ -17,6 +17,15 @@ test('parseSubmissionFields normalizes and rejects junk', () => {
   assert.deepEqual(parseSubmissionFields('not an array'), []);
 });
 import { uploadedPathRe } from '../lib/uploads.ts';
+import { sendPlan } from '../lib/mailplan.ts';
+
+test('sendPlan: primary twice then fallback, skipping unconfigured services', () => {
+  assert.deepEqual(sendPlan('resend', { resend: true, gmail: true }), ['resend', 'resend', 'gmail']);
+  assert.deepEqual(sendPlan('gmail', { resend: true, gmail: true }), ['gmail', 'gmail', 'resend']);
+  assert.deepEqual(sendPlan('resend', { resend: true, gmail: false }), ['resend', 'resend']);
+  assert.deepEqual(sendPlan('resend', { resend: false, gmail: true }), ['gmail']);
+  assert.deepEqual(sendPlan('resend', { resend: false, gmail: false }), []);
+});
 
 test('uploadedPathRe accepts only paths shaped like our minted uploads', () => {
   assert.ok(uploadedPathRe('briefs').test('briefs/0123456789abcdef01234567.pdf'));

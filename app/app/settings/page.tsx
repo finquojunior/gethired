@@ -1,15 +1,17 @@
 import { q } from '@/lib/db';
 import { currentUser } from '@/lib/auth';
-import { DEFAULT_TEMPLATES } from '@/lib/email';
+import { DEFAULT_TEMPLATES, getMailService, mailConfigured } from '@/lib/email';
 import { fmtDateTime } from '@/lib/tz';
 import SubmitButton from '@/components/SubmitButton';
-import { saveTemplate } from './actions';
+import { saveTemplate, setMailService } from './actions';
 
 export const dynamic = 'force-dynamic';
 
 export default async function SettingsPage() {
   const user = await currentUser();
   const isAdmin = user.role === 'admin';
+  const mailService = await getMailService();
+  const configured = mailConfigured();
 
   const { rows: overrides } = await q<{ key: string; subject: string; body: string }>(
     'select key, subject, body from public.email_templates'
@@ -50,6 +52,33 @@ export default async function SettingsPage() {
   return (
     <div>
       <h1 className="track font-display text-3xl font-bold">Settings</h1>
+
+      <section className="mt-8">
+        <h2 className="font-display text-xl font-semibold">Mail service</h2>
+        <p className="mt-2 text-sm text-ink-soft">
+          Which service sends candidate emails. If a send fails twice on the selected service, the
+          system automatically falls back to the other one.
+        </p>
+        <form action={setMailService} className="mt-4 flex flex-wrap items-center gap-4">
+          <label className="flex items-center gap-2 text-sm">
+            <input type="radio" name="service" value="resend" defaultChecked={mailService === 'resend'} className="accent-pine" />
+            Resend
+            <span className={`text-xs ${configured.resend ? 'text-pine-deep' : 'text-rust'}`}>
+              {configured.resend ? 'configured' : 'not configured — set RESEND_API_KEY'}
+            </span>
+          </label>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="radio" name="service" value="gmail" defaultChecked={mailService === 'gmail'} className="accent-pine" />
+            Gmail (Workspace SMTP)
+            <span className={`text-xs ${configured.gmail ? 'text-pine-deep' : 'text-rust'}`}>
+              {configured.gmail ? 'configured' : 'not configured — set GMAIL_USER + GMAIL_APP_PASSWORD'}
+            </span>
+          </label>
+          <SubmitButton className="btn-primary" pendingLabel="Saving…" doneMessage="Mail service updated">
+            Save
+          </SubmitButton>
+        </form>
+      </section>
 
       <section className="mt-8">
         <h2 className="font-display text-xl font-semibold">Email templates</h2>

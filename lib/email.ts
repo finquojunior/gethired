@@ -1,4 +1,5 @@
 import { q } from '@/lib/db';
+import { sendPlan, type MailService } from '@/lib/mailplan';
 
 // Outbox email: every send is a row in email_log first (status pending),
 // then delivered — immediately for normal sends, or by the cron for delayed
@@ -114,36 +115,36 @@ export async function sendEmail(input: {
   if (!input.draft) await attemptSend(row.id);
 }
 
-/** Deliver one outbox row. Used inline and by the cron retry loop. */
-export async function attemptSend(id: number): Promise<void> {
+// --- delivery services: Resend (API) and Gmail SMTP (app password) ---
+
+export function mailConfigured(): Record<MailService, boolean> {
+  return {
+    resend: Boolean(process.env.RESEND_API_KEY),
+    gmail: Boolean(process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD),
+  };
+}
+
+/** The staff-selected primary service (Settings tab); Resend by default. */
+export async function getMailService(): Promise<MailService> {
   const {
     rows: [row],
-  } = await q<{ to_email: string; subject: string; body: string; ics: string; attempts: number }>(
-    `select to_email, subject, body, ics, attempts from public.email_log
-     where id = $1 and status in ('pending', 'failed')`,
-    [id]
-  );
-  if (!row) return;
+  } = await q<{ value: string }>(`select value from public.app_settings where key = 'mail_service'`);
+  return row?.value === 'gmail' ? 'gmail' : 'resend';
+}
 
-  const key = process.env.RESEND_API_KEY;
-  if (!key) {
-    if (process.env.NODE_ENV === 'production') {
-      // never silently swallow candidate email in production
-      await q(
-        `update public.email_log set status = 'failed', attempts = attempts + 1,
-           error = 'RESEND_API_KEY is not set in this environment' where id = $1`,
-        [id]
-      );
-      return;
-    }
-    // dev: the log row IS the outbox; mark delivered
-    await q(`update public.email_log set status = 'sent', sent_at = now() where id = $1`, [id]);
-    return;
-  }
-  try {
+let gmailTransport: import('nodemailer').Transporter | undefined;
+
+async function deliver(
+  service: MailService,
+  row: { to_email: string; subject: string; body: string; ics: string }
+): Promise<void> {
+  if (service === 'resend') {
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
-      headers: { authorization: `Bearer ${key}`, 'content-type': 'application/json' },
+      headers: {
+        authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+        'content-type': 'application/json',
+      },
       body: JSON.stringify({
         from: FROM,
         to: [row.to_email],
@@ -154,14 +155,86 @@ export async function attemptSend(id: number): Promise<void> {
           : undefined,
       }),
     });
-    if (!res.ok) throw new Error(`resend ${res.status}: ${await res.text()}`);
-    await q(`update public.email_log set status = 'sent', sent_at = now() where id = $1`, [id]);
-  } catch (e) {
-    await q(
-      `update public.email_log set status = 'failed', attempts = attempts + 1, error = $2 where id = $1`,
-      [id, String(e).slice(0, 1000)]
-    );
+    if (!res.ok) throw new Error(`resend ${res.status}: ${(await res.text()).slice(0, 300)}`);
+    return;
   }
+  if (!gmailTransport) {
+    const nodemailer = await import('nodemailer');
+    gmailTransport = nodemailer.createTransport({
+      host: 'smtp.gmail.com',
+      port: 465,
+      secure: true,
+      auth: { user: process.env.GMAIL_USER, pass: process.env.GMAIL_APP_PASSWORD },
+    });
+  }
+  await gmailTransport.sendMail({
+    from: FROM, // must be the Workspace account or one of its "Send mail as" aliases
+    to: row.to_email,
+    subject: row.subject,
+    text: row.body,
+    attachments: row.ics
+      ? [{ filename: 'interview.ics', content: row.ics, contentType: 'text/calendar' }]
+      : undefined,
+  });
+}
+
+/**
+ * Deliver one outbox row. Without `force`: one burst — primary service, primary
+ * again, then the other service (recorded as fallback). With `force` (manual
+ * resend from the Emails tab): a single attempt with that exact service.
+ */
+export async function attemptSend(id: number, force?: MailService): Promise<void> {
+  const {
+    rows: [row],
+  } = await q<{ to_email: string; subject: string; body: string; ics: string }>(
+    `select to_email, subject, body, ics from public.email_log
+     where id = $1 and status in ('pending', 'failed')`,
+    [id]
+  );
+  if (!row) return;
+
+  const configured = mailConfigured();
+  const primary = await getMailService();
+  const plan = force ? (configured[force] ? [force] : []) : sendPlan(primary, configured);
+
+  if (plan.length === 0) {
+    if (process.env.NODE_ENV === 'production') {
+      // never silently swallow candidate email in production
+      await q(
+        `update public.email_log set status = 'failed', attempts = attempts + 1,
+           error = 'no mail service configured (or the chosen one is missing credentials)' where id = $1`,
+        [id]
+      );
+      return;
+    }
+    // dev: the log row IS the outbox; mark delivered
+    await q(
+      `update public.email_log set status = 'sent', sent_at = now(), service = 'dev (logged only)' where id = $1`,
+      [id]
+    );
+    return;
+  }
+
+  let lastError = '';
+  for (const [i, service] of plan.entries()) {
+    try {
+      await deliver(service, row);
+      const label = !force && service !== primary ? `${service} (fallback)` : service;
+      await q(
+        `update public.email_log set status = 'sent', sent_at = now(), service = $2,
+           attempts = attempts + $3, error = '' where id = $1`,
+        [id, label, i + 1]
+      );
+      return;
+    } catch (e) {
+      lastError = String(e).slice(0, 1000);
+    }
+  }
+  await q(
+    `update public.email_log set status = 'failed', attempts = attempts + $2,
+       error = $3, service = $4 where id = $1`,
+    [id, plan.length, lastError, plan[plan.length - 1]]
+  );
 }
 
 /** One-off compose from a candidate profile: logged in the outbox like everything else. */

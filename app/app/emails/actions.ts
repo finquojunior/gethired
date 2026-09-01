@@ -27,6 +27,16 @@ export async function cancelEmail(formData: FormData) {
   revalidatePath('/app/emails');
 }
 
+/** Manual resend of a failed email with an explicitly chosen service. */
+export async function resendFailedEmail(formData: FormData) {
+  await requireStaff();
+  const id = Number(formData.get('emailId'));
+  const service = String(formData.get('service'));
+  if (service !== 'resend' && service !== 'gmail') return;
+  await attemptSend(id, service);
+  revalidatePath('/app/emails');
+}
+
 /** Deliver a drafted email (e.g. a rejection queued as "Reject + draft email"). */
 export async function sendDraft(formData: FormData) {
   await requireStaff();

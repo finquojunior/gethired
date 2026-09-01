@@ -6,6 +6,20 @@ import { currentUser, isStaff } from '@/lib/auth';
 import { audit } from '@/lib/audit';
 import { DEFAULT_TEMPLATES } from '@/lib/email';
 
+export async function setMailService(formData: FormData) {
+  const user = await currentUser();
+  if (!isStaff(user)) throw new Error('Not allowed');
+  const service = String(formData.get('service'));
+  if (service !== 'resend' && service !== 'gmail') return;
+  await q(
+    `insert into public.app_settings (key, value) values ('mail_service', $1)
+     on conflict (key) do update set value = excluded.value`,
+    [service]
+  );
+  await audit(user.id, 'set_mail_service', 'app_settings', 'mail_service', { service });
+  revalidatePath('/app/settings');
+}
+
 export async function saveTemplate(formData: FormData) {
   const user = await currentUser();
   if (!isStaff(user)) throw new Error('Not allowed');
