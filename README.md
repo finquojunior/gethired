@@ -29,7 +29,7 @@ flowchart LR
     D --> E([🎤 Interview])
     E --> F([📄 Offer])
     F --> G([🎉 Hired])
-    B -. rejection email<br/>30-min undo .-> X([Rejected])
+    B -. rejection email<br/>send now or draft .-> X([Rejected])
     D -.-> X
     E -.-> X
 ```
@@ -45,30 +45,49 @@ offer, hired, rejection.
   descriptions; per-role links for ad campaigns (UTM source tracking built in)
 - Fully customizable multi-step application forms: 12 field types (incl.
   salary in ₹), conditional logic, per-answer scoring, required consent
-- Private tokenized portal: track status, book interview slots, upload task
-  submissions, withdraw
+- Private tokenized portal: track status, book interview slots, submit task
+  work (per-requirement slots — files up to 16 MB uploaded straight to storage,
+  links, one submit for everything), download the task brief, withdraw — with
+  toast confirmations on every action
 
 **Staff** (`/login` → `/app`, role-based: admin / hr / dept head / interviewer)
-- Dashboard: today's interviews, new applications, pending feedback, funnels
-- Pipeline per opening: list + drag-and-drop board views, bulk stage moves,
-  filters, sorting, feedback stars, prev/next candidate navigation, CSV export
-- Candidate profiles: answers, inline resume preview, star-rated feedback,
-  notes, tags, timeline of every event and email
+- Dashboard: stat strip (active, interviews, offers, hires), today's
+  interviews, new applications, pending feedback, task-round progress,
+  stuck-candidate alerts, per-role stage funnels
+- Pipeline per opening: list + drag-and-drop board views, bulk stage moves
+  with select-all/shift-click ranges and progress feedback, filters, sorting,
+  feedback stars, prev/next candidate navigation, CSV export
+- Tasks: per-opening task brief (text + reference links + document), defined
+  submission requirements (title, file/link kind, required flag), and
+  per-candidate submitted/pending tracking — plus a global Tasks overview
+- Candidate profiles: answers, inline resume preview, every asked-for task
+  item with its submissions, star-rated feedback, notes, tags, timeline of
+  every event and email
 - Interview scheduling: slot batches with meeting links and multi-person
   panels; everyone involved gets emailed; feedback nudges after interviews
 - Form builder with live preview, versioning (applications keep the form they
   answered), and question reuse across openings
 - Manual add-candidate + CSV import for walk-ins/referrals
-- Reports: funnel, source performance (which ad produced which hire),
-  time-to-hire
+- Rejections: "Reject + email now" or "Reject + draft email" (drafts sit in
+  the Emails tab until sent manually)
+- Emails: full outbox with per-mail service badge, drafts, cancel, and manual
+  resend via either service for failures
+- Dual mail service: Resend primary with Gmail/Workspace SMTP fallback (app
+  password) — selected in Settings; failed sends retry immediately and fall
+  back to the other service automatically
+- Reports: stage-conversion funnel, source performance, applications-per-week
+  trend graph, interview feedback by role, activity feed, time-to-hire, and a
+  print-ready hiring report (per role, month, or custom range) with a
+  Download PDF button
 - Admin: staff management, editable email templates, error log, full activity
   log, per-opening archive download (zip) and guarded permanent deletion
 
 ## Stack
 
 Next.js 15 (App Router) · Postgres 17 (Supabase hosted / embedded locally) ·
-Supabase Storage · Resend email · Vercel · GitHub Actions cron.
-Zero runtime dependencies beyond `next`, `react`, and `pg`.
+Supabase Storage (browser-direct signed uploads) · Resend + Gmail SMTP email ·
+Vercel · GitHub Actions cron.
+Runtime dependencies: `next`, `react`, `pg`, and `nodemailer` — nothing else.
 
 ## 🚀 Getting started
 
@@ -121,7 +140,7 @@ npm run dev          # → http://localhost:3000
 | Staff app | http://localhost:3000/login | `dev-admin@example.com` / `devadmin` |
 
 Outbound emails appear in the app's **Emails** tab (not delivered) unless
-`RESEND_API_KEY` is set.
+`RESEND_API_KEY` or `GMAIL_USER` + `GMAIL_APP_PASSWORD` are set.
 
 ### 5. Verify
 
