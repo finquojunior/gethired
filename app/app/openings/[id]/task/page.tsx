@@ -57,8 +57,12 @@ export default async function TaskPage({
     current_stage: string | null;
     submitted_at: Date | null;
     submission_count: number;
+    response: string | null;
   }>(
     `select s.id as stage_id, a.id, a.name, a.status, cs.name as current_stage,
+            (select tr.response from public.task_responses tr
+              where tr.application_id = a.id and tr.stage_id = s.id
+              order by tr.id desc limit 1) as response,
             (select max(su.created_at) from public.submissions su
               where su.application_id = a.id and su.stage_id = s.id) as submitted_at,
             (select count(*)::int from public.submissions su
@@ -215,6 +219,7 @@ export default async function TaskPage({
                   <tr className="text-left text-xs uppercase tracking-wide text-ink-soft">
                     <th className="py-1 pr-4">Candidate</th>
                     <th className="py-1 pr-4">Now at</th>
+                    <th className="py-1 pr-4">Response</th>
                     <th className="py-1">Task</th>
                   </tr>
                 </thead>
@@ -228,6 +233,15 @@ export default async function TaskPage({
                       </td>
                       <td className="py-2 pr-4 text-ink-soft">
                         {c.status === 'active' ? c.current_stage ?? '—' : c.status}
+                      </td>
+                      <td className="py-2 pr-4">
+                        {c.response === 'yes' ? (
+                          <span className="font-medium text-pine-deep">Yes</span>
+                        ) : c.response === 'no' ? (
+                          <span className="font-medium text-rust">No</span>
+                        ) : (
+                          <span className="text-amber">Pending</span>
+                        )}
                       </td>
                       <td className="py-2">
                         {c.submitted_at ? (

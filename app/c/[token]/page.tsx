@@ -20,6 +20,7 @@ const STATUS_TEXT: Record<string, string> = {
 
 const OK_TEXT: Record<string, string> = {
   task: 'Submission received — thank you!',
+  response: 'Response saved — thank you!',
   booked: 'Your interview slot is booked. A confirmation email is on its way.',
   cancelled: 'Booking cancelled. You can pick a new slot below.',
   withdrawn: 'Your application has been withdrawn.',
@@ -111,6 +112,16 @@ export default async function PortalPage({
       ).rows
     : [];
 
+  const taskResponse = showTask
+    ? (
+        await q<{ response: string }>(
+          `select response from public.task_responses
+           where application_id = $1 and stage_id = $2 order by id desc limit 1`,
+          [a.id, a.stage_id]
+        )
+      ).rows[0]?.response ?? null
+    : null;
+
   const taskLinks = showTask ? briefLinks(a.stage_brief_links) : [];
   const requirements = showTask ? parseSubmissionFields(a.submission_fields) : [];
   // newest submission per requirement (rows arrive newest-first)
@@ -197,7 +208,46 @@ export default async function PortalPage({
       )}
 
       {showTask && (
-        <div className="mt-8 rounded-lg border border-line bg-card p-5">
+        <div className="mt-6 rounded-lg border-2 border-pine bg-pine-wash p-5">
+          <h2 className="font-display text-lg font-semibold">Are you doing this task?</h2>
+          {taskResponse === null ? (
+            <PostForm
+              pendingText="Saving…"
+              method="post"
+              action={`/c/${token}/task-response`}
+              className="mt-3 flex gap-3"
+            >
+              <button name="response" value="yes" className="btn-primary">Yes, I&apos;m on it</button>
+              <button name="response" value="no" className="btn-quiet text-rust">No, I&apos;m not</button>
+            </PostForm>
+          ) : (
+            <>
+              <p className="mt-2 text-sm">
+                You answered{' '}
+                <strong className={taskResponse === 'yes' ? 'text-pine-deep' : 'text-rust'}>
+                  {taskResponse === 'yes' ? 'Yes' : 'No'}
+                </strong>
+                .
+              </p>
+              <details className="mt-2 text-sm">
+                <summary className="cursor-pointer text-pine underline">Change response</summary>
+                <PostForm
+                  pendingText="Saving…"
+                  method="post"
+                  action={`/c/${token}/task-response`}
+                  className="mt-3 flex gap-3"
+                >
+                  <button name="response" value="yes" className="btn-primary">Yes, I&apos;m on it</button>
+                  <button name="response" value="no" className="btn-quiet text-rust">No, I&apos;m not</button>
+                </PostForm>
+              </details>
+            </>
+          )}
+        </div>
+      )}
+
+      {showTask && (
+        <div className="mt-4 rounded-lg border border-line bg-card p-5">
           <h2 className="font-display text-lg font-semibold">Your task</h2>
           <p className="mt-2 whitespace-pre-line text-sm">
             {a.stage_brief || 'Task details will be shared with you by email.'}

@@ -69,7 +69,7 @@ export default async function CandidatePage({
   );
   if (!a) notFound();
 
-  const [{ rows: stages }, { rows: history }, { rows: feedback }, { rows: notes }, { rows: subs }, { rows: slots }, { rows: emails }, { rows: taskStages }] =
+  const [{ rows: stages }, { rows: history }, { rows: feedback }, { rows: notes }, { rows: subs }, { rows: slots }, { rows: emails }, { rows: taskStages }, { rows: responses }] =
     await Promise.all([
       q<{ id: number; name: string }>(
         `select id, name from public.stages where opening_id = $1 order by position`,
@@ -122,6 +122,11 @@ export default async function CandidatePage({
         `select name as stage, submission_fields from public.stages
          where opening_id = $1 and kind = 'task' order by position`,
         [a.opening_id]
+      ),
+      q<{ response: string; created_at: Date }>(
+        `select response, created_at from public.task_responses
+         where application_id = $1 order by id`,
+        [appId]
       ),
     ]);
 
@@ -193,6 +198,13 @@ export default async function CandidatePage({
       kind: 'email' as const,
       text: 'Email: ',
       strong: e.subject,
+      extra: '',
+    })),
+    ...responses.map((r, i) => ({
+      at: r.created_at,
+      kind: 'response' as const,
+      text: i === 0 ? 'Task response: ' : 'Changed task response to: ',
+      strong: r.response === 'yes' ? 'Yes' : 'No',
       extra: '',
     })),
   ].sort((x, y) => y.at.getTime() - x.at.getTime());

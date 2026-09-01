@@ -16,13 +16,31 @@ export default async function TasksPage() {
     brief_links: string;
     active: number;
     submitted: number;
+    reached: number;
+    yes: number;
+    no: number;
   }>(
-    `select s.id as stage_id, s.name as stage_name, o.id as opening_id, o.title, o.status,
+    `with reached as (
+       select s.id as stage_id, a.id as app_id,
+              (select tr.response from public.task_responses tr
+                where tr.application_id = a.id and tr.stage_id = s.id
+                order by tr.id desc limit 1) as response
+       from public.stages s
+       join public.applications a on a.opening_id = s.opening_id and (
+         a.current_stage_id = s.id or exists (
+           select 1 from public.stage_history h
+           where h.application_id = a.id and h.to_stage_id = s.id))
+       where s.kind = 'task'
+     )
+     select s.id as stage_id, s.name as stage_name, o.id as opening_id, o.title, o.status,
             s.brief, s.brief_file_path, s.brief_links,
             (select count(*)::int from public.applications a
               where a.current_stage_id = s.id and a.status = 'active') as active,
             (select count(distinct su.application_id)::int from public.submissions su
-              where su.stage_id = s.id) as submitted
+              where su.stage_id = s.id) as submitted,
+            (select count(*)::int from reached r where r.stage_id = s.id) as reached,
+            (select count(*)::int from reached r where r.stage_id = s.id and r.response = 'yes') as yes,
+            (select count(*)::int from reached r where r.stage_id = s.id and r.response = 'no') as no
      from public.stages s join public.openings o on o.id = s.opening_id
      where s.kind = 'task'
      order by o.status = 'open' desc, o.id desc, s.position`
@@ -47,7 +65,8 @@ export default async function TasksPage() {
                 <th className="py-2 pr-4 font-medium">Stage</th>
                 <th className="py-2 pr-4 font-medium">Materials</th>
                 <th className="py-2 pr-4 font-medium">In stage</th>
-                <th className="py-2 font-medium">Submitted</th>
+                <th className="py-2 pr-4 font-medium">Submitted</th>
+                <th className="py-2 font-medium">Response</th>
               </tr>
             </thead>
             <tbody>
@@ -74,13 +93,19 @@ export default async function TasksPage() {
                       )}
                     </td>
                     <td className="py-3 pr-4">{t.active}</td>
-                    <td className="py-3">
+                    <td className="py-3 pr-4">
                       <Link
                         href={`/app/openings/${t.opening_id}/applications?stage=${t.stage_id}`}
                         className="text-pine hover:underline"
                       >
                         {t.submitted}
                       </Link>
+                    </td>
+                    <td className="py-3 whitespace-nowrap">
+                      <span className="font-medium text-pine-deep">{t.yes} yes</span>
+                      <span className="text-ink-soft"> · </span>
+                      <span className="font-medium text-rust">{t.no} no</span>
+                      <span className="text-ink-soft"> · {t.reached - t.yes - t.no} pending</span>
                     </td>
                   </tr>
                 );
