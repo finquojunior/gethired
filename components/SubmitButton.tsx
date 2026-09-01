@@ -15,15 +15,22 @@ export default function SubmitButton({
   disabled,
   ...props
 }: ComponentProps<'button'> & { pendingLabel?: string; doneMessage?: string }) {
-  const { pending } = useFormStatus();
-  const wasPending = useRef(false);
+  const { pending, data } = useFormStatus();
+  // pending is form-wide; only the button that actually submitted shows its
+  // pending label and fires the toast. The submitted FormData carries just the
+  // clicked button's name/value, which is how we tell.
+  const mine =
+    props.name == null ||
+    !(data instanceof FormData) ||
+    data.get(String(props.name)) === String(props.value ?? '');
+  const wasMine = useRef(false);
   useEffect(() => {
-    if (wasPending.current && !pending && doneMessage) toast('success', doneMessage);
-    wasPending.current = pending;
-  }, [pending, doneMessage]);
+    if (wasMine.current && !pending && doneMessage) toast('success', doneMessage);
+    wasMine.current = pending && mine;
+  }, [pending, mine, doneMessage]);
   return (
     <button {...props} disabled={pending || disabled}>
-      {pending ? pendingLabel : children}
+      {pending && mine ? pendingLabel : children}
     </button>
   );
 }

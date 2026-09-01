@@ -178,23 +178,23 @@ export default async function ReportsPage() {
           <div className="overflow-x-auto"><table className="mt-3 w-full text-sm">
             <thead>
               <tr className="text-left text-xs uppercase tracking-wide text-ink-soft">
-                <th className="py-1">Opening</th>
-                <th className="py-1 text-right">Applied</th>
-                <th className="py-1 text-right">Task</th>
-                <th className="py-1 text-right">Interview</th>
-                <th className="py-1 text-right">Offer</th>
-                <th className="py-1 text-right">Hired</th>
+                <th className="py-1 pr-3">Opening</th>
+                <th className="py-1 pl-3 text-right">Applied</th>
+                <th className="py-1 pl-3 text-right">Task</th>
+                <th className="py-1 pl-3 text-right">Interview</th>
+                <th className="py-1 pl-3 text-right">Offer</th>
+                <th className="py-1 pl-3 text-right">Hired</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-line">
               {reach.map((r) => (
                 <tr key={r.opening_id}>
-                  <td className="py-2">{r.title}</td>
-                  <td className="py-2 text-right font-medium">{r.applied}</td>
-                  <td className="py-2 text-right">{r.task} <span className="text-xs text-ink-soft">({pct(r.task, r.applied)})</span></td>
-                  <td className="py-2 text-right">{r.interview} <span className="text-xs text-ink-soft">({pct(r.interview, r.applied)})</span></td>
-                  <td className="py-2 text-right">{r.offer}</td>
-                  <td className="py-2 text-right text-pine-deep">{r.hired} <span className="text-xs text-ink-soft">({pct(r.hired, r.applied)})</span></td>
+                  <td className="py-2 pr-3">{r.title}</td>
+                  <td className="py-2 pl-3 text-right font-medium whitespace-nowrap">{r.applied}</td>
+                  <td className="py-2 pl-3 text-right whitespace-nowrap">{r.task} <span className="text-xs text-ink-soft">({pct(r.task, r.applied)})</span></td>
+                  <td className="py-2 pl-3 text-right whitespace-nowrap">{r.interview} <span className="text-xs text-ink-soft">({pct(r.interview, r.applied)})</span></td>
+                  <td className="py-2 pl-3 text-right whitespace-nowrap">{r.offer}</td>
+                  <td className="py-2 pl-3 text-right text-pine-deep whitespace-nowrap">{r.hired} <span className="text-xs text-ink-soft">({pct(r.hired, r.applied)})</span></td>
                 </tr>
               ))}
             </tbody>
@@ -294,21 +294,48 @@ export default async function ReportsPage() {
 
         <section className={card}>
           <h2 className="font-display text-lg font-semibold">Applications per week</h2>
-          <div className="mt-4 flex h-32 items-end gap-2">
-            {weekly.map((w) => (
-              <div key={w.week.toISOString()} className="flex flex-1 flex-col items-center gap-1">
-                <span className="text-xs text-ink-soft">{w.count}</span>
-                <div
-                  className="w-full rounded-t bg-pine"
-                  style={{ height: `${(w.count / maxWeekly) * 100}%` }}
-                />
-                <span className="text-[10px] text-ink-soft">
-                  {w.week.toISOString().slice(5, 10)}
-                </span>
-              </div>
-            ))}
-            {weekly.length === 0 && <p className="text-sm text-ink-soft">No applications yet.</p>}
-          </div>
+          {weekly.length === 0 ? (
+            <p className="mt-4 text-sm text-ink-soft">No applications yet.</p>
+          ) : (
+            (() => {
+              const W = 460;
+              const H = 150;
+              const padX = 26;
+              const padTop = 22;
+              const padBottom = 26;
+              const x = (i: number) =>
+                weekly.length === 1
+                  ? W / 2
+                  : padX + (i * (W - 2 * padX)) / (weekly.length - 1);
+              const y = (count: number) =>
+                H - padBottom - (count / maxWeekly) * (H - padTop - padBottom);
+              const pts = weekly.map((w, i) => ({ ...w, cx: x(i), cy: y(w.count) }));
+              return (
+                <svg viewBox={`0 0 ${W} ${H}`} className="mt-4 w-full" role="img"
+                  aria-label="Applications received per week">
+                  {/* recessive baseline */}
+                  <line x1={padX} y1={H - padBottom} x2={W - padX} y2={H - padBottom}
+                    stroke="var(--color-line)" strokeWidth="1" />
+                  <polyline
+                    points={pts.map((p) => `${p.cx},${p.cy}`).join(' ')}
+                    fill="none" stroke="var(--color-pine)" strokeWidth="2"
+                    strokeLinejoin="round" strokeLinecap="round" />
+                  {pts.map((p) => (
+                    <g key={p.week.toISOString()}>
+                      <circle cx={p.cx} cy={p.cy} r="4" fill="var(--color-pine)"
+                        stroke="var(--color-card)" strokeWidth="2">
+                        <title>{`Week of ${p.week.toISOString().slice(0, 10)}: ${p.count} application(s)`}</title>
+                      </circle>
+                      <text x={p.cx} y={p.cy - 9} textAnchor="middle" fontSize="10"
+                        fill="var(--color-ink-soft)">{p.count}</text>
+                      <text x={p.cx} y={H - padBottom + 14} textAnchor="middle" fontSize="9"
+                        fill="var(--color-ink-soft)">{p.week.toISOString().slice(5, 10)}</text>
+                    </g>
+                  ))}
+                </svg>
+              );
+            })()
+          )}
         </section>
 
         <section className={card}>

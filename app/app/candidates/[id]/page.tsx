@@ -289,11 +289,11 @@ export default async function CandidatePage({
             <option key={s.id} value={s.id}>{s.name}</option>
           ))}
         </select>
-        <SubmitButton name="intent" value="move" className="btn-quiet" pendingLabel="Moving…">Move to stage</SubmitButton>
+        <SubmitButton name="intent" value="move" className="btn-quiet" pendingLabel="Moving…" doneMessage="Moved to stage — candidate emailed">Move to stage</SubmitButton>
         <div className="mx-2 h-5 w-px bg-line" />
         {a.status === 'active' ? (
           <>
-            <SubmitButton name="intent" value="hire" className="btn-quiet text-pine-deep" pendingLabel="Hiring…">Mark hired</SubmitButton>
+            <SubmitButton name="intent" value="hire" className="btn-quiet text-pine-deep" pendingLabel="Hiring…" doneMessage="Marked hired — congratulations email sent">Mark hired</SubmitButton>
             <SubmitButton name="intent" value="reject_send" className="btn-quiet text-rust" pendingLabel="Rejecting…" doneMessage="Rejected — email sent">Reject + email now</SubmitButton>
             <SubmitButton name="intent" value="reject_draft" className="btn-quiet text-rust" pendingLabel="Rejecting…" doneMessage="Rejected — email drafted in Emails tab" title="Rejects and drafts the email — send it manually from the Emails tab">Reject + draft email</SubmitButton>
           </>

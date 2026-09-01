@@ -5,6 +5,7 @@ import { q } from '@/lib/db';
 import { fmtDate } from '@/lib/tz';
 import SubmitButton from '@/components/SubmitButton';
 import SelectAll from '@/components/SelectAll';
+import BulkProgress from '@/components/BulkProgress';
 import { bulkPipeline } from '@/app/app/candidates/actions';
 import BoardView from './BoardView';
 import {
@@ -237,17 +238,18 @@ export default async function ApplicationsPage({
 
         {apps.length > 0 && (
           <div className="mt-4 flex flex-wrap items-center gap-2 rounded-lg border border-line bg-card px-4 py-3 text-sm">
+            <BulkProgress />
             <span className="text-ink-soft">With selected:</span>
             <select name="stageId" className="input w-44 py-1.5">
               {stages.map((s) => (
                 <option key={s.id} value={s.id}>{s.name}</option>
               ))}
             </select>
-            <SubmitButton name="intent" value="move" className="btn-quiet" pendingLabel="Moving…">Move to stage</SubmitButton>
+            <SubmitButton name="intent" value="move" className="btn-quiet" pendingLabel="Moving…" doneMessage="Moved to stage — candidate emailed">Move to stage</SubmitButton>
             <div className="mx-2 h-5 w-px bg-line" />
             {status === 'active' ? (
               <>
-                <SubmitButton name="intent" value="hire" className="btn-quiet text-pine-deep" pendingLabel="Hiring…">Mark hired</SubmitButton>
+                <SubmitButton name="intent" value="hire" className="btn-quiet text-pine-deep" pendingLabel="Hiring…" doneMessage="Marked hired — congratulations email sent">Mark hired</SubmitButton>
                 <SubmitButton name="intent" value="reject_send" className="btn-quiet text-rust" pendingLabel="Rejecting…" doneMessage="Rejected — email sent">Reject + email now</SubmitButton>
                 <SubmitButton name="intent" value="reject_draft" className="btn-quiet text-rust" pendingLabel="Rejecting…" doneMessage="Rejected — email drafted in Emails tab" title="Rejects and drafts the email — send it manually from the Emails tab">Reject + draft email</SubmitButton>
               </>
@@ -259,8 +261,9 @@ export default async function ApplicationsPage({
         {apps.length > 0 && (
           <p className="mt-2 text-xs text-ink-soft">
             Moving candidates into a task or interview stage automatically emails them their
-            instructions and portal link. Rejection emails wait 30 minutes — restore the candidate
-            or cancel it from <Link href="/app/emails" className="underline">Emails</Link> to stop it.
+            instructions and portal link. &quot;Reject + email now&quot; sends immediately;
+            &quot;Reject + draft email&quot; parks the mail in{' '}
+            <Link href="/app/emails" className="underline">Emails</Link> until you send it.
           </p>
         )}
       </form>
