@@ -6,7 +6,7 @@ export const TASK_MAX_BYTES = 16 * 1024 * 1024;
 export const TASK_EXTS = new Set(['.pdf', '.doc', '.docx', '.zip']);
 export const TASK_ACCEPT = '.pdf,.doc,.docx,.zip';
 /** Shape of a path minted by createSignedUpload — what submit endpoints accept back. */
-export const uploadedPathRe = (kind: 'briefs' | 'submissions') =>
+export const uploadedPathRe = (kind: 'briefs' | 'submissions' | 'resumes') =>
   new RegExp(`^${kind}/[a-f0-9]{24}\\.(pdf|doc|docx|zip)$`);
 export const POSTER_MAX_BYTES = 3 * 1024 * 1024;
 export const POSTER_EXTS = new Set(['.jpg', '.jpeg', '.png', '.webp']);

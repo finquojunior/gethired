@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import FormFields from '@/components/FormFields';
-import { RESUME_ACCEPT } from '@/lib/uploads';
+import { RESUME_ACCEPT, RESUME_EXTS, RESUME_MAX_BYTES } from '@/lib/uploads';
 import {
   validateAnswers,
   visibleFields,
@@ -15,11 +15,14 @@ const DEFAULT_CONSENT =
 
 // core fields (page 0) + one schema page per step
 export default function ApplyForm({
+  direct,
   slug,
   formId,
   schema,
   consentText,
 }: {
+  /** upload the resume browser→storage (Vercel 4.5MB body cap) instead of through the server */
+  direct: boolean;
   slug: string;
   formId: number;
   schema: FormSchema;
@@ -52,7 +55,11 @@ export default function ApplyForm({
     if (step === 0) {
       if (!core.name.trim()) errs.name = 'Enter your name';
       if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(core.email)) errs.email = 'Enter a valid email';
+      // catch size/type here, on page 1, instead of at the final submit
       if (!resume) errs.resume = 'Attach your resume (PDF or Word, up to 5 MB)';
+      else if (resume.size > RESUME_MAX_BYTES) errs.resume = 'Resume must be 5 MB or smaller';
+      else if (!RESUME_EXTS.has(resume.name.slice(resume.name.lastIndexOf('.')).toLowerCase()))
+        errs.resume = 'Use PDF or Word format';
     } else {
       const { page } = pagesWithFields[step - 1];
       const all = validateAnswers(schema, answers).errors;
@@ -70,27 +77,53 @@ export default function ApplyForm({
     }
     setStatus('sending');
     setServerError('');
-    const fd = new FormData();
-    fd.set('formId', String(formId));
-    fd.set('name', core.name);
-    fd.set('email', core.email);
-    fd.set('phone', core.phone);
-    fd.set('resume', resume!);
-    fd.set('answers', JSON.stringify(answers));
-    fd.set('consent', consented ? '1' : '');
-    // ad-source tracking: pass along any utm_* params from the landing URL
-    fd.set('utm', JSON.stringify(Object.fromEntries(new URLSearchParams(window.location.search))));
-    const res = await fetch(`/careers/${slug}/apply`, { method: 'POST', body: fd });
-    if (res.ok) {
-      setStatus('done');
-    } else {
+    try {
+      const fd = new FormData();
+      fd.set('formId', String(formId));
+      fd.set('name', core.name);
+      fd.set('email', core.email);
+      fd.set('phone', core.phone);
+      if (direct) {
+        // Vercel caps request bodies at 4.5MB — upload the resume straight to
+        // storage and send only the minted path (+ signature) with the form
+        const signRes = await fetch(`/careers/${slug}/upload-url`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ name: resume!.name }),
+        });
+        if (!signRes.ok) throw new Error(`sign ${signRes.status}`);
+        const { url, path, sig } = (await signRes.json()) as { url: string; path: string; sig: string };
+        const up = await fetch(url, {
+          method: 'PUT',
+          headers: { 'content-type': resume!.type || 'application/octet-stream' },
+          body: resume!,
+        });
+        if (!up.ok) throw new Error(`upload ${up.status}`);
+        fd.set('resumePath', path);
+        fd.set('resumeSig', sig);
+      } else {
+        fd.set('resume', resume!);
+      }
+      fd.set('answers', JSON.stringify(answers));
+      fd.set('consent', consented ? '1' : '');
+      // ad-source tracking: pass along any utm_* params from the landing URL
+      fd.set('utm', JSON.stringify(Object.fromEntries(new URLSearchParams(window.location.search))));
+      const res = await fetch(`/careers/${slug}/apply`, { method: 'POST', body: fd });
+      if (res.ok) {
+        setStatus('done');
+        return;
+      }
       const body = await res.json().catch(() => ({}));
-      setStatus('idle');
       if (body.errors) {
         setErrors(body.errors);
         setStep(0);
       }
       setServerError(body.message ?? 'Something went wrong. Please try again.');
+    } catch {
+      // network drop / storage failure: never leave the button stuck on "Sending…"
+      setServerError('Could not send your application — check your connection and try again.');
+    } finally {
+      setStatus((s) => (s === 'done' ? s : 'idle'));
     }
   };
 

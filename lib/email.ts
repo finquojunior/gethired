@@ -141,6 +141,7 @@ async function deliver(
   if (service === 'resend') {
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
+      signal: AbortSignal.timeout(15_000),
       headers: {
         authorization: `Bearer ${process.env.RESEND_API_KEY}`,
         'content-type': 'application/json',
@@ -165,6 +166,9 @@ async function deliver(
       port: 465,
       secure: true,
       auth: { user: process.env.GMAIL_USER, pass: process.env.GMAIL_APP_PASSWORD },
+      connectionTimeout: 10_000,
+      greetingTimeout: 10_000,
+      socketTimeout: 20_000,
     });
   }
   await gmailTransport.sendMail({

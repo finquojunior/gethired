@@ -1,10 +1,12 @@
 import path from 'node:path';
-import { NextResponse, type NextRequest } from 'next/server';
+import { after, NextResponse, type NextRequest } from 'next/server';
 import { q, tx } from '@/lib/db';
 import { audit } from '@/lib/audit';
+import { verifyUploadPath } from '@/lib/auth';
 import { clientIp, rateLimit } from '@/lib/ratelimit';
 import { portalUrl, sendEmail } from '@/lib/email';
 import { RESUME_EXTS, RESUME_MAX_BYTES, saveUpload } from '@/lib/storage';
+import { uploadedPathRe } from '@/lib/uploads';
 import { computeMaxScore, computeScore, validateAnswers, type FormSchema } from '@/lib/form-schema';
 
 const UTM_KEYS = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term'];
@@ -41,10 +43,19 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ slug: stri
   const email = String(fd.get('email') ?? '').trim().toLowerCase();
   const phone = String(fd.get('phone') ?? '').trim().slice(0, 50);
   const resume = fd.get('resume');
+  // browser already uploaded straight to storage (Vercel body-size cap)
+  const preUploaded = String(fd.get('resumePath') ?? '');
   const errors: Record<string, string> = {};
   if (!name) errors.name = 'Enter your name';
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) errors.email = 'Enter a valid email';
-  if (!(resume instanceof File) || resume.size === 0) {
+  if (preUploaded) {
+    if (
+      !uploadedPathRe('resumes').test(preUploaded) ||
+      !verifyUploadPath(0, preUploaded, String(fd.get('resumeSig') ?? ''))
+    ) {
+      errors.resume = 'Resume upload failed — attach it again';
+    }
+  } else if (!(resume instanceof File) || resume.size === 0) {
     errors.resume = 'Attach your resume';
   } else if (resume.size > RESUME_MAX_BYTES) {
     errors.resume = 'Resume must be 5 MB or smaller';
@@ -82,7 +93,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ slug: stri
     utm = {};
   }
 
-  const relPath = await saveUpload('resumes', resume as File);
+  const relPath = preUploaded || (await saveUpload('resumes', resume as File));
   const score = computeScore(form.schema, validated.clean);
   const maxScore = computeMaxScore(form.schema);
   let created: { id: number; portal_token: string; title: string } | undefined;
@@ -137,13 +148,18 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ slug: stri
   }
 
   if (created) {
-    await audit(null, 'applied', 'application', created.id, { opening: created.title });
-    await sendEmail({
-      applicationId: created.id,
-      template: 'application_received',
-      to: email,
-      vars: { name, role: created.title, portal_link: portalUrl(created.portal_token) },
-    });
+    const c = created;
+    await audit(null, 'applied', 'application', c.id, { opening: c.title });
+    // confirm to the candidate first; deliver the email after the response
+    // (Resend + SMTP fallback can take long enough to look like a hang)
+    after(() =>
+      sendEmail({
+        applicationId: c.id,
+        template: 'application_received',
+        to: email,
+        vars: { name, role: c.title, portal_link: portalUrl(c.portal_token) },
+      }).catch((e) => console.error('application_received email failed', e))
+    );
   }
 
   return NextResponse.json({ ok: true });

@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { q } from '@/lib/db';
 import { renderRich } from '@/lib/richtext';
 import type { FormSchema } from '@/lib/form-schema';
+import { directUploads } from '@/lib/storage';
 import ApplyForm from './ApplyForm';
 
 export const revalidate = 60; // ad-burst traffic hits cache, not Postgres
@@ -99,7 +100,7 @@ export default async function OpeningPublicPage({
           Takes only a few minutes. Fields marked <span className="text-rust">*</span> are
           required — you&apos;ll get a private link by email to track your application.
         </p>
-        <ApplyForm slug={slug} formId={o.form_id} schema={o.schema} consentText={o.consent_text} />
+        <ApplyForm direct={directUploads} slug={slug} formId={o.form_id} schema={o.schema} consentText={o.consent_text} />
       </div>
     </main>
   );
