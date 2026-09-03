@@ -6,7 +6,7 @@ import { revalidatePath } from 'next/cache';
 import { q, tx } from '@/lib/db';
 import { currentUser, isStaff } from '@/lib/auth';
 import { appUrl, icsEvent, portalUrl, sendCustomEmail, sendEmail } from '@/lib/email';
-import { fmtDateTimeFull } from '@/lib/tz';
+import { fmtDateTimeFull, fmtDay } from '@/lib/tz';
 import { audit } from '@/lib/audit';
 import { composeBriefEmail } from '@/lib/brief';
 import { freeFutureSlots, staffEmails } from '@/lib/slots';
@@ -21,8 +21,8 @@ async function requireStaff() {
 async function notifyStage(applicationIds: number[], stageId: number) {
   const {
     rows: [stage],
-  } = await q<{ name: string; kind: string; brief: string; brief_file_path: string; brief_links: string; title: string }>(
-    `select s.name, s.kind, s.brief, s.brief_file_path, s.brief_links, o.title
+  } = await q<{ name: string; kind: string; brief: string; brief_file_path: string; brief_links: string; task_days: number; title: string }>(
+    `select s.name, s.kind, s.brief, s.brief_file_path, s.brief_links, s.task_days, o.title
      from public.stages s join public.openings o on o.id = s.opening_id
      where s.id = $1`,
     [stageId]
@@ -55,7 +55,8 @@ async function notifyStage(applicationIds: number[], stageId: number) {
             ? composeBriefEmail(
                 stage.brief,
                 stage.brief_links,
-                stage.brief_file_path ? `${portalUrl(a.portal_token)}/brief` : ''
+                stage.brief_file_path ? `${portalUrl(a.portal_token)}/brief` : '',
+                stage.task_days > 0 ? fmtDay(new Date(Date.now() + stage.task_days * 86_400_000)) : ''
               )
             : stage.brief || 'Task details will follow.',
         portal_link: portalUrl(a.portal_token),

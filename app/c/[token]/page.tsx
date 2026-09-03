@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation';
 import { q } from '@/lib/db';
-import { fmtSlot } from '@/lib/tz';
+import { fmtDate, fmtDay, fmtSlot } from '@/lib/tz';
 import { TASK_ACCEPT, TASK_MAX_BYTES } from '@/lib/uploads';
 import { allFields, type FormSchema } from '@/lib/form-schema';
 import LinkifyText from '@/components/LinkifyText';
@@ -60,13 +60,20 @@ export default async function PortalPage({
     stage_brief_file: string | null;
     stage_brief_links: string | null;
     submission_fields: unknown;
+    deadline: Date | null;
     answers: Record<string, unknown>;
     schema: FormSchema;
     created_at: Date;
   }>(
     `select a.id, a.name, a.status, o.title, s.id as stage_id, s.kind as stage_kind,
             s.brief as stage_brief, s.brief_file_path as stage_brief_file,
-            s.brief_links as stage_brief_links, s.submission_fields, a.answers, f.schema, a.created_at
+            s.brief_links as stage_brief_links, s.submission_fields,
+            case when s.task_days > 0 then
+              coalesce((select max(h.created_at) from public.stage_history h
+                         where h.application_id = a.id and h.to_stage_id = s.id), a.created_at)
+              + make_interval(days => s.task_days)
+            end as deadline,
+            a.answers, f.schema, a.created_at
      from public.applications a
      join public.openings o on o.id = a.opening_id
      join public.forms f on f.id = a.form_id
@@ -249,6 +256,11 @@ export default async function PortalPage({
       {showTask && (
         <div className="mt-4 rounded-lg border border-line bg-card p-5">
           <h2 className="font-display text-lg font-semibold">Your task</h2>
+          {a.deadline && (
+            <p className={`mt-2 text-sm font-medium ${fmtDate(a.deadline) < fmtDate(new Date()) ? 'text-rust' : 'text-pine-deep'}`}>
+              Deadline: {fmtDay(a.deadline)}
+            </p>
+          )}
           <p className="mt-2 whitespace-pre-line text-sm">
             {a.stage_brief || 'Task details will be shared with you by email.'}
           </p>

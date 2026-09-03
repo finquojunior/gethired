@@ -38,8 +38,9 @@ export function briefLinks(raw: string | null | undefined): string[] {
  * Compose the {{brief}} email variable from all three materials. docUrl is the
  * candidate's token-gated download link for the brief document ('' if none).
  */
-export function composeBriefEmail(brief: string, linksRaw: string, docUrl: string): string {
+export function composeBriefEmail(brief: string, linksRaw: string, docUrl: string, deadline = ''): string {
   const parts = [brief.trim()];
+  if (deadline) parts.push(`Deadline: ${deadline}`);
   const links = briefLinks(linksRaw);
   if (links.length > 0) parts.push(`Reference links:\n${links.join('\n')}`);
   if (docUrl) parts.push(`Task brief document:\n${docUrl}`);

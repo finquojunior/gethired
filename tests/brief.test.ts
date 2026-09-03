@@ -46,6 +46,7 @@ test('briefLinks keeps only http(s) lines, trimmed', () => {
 test('composeBriefEmail combines whichever materials exist', () => {
   assert.equal(composeBriefEmail('', '', ''), 'Task details will follow.');
   assert.equal(composeBriefEmail('Do the thing.', '', ''), 'Do the thing.');
+  assert.equal(composeBriefEmail('Do the thing.', '', '', '6 Sep 2026'), 'Do the thing.\n\nDeadline: 6 Sep 2026');
   assert.equal(
     composeBriefEmail('Do the thing.', 'https://spec.example.com', 'https://hire.example.com/c/tok/brief'),
     'Do the thing.\n\nReference links:\nhttps://spec.example.com\n\nTask brief document:\nhttps://hire.example.com/c/tok/brief'
