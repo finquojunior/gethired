@@ -21,7 +21,7 @@ const STATUS_TEXT: Record<string, string> = {
 const OK_TEXT: Record<string, string> = {
   task: 'Submission received — thank you!',
   response: 'Response saved — thank you!',
-  booked: 'Your interview slot is booked. A confirmation email is on its way.',
+  booked: 'Interview scheduled! Your slot is confirmed and a confirmation email is on its way.',
   cancelled: 'Booking cancelled. You can pick a new slot below.',
   withdrawn: 'Your application has been withdrawn.',
 };
@@ -200,16 +200,29 @@ export default async function PortalPage({
               No open slots right now — we&apos;ll email you when new ones are added.
             </p>
           ) : (
-            <div className="mt-4 grid grid-cols-2 gap-2">
-              {openSlots.map((s) => (
-                <PostForm key={s.id} pendingText="Booking…" method="post" action={`/c/${token}/book`}>
-                  <input type="hidden" name="slotId" value={s.id} />
-                  <button className="btn-quiet w-full justify-center">
+            <PostForm
+              pendingText="Booking…"
+              submitToast="Booking your slot…"
+              method="post"
+              action={`/c/${token}/book`}
+              className="mt-4"
+            >
+              <div className="grid grid-cols-2 gap-2">
+                {openSlots.map((s) => (
+                  <label
+                    key={s.id}
+                    className="flex cursor-pointer items-center gap-2 rounded-md border border-line px-3 py-2 text-sm transition-colors hover:bg-pine-wash has-[:checked]:border-pine has-[:checked]:bg-pine-wash has-[:checked]:font-medium"
+                  >
+                    <input type="radio" name="slotId" value={s.id} required className="accent-pine" />
                     {fmt(s.starts_at)}
-                  </button>
-                </PostForm>
-              ))}
-            </div>
+                  </label>
+                ))}
+              </div>
+              <p className="mt-3 text-xs text-ink-soft">
+                Select a slot, then submit. You&apos;ll get a confirmation email with a calendar invite.
+              </p>
+              <button className="btn-primary mt-3">Submit</button>
+            </PostForm>
           )}
         </div>
       )}
