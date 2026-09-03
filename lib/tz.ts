@@ -37,3 +37,13 @@ export function orgTimeToUtc(date: string, time: string): Date {
   );
   return new Date(guess.getTime() - (shown - guess.getTime()));
 }
+
+/** "3 Sep 2026" in the org zone. */
+export const fmtDay = (d: Date) => {
+  const p = Object.fromEntries(
+    dtf({ day: 'numeric', month: 'short', year: 'numeric' })
+      .formatToParts(d)
+      .map((x) => [x.type, x.value])
+  );
+  return `${p.day} ${p.month.replace('Sept', 'Sep')} ${p.year}`;
+};

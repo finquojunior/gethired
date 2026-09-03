@@ -331,7 +331,7 @@ export async function updateTaskMaterials(formData: FormData) {
   await q(
     `update public.stages set brief = $2, brief_links = $3,
        brief_file_path = coalesce($4, brief_file_path),
-       submission_fields = $5
+       submission_fields = $5, task_days = $6
      where id = $1`,
     [
       stageId,
@@ -339,6 +339,7 @@ export async function updateTaskMaterials(formData: FormData) {
       links,
       docPath,
       JSON.stringify(parseSubmissionFields(fields)),
+      Math.min(365, Math.max(0, Math.floor(Number(formData.get('taskDays')) || 0))),
     ]
   );
   if (docPath !== null && stage.brief_file_path) await deleteFile(stage.brief_file_path);

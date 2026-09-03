@@ -2,7 +2,7 @@ import Link from 'next/link';
 import BackButton from '@/components/BackButton';
 import { notFound } from 'next/navigation';
 import { q } from '@/lib/db';
-import { fmtDateTime } from '@/lib/tz';
+import { fmtDate, fmtDateTime, fmtDay } from '@/lib/tz';
 import { TASK_ACCEPT, TASK_MAX_BYTES } from '@/lib/uploads';
 import { briefLinks, parseSubmissionFields } from '@/lib/brief';
 import SubmissionFieldsEditor from '@/components/SubmissionFieldsEditor';
@@ -35,10 +35,11 @@ export default async function TaskPage({
     brief_file_path: string;
     brief_links: string;
     submission_fields: unknown;
+    task_days: number;
     active: number;
     submitted: number;
   }>(
-    `select s.id, s.name, s.brief, s.brief_file_path, s.brief_links, s.submission_fields,
+    `select s.id, s.name, s.brief, s.brief_file_path, s.brief_links, s.submission_fields, s.task_days,
             (select count(*)::int from public.applications a
               where a.current_stage_id = s.id and a.status = 'active') as active,
             (select count(distinct su.application_id)::int from public.submissions su
@@ -55,11 +56,17 @@ export default async function TaskPage({
     name: string;
     status: string;
     current_stage: string | null;
+    deadline: Date | null;
     submitted_at: Date | null;
     submission_count: number;
     response: string | null;
   }>(
     `select s.id as stage_id, a.id, a.name, a.status, cs.name as current_stage,
+            case when s.task_days > 0 then
+              coalesce((select max(h.created_at) from public.stage_history h
+                         where h.application_id = a.id and h.to_stage_id = s.id), a.created_at)
+              + make_interval(days => s.task_days)
+            end as deadline,
             (select tr.response from public.task_responses tr
               where tr.application_id = a.id and tr.stage_id = s.id
               order by tr.id desc limit 1) as response,
@@ -77,6 +84,7 @@ export default async function TaskPage({
      order by submitted_at desc nulls last, a.name`,
     [openingId]
   );
+  const today = fmtDate(new Date()); // org-local; overdue only once the deadline day has passed
   const candidatesByStage = new Map<number, typeof candidates>();
   for (const c of candidates) {
     if (!candidatesByStage.has(c.stage_id)) candidatesByStage.set(c.stage_id, []);
@@ -153,6 +161,22 @@ export default async function TaskPage({
               </div>
 
               <div>
+                <label className="field-label">Days to complete</label>
+                <p className="mb-2 text-xs text-ink-soft">
+                  Each candidate&apos;s deadline is counted from the day they were moved into this
+                  stage. Leave 0 for no deadline.
+                </p>
+                <input
+                  type="number"
+                  name="taskDays"
+                  min={0}
+                  max={365}
+                  defaultValue={t.task_days}
+                  className="input w-32"
+                />
+              </div>
+
+              <div>
                 <label className="field-label">Links (one per line, must start with http)</label>
                 <textarea
                   name="links"
@@ -220,6 +244,7 @@ export default async function TaskPage({
                     <th className="py-1 pr-4">Candidate</th>
                     <th className="py-1 pr-4">Now at</th>
                     <th className="py-1 pr-4">Response</th>
+                    <th className="py-1 pr-4">Deadline</th>
                     <th className="py-1">Task</th>
                   </tr>
                 </thead>
@@ -241,6 +266,15 @@ export default async function TaskPage({
                           <span className="font-medium text-rust">No</span>
                         ) : (
                           <span className="text-amber">Pending</span>
+                        )}
+                      </td>
+                      <td className="py-2 pr-4 whitespace-nowrap">
+                        {c.deadline ? (
+                          <span className={fmtDate(c.deadline) < today ? 'text-rust' : 'text-pine-deep'}>
+                            {fmtDay(c.deadline)}
+                          </span>
+                        ) : (
+                          <span className="text-ink-soft">—</span>
                         )}
                       </td>
                       <td className="py-2">

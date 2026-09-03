@@ -14,6 +14,7 @@ export default async function TasksPage() {
     brief: string;
     brief_file_path: string;
     brief_links: string;
+    task_days: number;
     active: number;
     submitted: number;
     reached: number;
@@ -33,7 +34,7 @@ export default async function TasksPage() {
        where s.kind = 'task'
      )
      select s.id as stage_id, s.name as stage_name, o.id as opening_id, o.title, o.status,
-            s.brief, s.brief_file_path, s.brief_links,
+            s.brief, s.brief_file_path, s.brief_links, s.task_days,
             (select count(*)::int from public.applications a
               where a.current_stage_id = s.id and a.status = 'active') as active,
             (select count(distinct su.application_id)::int from public.submissions su
@@ -64,6 +65,7 @@ export default async function TasksPage() {
                 <th className="py-2 pr-4 font-medium">Opening</th>
                 <th className="py-2 pr-4 font-medium">Stage</th>
                 <th className="py-2 pr-4 font-medium">Materials</th>
+                <th className="py-2 pr-4 font-medium">Days</th>
                 <th className="py-2 pr-4 font-medium">In stage</th>
                 <th className="py-2 pr-4 font-medium">Submitted</th>
                 <th className="py-2 font-medium">Response</th>
@@ -91,6 +93,9 @@ export default async function TasksPage() {
                       ) : (
                         <span className="text-rust">not set</span>
                       )}
+                    </td>
+                    <td className="py-3 pr-4">
+                      {t.task_days > 0 ? t.task_days : <span className="text-rust">not set</span>}
                     </td>
                     <td className="py-3 pr-4">{t.active}</td>
                     <td className="py-3 pr-4">
