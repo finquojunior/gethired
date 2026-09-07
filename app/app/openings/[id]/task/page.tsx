@@ -2,6 +2,7 @@ import Link from 'next/link';
 import BackButton from '@/components/BackButton';
 import { notFound } from 'next/navigation';
 import { q } from '@/lib/db';
+import { canAccessOpening, currentUser } from '@/lib/auth';
 import { fmtDate, fmtDateTime, fmtDay } from '@/lib/tz';
 import { TASK_MAX_BYTES, TASK_TYPE_HELP } from '@/lib/uploads';
 import { briefLinks, parseSubmissionFields } from '@/lib/brief';
@@ -27,6 +28,7 @@ export default async function TaskPage({
     rows: [opening],
   } = await q<{ title: string }>('select title from public.openings where id = $1', [openingId]);
   if (!opening) notFound();
+  if (!(await canAccessOpening(await currentUser(), openingId))) notFound();
 
   const { rows: tasks } = await q<{
     id: number;

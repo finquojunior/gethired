@@ -2,6 +2,7 @@ import Link from 'next/link';
 import BackButton from '@/components/BackButton';
 import { notFound } from 'next/navigation';
 import { q } from '@/lib/db';
+import { canAccessOpening, currentUser, openingScope, scopeSql } from '@/lib/auth';
 import type { FormSchema } from '@/lib/form-schema';
 import { fetchOpeningQuestions, publishForm, saveDraftForm } from '../../actions';
 import FormBuilder from './FormBuilder';
@@ -15,6 +16,7 @@ export default async function FormBuilderPage({ params }: { params: Promise<{ id
     rows: [opening],
   } = await q<{ title: string }>('select title from public.openings where id = $1', [openingId]);
   if (!opening) notFound();
+  if (!(await canAccessOpening(await currentUser(), openingId))) notFound();
 
   const {
     rows: [draft],
@@ -31,8 +33,8 @@ export default async function FormBuilderPage({ params }: { params: Promise<{ id
     [openingId]
   );
   const { rows: otherOpenings } = await q<{ id: number; title: string }>(
-    `select id, title from public.openings where id <> $1 order by created_at desc limit 30`,
-    [openingId]
+    `select id, title from public.openings where id <> $1 and {scopeSql('id', 2)} order by created_at desc limit 30`,
+    [openingId, await openingScope(await currentUser())]
   );
 
   return (

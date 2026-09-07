@@ -1,10 +1,12 @@
 import Link from 'next/link';
 import { q } from '@/lib/db';
+import { requireStaff } from '@/lib/auth';
 import { fmtDateTime } from '@/lib/tz';
 
 export const dynamic = 'force-dynamic';
 
 export default async function ReportsPage() {
+  await requireStaff();
   const [
     { rows: funnel },
     { rows: sources },

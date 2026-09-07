@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { q } from '@/lib/db';
+import { currentUser, isStaff, openingScope, scopeSql } from '@/lib/auth';
 import SubmitButton from '@/components/SubmitButton';
 import { createOpening } from './actions';
 
@@ -19,6 +20,8 @@ export default async function OpeningsPage({
 }) {
   const { show } = await searchParams;
   const closed = show === 'closed';
+  const user = await currentUser();
+  const scope = await openingScope(user);
   const { rows: openings } = await q<{
     id: number;
     title: string;
@@ -30,10 +33,10 @@ export default async function OpeningsPage({
             count(a.id) as applications
      from public.openings o
      left join public.applications a on a.opening_id = o.id
-     where (o.status = 'closed') = $1
+     where (o.status = 'closed') = $1 and {scopeSql('o.id', 2)}
      group by o.id
      order by o.created_at desc`,
-    [closed]
+    [closed, scope]
   );
 
   return (
@@ -56,6 +59,8 @@ export default async function OpeningsPage({
         </div>
       </div>
 
+      {isStaff(user) && (
+
       <form action={createOpening} className="mt-8 flex flex-wrap items-end gap-3">
         <div className="flex-1">
           <label className="field-label" htmlFor="title">New opening</label>
@@ -67,6 +72,8 @@ export default async function OpeningsPage({
         </div>
         <SubmitButton className="btn-primary" pendingLabel="Creating…">Create opening</SubmitButton>
       </form>
+
+      )}
 
       <ul className="mt-8 divide-y divide-line rounded-lg border border-line bg-card">
         {openings.map((o) => (

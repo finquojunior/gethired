@@ -2,6 +2,7 @@ import Link from 'next/link';
 import BackButton from '@/components/BackButton';
 import { notFound } from 'next/navigation';
 import { q } from '@/lib/db';
+import { canAccessOpening, currentUser, isStaff } from '@/lib/auth';
 import SubmitButton from '@/components/SubmitButton';
 import { addMember, removeMember } from '../../actions';
 
@@ -14,6 +15,9 @@ export default async function TeamPage({ params }: { params: Promise<{ id: strin
     rows: [opening],
   } = await q<{ title: string }>('select title from public.openings where id = $1', [openingId]);
   if (!opening) notFound();
+  const user = await currentUser();
+  if (!(await canAccessOpening(user, openingId))) notFound();
+  const staff = isStaff(user);
 
   const { rows: members } = await q<{
     user_id: string;
@@ -40,8 +44,9 @@ export default async function TeamPage({ params }: { params: Promise<{ id: strin
         · Team
       </h1>
       <p className="mt-4 text-sm text-ink-soft">
-        Admins and HR see everything. Requesters and viewers see this opening&apos;s candidates;
-        interviewers see only candidates booked into their slots.
+        Everyone added here can do everything in this opening: review candidates, move stages,
+        book interviews, email, and edit the setup. Admins and HR have access to every opening
+        without being added.{!staff && ' Only admins and HR can change who is on the team.'}
       </p>
 
       <ul className="mt-8 divide-y divide-line rounded-lg border border-line bg-card">
@@ -55,11 +60,13 @@ export default async function TeamPage({ params }: { params: Promise<{ id: strin
               <span className="rounded-full bg-pine-wash px-2.5 py-0.5 text-xs font-medium text-pine-deep">
                 {m.member_role}
               </span>
+              {staff && (
               <form action={removeMember}>
                 <input type="hidden" name="openingId" value={openingId} />
                 <input type="hidden" name="userId" value={m.user_id} />
-                <SubmitButton className="text-sm text-rust hover:underline" pendingLabel="…">Remove</SubmitButton>
+                <SubmitButton className="text-sm text-rust hover:underline" pendingLabel="…" doneMessage="Removed from opening">Remove</SubmitButton>
               </form>
+              )}
             </div>
           </li>
         ))}
@@ -70,28 +77,27 @@ export default async function TeamPage({ params }: { params: Promise<{ id: strin
         )}
       </ul>
 
-      <form action={addMember} className="mt-6 flex items-end gap-2">
+      {staff && (
+      <form action={addMember} className="mt-6 flex flex-wrap items-end gap-2">
         <input type="hidden" name="openingId" value={openingId} />
-        <div className="flex-1">
-          <label className="field-label">Person</label>
-          <select name="userId" className="input">
-            {people.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.full_name} ({p.role})
-              </option>
-            ))}
+        <div className="min-w-56 flex-1">
+          <label className="field-label" htmlFor="member">Person</label>
+          <select id="member" name="userId" className="input">
+            {people
+              .filter((p) => !members.some((m) => m.user_id === p.id))
+              .map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.full_name} ({p.role})
+                </option>
+              ))}
           </select>
         </div>
-        <div className="w-44">
-          <label className="field-label">Access</label>
-          <select name="memberRole" className="input">
-            <option value="requester">requester</option>
-            <option value="viewer">viewer</option>
-            <option value="interviewer">interviewer</option>
-          </select>
-        </div>
-        <SubmitButton className="btn-primary" pendingLabel="Adding…">Add to opening</SubmitButton>
+        <SubmitButton className="btn-primary" pendingLabel="Adding…" doneMessage="Added to opening">Add to opening</SubmitButton>
       </form>
+      )}
+      {staff && people.length === members.length && (
+        <p className="mt-2 text-xs text-ink-soft">Everyone is already on this opening. Add new people from the Team page.</p>
+      )}
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { q } from '@/lib/db';
+import { currentUser, openingScope, scopeSql } from '@/lib/auth';
 import { fmtDate } from '@/lib/tz';
 
 export const dynamic = 'force-dynamic';
@@ -13,6 +14,7 @@ export default async function CandidatesSearchPage({
   const term = query.trim().slice(0, 100);
 
   const tagSearch = term.startsWith('tag:') ? term.slice(4).trim() : null;
+  const scope = await openingScope(await currentUser());
   const { rows: results } = term
     ? await q<{
         id: number;
@@ -28,10 +30,10 @@ export default async function CandidatesSearchPage({
          from public.applications a
          join public.openings o on o.id = a.opening_id
          left join public.stages s on s.id = a.current_stage_id
-         where ($2::text is not null and $2 = any(a.tags))
-            or ($2::text is null and (a.name ilike $1 or a.email ilike $1))
+         where {scopeSql('o.id', 3)} and (($2::text is not null and $2 = any(a.tags))
+            or ($2::text is null and (a.name ilike $1 or a.email ilike $1)))
          order by a.created_at desc limit 50`,
-        [`%${term}%`, tagSearch]
+        [`%${term}%`, tagSearch, scope]
       )
     : { rows: [] };
 
@@ -43,9 +45,11 @@ export default async function CandidatesSearchPage({
                 count(a.id)::int as total
          from public.openings o
          left join public.applications a on a.opening_id = o.id
+         where {scopeSql('o.id', 1)}
          group by o.id
          having count(a.id) > 0
-         order by o.status = 'open' desc, o.created_at desc`
+         order by o.status = 'open' desc, o.created_at desc`,
+        [scope]
       );
 
   return (

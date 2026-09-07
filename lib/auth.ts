@@ -99,3 +99,92 @@ export async function currentUser(): Promise<SessionUser> {
 export function isStaff(u: SessionUser): boolean {
   return u.role === 'admin' || u.role === 'hr';
 }
+
+// --- authorization -----------------------------------------------------------
+// Two tiers. Global staff (admin, hr) can do everything. Everyone else works
+// inside the openings they belong to — a row in opening_members, or an
+// interview slot they're on — and inside such an opening they can do
+// everything. Admin-only: people management, settings, deleting opening data.
+
+export async function requireStaff(): Promise<SessionUser> {
+  const user = await currentUser();
+  if (!isStaff(user)) forbidden();
+  return user;
+}
+
+export async function requireAdmin(): Promise<SessionUser> {
+  const user = await currentUser();
+  if (user.role !== 'admin') forbidden();
+  return user;
+}
+
+/** Bounce a signed-in user who lacks permission back to the dashboard with a flash. */
+export function forbidden(): never {
+  redirect('/app?e=forbidden');
+}
+
+/** Opening ids this user may work in; null means all (global staff). */
+export async function openingScope(u: SessionUser): Promise<number[] | null> {
+  if (isStaff(u)) return null;
+  const { rows } = await q<{ id: number }>(
+    `select opening_id as id from public.opening_members where user_id = $1
+     union
+     select opening_id from public.slots where interviewer_id = $1 or $1 = any(panel)`,
+    [u.id]
+  );
+  return rows.map((r) => Number(r.id));
+}
+
+/** SQL fragment for list pages: `$n` is the bigint[] from openingScope (null = no filter). */
+export const scopeSql = (col: string, n: number) => `($${n}::bigint[] is null or ${col} = any($${n}))`;
+
+export async function canAccessOpening(u: SessionUser, openingId: number): Promise<boolean> {
+  if (isStaff(u)) return true;
+  if (!Number.isInteger(openingId)) return false;
+  const { rows } = await q(
+    `select 1 from public.opening_members where opening_id = $1 and user_id = $2
+     union all
+     select 1 from public.slots where opening_id = $1 and (interviewer_id = $2 or $2 = any(panel))
+     limit 1`,
+    [openingId, u.id]
+  );
+  return rows.length > 0;
+}
+
+/** Action gate for one opening. */
+export async function requireOpeningAccess(openingId: number): Promise<SessionUser> {
+  const user = await currentUser();
+  if (!(await canAccessOpening(user, openingId))) forbidden();
+  return user;
+}
+
+/** Action gate for one application; also returns its opening for revalidation. */
+export async function requireApplicationAccess(
+  applicationId: number
+): Promise<{ user: SessionUser; openingId: number }> {
+  const user = await currentUser();
+  const {
+    rows: [a],
+  } = await q<{ opening_id: number }>(`select opening_id from public.applications where id = $1`, [
+    applicationId,
+  ]);
+  if (!a || !(await canAccessOpening(user, Number(a.opening_id)))) forbidden();
+  return { user, openingId: Number(a.opening_id) };
+}
+
+/** Which opening a stored file belongs to (for scoped downloads); null if unknown. */
+export async function openingIdForFile(relPath: string): Promise<number | null> {
+  const {
+    rows: [r],
+  } = await q<{ id: number }>(
+    `select opening_id as id from public.applications where resume_path = $1
+     union all
+     select a.opening_id from public.submissions su join public.applications a on a.id = su.application_id
+       where su.file_path = $1
+     union all
+     select opening_id from public.stages where brief_file_path = $1
+     limit 1`,
+    [relPath]
+  );
+  return r ? Number(r.id) : null;
+}

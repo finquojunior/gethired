@@ -1,10 +1,12 @@
 import Link from 'next/link';
 import { q } from '@/lib/db';
+import { currentUser, openingScope, scopeSql } from '@/lib/auth';
 import { fmtDateTime } from '@/lib/tz';
 
 export const dynamic = 'force-dynamic';
 
 export default async function InterviewsPage() {
+  const scope = await openingScope(await currentUser());
   const [{ rows: upcoming }, { rows: openings }] = await Promise.all([
     q<{
       id: number;
@@ -25,8 +27,9 @@ export default async function InterviewsPage() {
        join public.openings o on o.id = a.opening_id
        join public.stages st on st.id = sl.stage_id
        join public.profiles p on p.id = sl.interviewer_id
-       where sl.starts_at > now() and a.status = 'active'
-       order by sl.starts_at limit 50`
+       where sl.starts_at > now() and a.status = 'active' and {scopeSql('o.id', 1)}
+       order by sl.starts_at limit 50`,
+      [scope]
     ),
     q<{ id: number; title: string; status: string; open_slots: number; booked: number }>(
       `select o.id, o.title, o.status,
@@ -35,9 +38,10 @@ export default async function InterviewsPage() {
        from public.openings o
        join public.stages s on s.opening_id = o.id and s.kind = 'interview'
        left join public.slots sl on sl.opening_id = o.id
-       where o.status <> 'closed'
+       where o.status <> 'closed' and {scopeSql('o.id', 1)}
        group by o.id
-       order by o.created_at desc`
+       order by o.created_at desc`,
+      [scope]
     ),
   ]);
 

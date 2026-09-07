@@ -1,10 +1,12 @@
 import Link from 'next/link';
 import { q } from '@/lib/db';
+import { currentUser, openingScope, scopeSql } from '@/lib/auth';
 import { briefLinks } from '@/lib/brief';
 
 export const dynamic = 'force-dynamic';
 
 export default async function TasksPage() {
+  const scope = await openingScope(await currentUser());
   const { rows: tasks } = await q<{
     stage_id: number;
     stage_name: string;
@@ -43,8 +45,9 @@ export default async function TasksPage() {
             (select count(*)::int from reached r where r.stage_id = s.id and r.response = 'yes') as yes,
             (select count(*)::int from reached r where r.stage_id = s.id and r.response = 'no') as no
      from public.stages s join public.openings o on o.id = s.opening_id
-     where s.kind = 'task'
-     order by o.status = 'open' desc, o.id desc, s.position`
+     where s.kind = 'task' and {scopeSql('o.id', 1)}
+     order by o.status = 'open' desc, o.id desc, s.position`,
+    [scope]
   );
 
   return (

@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { currentUser } from '@/lib/auth';
+import { currentUser, isStaff } from '@/lib/auth';
 import NavLink from '@/components/NavLink';
 import RememberPage from '@/components/RememberPage';
 import Toaster from '@/components/Toaster';
@@ -19,10 +19,10 @@ export default async function InternalLayout({ children }: { children: React.Rea
             <NavLink href="/app/candidates">Candidates</NavLink>
             <NavLink href="/app/tasks">Tasks</NavLink>
             <NavLink href="/app/interviews">Interviews</NavLink>
-            <NavLink href="/app/team">Team</NavLink>
+            {isStaff(user) && <NavLink href="/app/team">Team</NavLink>}
             <NavLink href="/app/emails">Emails</NavLink>
-            <NavLink href="/app/reports">Reports</NavLink>
-            <NavLink href="/app/settings">Settings</NavLink>
+            {isStaff(user) && <NavLink href="/app/reports">Reports</NavLink>}
+            {isStaff(user) && <NavLink href="/app/settings">Settings</NavLink>}
             <Link href="/careers" className="rounded px-2 py-1.5 text-white/70 hover:bg-white/10">
               Careers page ↗
             </Link>

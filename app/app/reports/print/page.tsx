@@ -1,4 +1,5 @@
 import { q } from '@/lib/db';
+import { requireStaff } from '@/lib/auth';
 import { fmtDate, fmtDateTime } from '@/lib/tz';
 import PrintButton from '@/components/PrintButton';
 import BackButton from '@/components/BackButton';
@@ -34,6 +35,7 @@ export default async function ReportPrintPage({
 }: {
   searchParams: Promise<{ opening?: string; month?: string; from?: string; to?: string }>;
 }) {
+  await requireStaff();
   const sp = await searchParams;
   const { start, end, label } = resolvePeriod(sp);
   const openingId = /^\d+$/.test(sp.opening ?? '') ? Number(sp.opening) : null;

@@ -2,13 +2,12 @@
 
 import { revalidatePath } from 'next/cache';
 import { q } from '@/lib/db';
-import { currentUser, isStaff } from '@/lib/auth';
+import { requireStaff } from '@/lib/auth';
 import { audit } from '@/lib/audit';
 import { DEFAULT_TEMPLATES } from '@/lib/email';
 
 export async function setMailService(formData: FormData) {
-  const user = await currentUser();
-  if (!isStaff(user)) throw new Error('Not allowed');
+  const user = await requireStaff();
   const service = String(formData.get('service'));
   if (service !== 'resend' && service !== 'gmail') return;
   await q(
@@ -21,8 +20,7 @@ export async function setMailService(formData: FormData) {
 }
 
 export async function saveTemplate(formData: FormData) {
-  const user = await currentUser();
-  if (!isStaff(user)) throw new Error('Not allowed');
+  const user = await requireStaff();
   const key = String(formData.get('key'));
   if (!DEFAULT_TEMPLATES[key]) return;
   const subject = String(formData.get('subject') ?? '').trim();

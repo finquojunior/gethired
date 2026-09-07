@@ -1,5 +1,5 @@
 import { q } from '@/lib/db';
-import { currentUser } from '@/lib/auth';
+import { requireStaff } from '@/lib/auth';
 import { DEFAULT_TEMPLATES, getMailService, mailConfigured } from '@/lib/email';
 import { fmtDateTime } from '@/lib/tz';
 import SubmitButton from '@/components/SubmitButton';
@@ -8,7 +8,7 @@ import { saveTemplate, setMailService } from './actions';
 export const dynamic = 'force-dynamic';
 
 export default async function SettingsPage() {
-  const user = await currentUser();
+  const user = await requireStaff();
   const isAdmin = user.role === 'admin';
   const mailService = await getMailService();
   const configured = mailConfigured();

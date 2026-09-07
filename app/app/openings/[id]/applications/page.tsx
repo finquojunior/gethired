@@ -2,6 +2,7 @@ import Link from 'next/link';
 import BackButton from '@/components/BackButton';
 import { notFound } from 'next/navigation';
 import { q } from '@/lib/db';
+import { canAccessOpening, currentUser } from '@/lib/auth';
 import { fmtDate } from '@/lib/tz';
 import SubmitButton from '@/components/SubmitButton';
 import SelectAll from '@/components/SelectAll';
@@ -34,6 +35,7 @@ export default async function ApplicationsPage({
     rows: [opening],
   } = await q<{ title: string }>('select title from public.openings where id = $1', [openingId]);
   if (!opening) notFound();
+  if (!(await canAccessOpening(await currentUser(), openingId))) notFound();
 
   const { rows: stages } = await q<{ id: number; name: string; kind: string; count: number }>(
     `select s.id, s.name, s.kind,

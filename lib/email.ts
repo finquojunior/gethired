@@ -56,6 +56,26 @@ export const DEFAULT_TEMPLATES: Record<string, { subject: string; body: string; 
     body: `Hi {{name}},\n\nThank you for applying for {{role}}. After careful review we won't be moving forward with your application this time.\n\nWe'd love to see you apply again for future roles.\n`,
     vars: ['name', 'role'],
   },
+  booking_cancelled: {
+    subject: 'Interview cancelled — {{role}}',
+    body: `Hi {{name}},\n\nYour interview for {{role}} on {{when}} has been cancelled by our team.\n\nIf there are open slots you can pick a new time on your status page:\n{{portal_link}}\n\nOtherwise we'll be in touch to reschedule.\n`,
+    vars: ['name', 'role', 'when', 'portal_link'],
+  },
+  task_received: {
+    subject: 'We received your task — {{role}}',
+    body: `Hi {{name}},\n\nThanks — we've received your task submission for {{role}}:\n\n{{items}}\n\nYou can add a newer version any time before the deadline from your status page:\n{{portal_link}}\n`,
+    vars: ['name', 'role', 'items', 'portal_link'],
+  },
+  task_reminder: {
+    subject: 'Reminder: your task is due {{deadline}} — {{role}}',
+    body: `Hi {{name}},\n\nA quick reminder that your task for {{role}} is due {{deadline}}.\n\nSubmit it here:\n{{portal_link}}\n`,
+    vars: ['name', 'role', 'deadline', 'portal_link'],
+  },
+  withdrawn: {
+    subject: 'Application withdrawn — {{role}}',
+    body: `Hi {{name}},\n\nYou've withdrawn your application for {{role}}. Thanks for your interest — we'd be glad to see you apply again in future.\n\nIf this was a mistake, reply to this email and we'll restore it.\n`,
+    vars: ['name', 'role'],
+  },
   interviewer_booked: {
     subject: 'Interview booked: {{name}} — {{role}}',
     body: `{{name}} booked an interview with you for {{role}}:\n\n{{when}} ({{duration}} minutes).\n\nCandidate profile: {{profile_link}}\n`,

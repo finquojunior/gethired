@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { NextResponse, type NextRequest } from 'next/server';
-import { currentUserOrNull, isStaff } from '@/lib/auth';
+import { canAccessOpening, currentUserOrNull, isStaff, openingIdForFile } from '@/lib/auth';
 import { getFile } from '@/lib/storage';
 
 const MIME: Record<string, string> = {
@@ -19,7 +19,12 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ path: stri
   // role posters are public marketing assets; everything else is staff-only
   if (parts[0] !== 'posters') {
     const user = await currentUserOrNull();
-    if (!user || !isStaff(user)) return new NextResponse('Forbidden', { status: 403 });
+    if (!user) return new NextResponse('Forbidden', { status: 403 });
+    if (!isStaff(user)) {
+      // scoped roles: only files that belong to one of their openings
+      const oid = await openingIdForFile(parts.join('/'));
+      if (oid === null || !(await canAccessOpening(user, oid))) return new NextResponse('Forbidden', { status: 403 });
+    }
   }
 
   const file = await getFile(parts);

@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { q } from '@/lib/db';
-import { currentUser, isStaff } from '@/lib/auth';
+import { canAccessOpening, currentUser } from '@/lib/auth';
 import { allFields, type FormSchema } from '@/lib/form-schema';
 
 const csv = (v: unknown) => {
@@ -12,9 +12,9 @@ const csv = (v: unknown) => {
 
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const user = await currentUser();
-  if (!isStaff(user)) return new NextResponse('Forbidden', { status: 403 });
   const { id } = await ctx.params;
   const openingId = Number(id);
+  if (!(await canAccessOpening(user, openingId))) return new NextResponse('Forbidden', { status: 403 });
 
   const { rows: apps } = await q<{
     name: string;

@@ -4,19 +4,13 @@ import path from 'node:path';
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { q, tx } from '@/lib/db';
-import { currentUser, isStaff } from '@/lib/auth';
+import { requireApplicationAccess, requireOpeningAccess } from '@/lib/auth';
 import { appUrl, attemptSend, icsEvent, portalUrl, sendCustomEmail, sendEmail } from '@/lib/email';
 import { fmtDateTimeFull, fmtDay } from '@/lib/tz';
 import { audit } from '@/lib/audit';
 import { composeBriefEmail } from '@/lib/brief';
 import { freeFutureSlots, staffEmails } from '@/lib/slots';
 import { RESUME_EXTS, RESUME_MAX_BYTES, saveUpload } from '@/lib/storage';
-
-async function requireStaff() {
-  const user = await currentUser();
-  if (!isStaff(user)) throw new Error('Not allowed');
-  return user;
-}
 
 async function notifyStage(applicationIds: number[], stageId: number) {
   const {
@@ -95,7 +89,7 @@ async function moveApplications(userId: string, openingId: number, ids: number[]
 
 /** Single-candidate move for the board view's drag-drop. */
 export async function moveOne(openingId: number, applicationId: number, stageId: number) {
-  const user = await requireStaff();
+  const user = await requireOpeningAccess(openingId);
   await moveApplications(user.id, openingId, [applicationId], stageId);
   revalidatePath(`/app/openings/${openingId}/applications`);
   revalidatePath(`/app/candidates/${applicationId}`);
@@ -103,8 +97,8 @@ export async function moveOne(openingId: number, applicationId: number, stageId:
 
 /** Bulk pipeline action from the applications table (move / reject / restore / hire). */
 export async function bulkPipeline(formData: FormData) {
-  const user = await requireStaff();
   const openingId = Number(formData.get('openingId'));
+  const user = await requireOpeningAccess(openingId);
   const ids = formData.getAll('appId').map(Number).filter(Boolean);
   const intent = String(formData.get('intent'));
   if (ids.length === 0) return;
@@ -169,8 +163,8 @@ export async function bulkPipeline(formData: FormData) {
 
 /** Staff manually adds a candidate (walk-in / WhatsApp resume). */
 export async function addCandidate(formData: FormData) {
-  const user = await requireStaff();
   const openingId = Number(formData.get('openingId'));
+  const user = await requireOpeningAccess(openingId);
   const name = String(formData.get('name') ?? '').trim().slice(0, 200);
   const email = String(formData.get('email') ?? '').trim().toLowerCase();
   const phone = String(formData.get('phone') ?? '').trim().slice(0, 50);
@@ -233,8 +227,8 @@ export async function addCandidate(formData: FormData) {
 
 /** Bulk import from the old Excel workflow (CSV: name,email,phone,status,notes). */
 export async function importCsv(formData: FormData) {
-  const user = await requireStaff();
   const openingId = Number(formData.get('openingId'));
+  const user = await requireOpeningAccess(openingId);
   const file = formData.get('file');
   const back = `/app/openings/${openingId}/applications/new`;
   if (!(file instanceof File) || file.size === 0 || file.size > 2 * 1024 * 1024) {
@@ -286,8 +280,8 @@ export async function importCsv(formData: FormData) {
 
 /** One-off email from a candidate profile. */
 export async function composeEmail(formData: FormData) {
-  await requireStaff();
   const applicationId = Number(formData.get('applicationId'));
+  const { user } = await requireApplicationAccess(applicationId);
   const subject = String(formData.get('subject') ?? '').trim().slice(0, 300);
   const body = String(formData.get('body') ?? '').trim().slice(0, 10_000);
   if (!subject || !body) return;
@@ -296,16 +290,15 @@ export async function composeEmail(formData: FormData) {
   } = await q<{ email: string }>(`select email from public.applications where id = $1`, [applicationId]);
   if (!app) return;
   await sendCustomEmail(applicationId, app.email, subject, body);
-  const user = await currentUser();
   await audit(user.id, 'email_candidate', 'application', applicationId, { subject });
   revalidatePath(`/app/candidates/${applicationId}`);
 }
 
 /** Send an already-logged email again, as a new outbox row, to the candidate's current address. */
 export async function resendEmail(formData: FormData) {
-  const user = await requireStaff();
   const emailId = Number(formData.get('emailId'));
   const applicationId = Number(formData.get('applicationId'));
+  const { user } = await requireApplicationAccess(applicationId);
   const {
     rows: [row],
   } = await q<{ id: number }>(
@@ -324,8 +317,8 @@ export async function resendEmail(formData: FormData) {
 
 /** Staff books an open slot for a candidate (phone bookings). */
 export async function staffBookSlot(formData: FormData) {
-  const user = await requireStaff();
   const applicationId = Number(formData.get('applicationId'));
+  const { user } = await requireApplicationAccess(applicationId);
   const slotId = Number(formData.get('slotId'));
   const {
     rows: [a],
@@ -384,8 +377,8 @@ export async function staffBookSlot(formData: FormData) {
 
 /** Staff cancels a candidate's future booking. */
 export async function staffCancelSlot(formData: FormData) {
-  const user = await requireStaff();
   const applicationId = Number(formData.get('applicationId'));
+  const { user } = await requireApplicationAccess(applicationId);
   await freeSlots([applicationId], null);
   await audit(user.id, 'cancel_slot', 'application', applicationId);
   revalidatePath(`/app/candidates/${applicationId}`);
@@ -393,8 +386,8 @@ export async function staffCancelSlot(formData: FormData) {
 
 /** Add / remove a tag on a candidate. */
 export async function updateTags(formData: FormData) {
-  await requireStaff();
   const applicationId = Number(formData.get('applicationId'));
+  const { user } = await requireApplicationAccess(applicationId);
   const add = String(formData.get('add') ?? '').trim().toLowerCase().slice(0, 40);
   const remove = String(formData.get('remove') ?? '').trim();
   if (!add && !remove) return;
@@ -410,14 +403,13 @@ export async function updateTags(formData: FormData) {
       remove,
     ]);
   }
-  const user = await currentUser();
   await audit(user.id, 'tags', 'application', applicationId, { add, remove });
   revalidatePath(`/app/candidates/${applicationId}`);
 }
 
 export async function addFeedback(formData: FormData) {
-  const user = await currentUser();
   const applicationId = Number(formData.get('applicationId'));
+  const { user } = await requireApplicationAccess(applicationId);
   const rating = Number(formData.get('rating')) || null;
   const comment = String(formData.get('comment') ?? '').trim();
   const {
@@ -438,8 +430,8 @@ export async function addFeedback(formData: FormData) {
 }
 
 export async function addNote(formData: FormData) {
-  const user = await currentUser();
   const applicationId = Number(formData.get('applicationId'));
+  const { user } = await requireApplicationAccess(applicationId);
   const body = String(formData.get('body') ?? '').trim();
   if (!body) return;
   await q(`insert into public.notes (application_id, author_id, body) values ($1, $2, $3)`, [

@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { q } from '@/lib/db';
+import { currentUser, isStaff, openingScope, scopeSql } from '@/lib/auth';
 import { fmtDateTime } from '@/lib/tz';
 import SubmitButton from '@/components/SubmitButton';
 import { cancelEmail, processOutbox, resendFailedEmail, sendDraft } from './actions';
@@ -17,6 +18,8 @@ const STATUS_STYLE: Record<string, string> = {
 export default async function EmailsPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
   const { q: query = '' } = await searchParams;
   const term = query.trim().slice(0, 100);
+  const user = await currentUser();
+  const scope = await openingScope(user);
   const { rows: emails } = await q<{
     id: number;
     template: string;
@@ -34,21 +37,24 @@ export default async function EmailsPage({ searchParams }: { searchParams: Promi
     `select e.id, e.template, e.to_email, e.subject, e.body, e.status, e.send_after,
             e.service, e.error, e.created_at, a.id as application_id, a.name as candidate
      from public.email_log e join public.applications a on a.id = e.application_id
-     where $1 = '' or e.subject ilike $2 or e.to_email ilike $2 or a.name ilike $2
-        or e.template ilike $2 or e.status ilike $2 or e.body ilike $2
+     where {scopeSql('a.opening_id', 3)}
+       and ($1 = '' or e.subject ilike $2 or e.to_email ilike $2 or a.name ilike $2
+        or e.template ilike $2 or e.status ilike $2 or e.body ilike $2)
      order by e.id desc limit 100`,
-    [term, `%${term}%`]
+    [term, `%${term}%`, scope]
   );
 
   return (
     <div>
       <div className="track flex flex-wrap items-end justify-between gap-3">
         <h1 className="font-display text-3xl font-bold">Emails</h1>
+        {isStaff(user) && (
         <form action={processOutbox} className="pb-1">
           <SubmitButton className="btn-quiet" pendingLabel="Processing…">
             Process outbox now
           </SubmitButton>
         </form>
+        )}
       </div>
       <p className="mt-4 text-sm text-ink-soft">
         Every email the system sends is logged here. Drafts (from &quot;Reject + draft email&quot;)

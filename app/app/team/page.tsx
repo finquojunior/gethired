@@ -1,5 +1,5 @@
 import { q } from '@/lib/db';
-import { currentUser } from '@/lib/auth';
+import { requireStaff } from '@/lib/auth';
 import SubmitButton from '@/components/SubmitButton';
 import { addUser, removeUser, setUserRole } from './actions';
 
@@ -8,7 +8,8 @@ export const dynamic = 'force-dynamic';
 const ROLES = ['admin', 'hr', 'dept_head', 'interviewer'];
 
 export default async function TeamPage() {
-  const me = await currentUser();
+  const me = await requireStaff();
+  const admin = me.role === 'admin';
   const { rows: people } = await q<{
     id: string;
     full_name: string;
@@ -27,9 +28,10 @@ export default async function TeamPage() {
     <div>
       <h1 className="track font-display text-3xl font-bold">Team</h1>
       <p className="mt-4 text-sm text-ink-soft">
-        Admins and HR manage everything. Department heads and interviewers see only openings
-        they&apos;re assigned to (via each opening&apos;s Team tab). Logins arrive with the move to
-        hosted auth — people added here can already be assigned and receive interview emails.
+        Admins and HR see and manage everything. Department heads and interviewers only see the
+        openings they&apos;ve been added to (each opening&apos;s Team tab), and can do everything
+        inside those openings. People added here sign in with the password you set.
+        {!admin && ' Only admins can add people or change roles.'}
       </p>
 
       <ul className="mt-8 divide-y divide-line rounded-lg border border-line bg-card">
@@ -42,6 +44,7 @@ export default async function TeamPage() {
                 {p.email ?? 'no email'} · on {p.openings} opening(s)
               </div>
             </div>
+            {admin && (
             <div className="flex items-center gap-2">
               <form action={setUserRole} className="flex items-center gap-2">
                 <input type="hidden" name="userId" value={p.id} />
@@ -57,16 +60,18 @@ export default async function TeamPage() {
               {p.id !== me.id && (
                 <form action={removeUser}>
                   <input type="hidden" name="userId" value={p.id} />
-                  <SubmitButton className="text-sm text-rust hover:underline" pendingLabel="…">
+                  <SubmitButton className="text-sm text-rust hover:underline" pendingLabel="…" doneMessage="Person removed">
                     Remove
                   </SubmitButton>
                 </form>
               )}
             </div>
+            )}
           </li>
         ))}
       </ul>
 
+      {admin && (
       <form action={addUser} className="mt-6 flex flex-wrap items-end gap-2">
         <div className="min-w-48 flex-1">
           <label className="field-label" htmlFor="name">Name</label>
@@ -88,8 +93,14 @@ export default async function TeamPage() {
           <label className="field-label" htmlFor="password">Password (min 8 chars)</label>
           <input id="password" name="password" type="password" required minLength={8} className="input" />
         </div>
-        <SubmitButton className="btn-primary" pendingLabel="Adding…">Add person</SubmitButton>
+        <SubmitButton className="btn-primary" pendingLabel="Adding…" doneMessage="Person added">Add person</SubmitButton>
       </form>
+      )}
+      {admin && (
+        <p className="mt-2 text-xs text-ink-soft">
+          If the email already exists, that person&apos;s name, role, and password are replaced.
+        </p>
+      )}
     </div>
   );
 }

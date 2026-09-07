@@ -2,6 +2,7 @@ import Link from 'next/link';
 import BackButton from '@/components/BackButton';
 import { notFound } from 'next/navigation';
 import { q } from '@/lib/db';
+import { canAccessOpening, currentUser } from '@/lib/auth';
 import { portalUrl } from '@/lib/email';
 import { fmtDate, fmtDateTime } from '@/lib/tz';
 import { allFields, type FormSchema } from '@/lib/form-schema';
@@ -76,7 +77,7 @@ export default async function CandidatePage({
      where a.id = $1`,
     [appId]
   );
-  if (!a) notFound();
+  if (!a || !(await canAccessOpening(await currentUser(), Number(a.opening_id)))) notFound();
 
   const [{ rows: stages }, { rows: history }, { rows: feedback }, { rows: notes }, { rows: subs }, { rows: slots }, { rows: emails }, { rows: taskStages }, { rows: responses }] =
     await Promise.all([

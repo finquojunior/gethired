@@ -2,16 +2,10 @@
 
 import { revalidatePath } from 'next/cache';
 import { q } from '@/lib/db';
-import { currentUser, hashPassword } from '@/lib/auth';
+import { hashPassword, requireAdmin } from '@/lib/auth';
 import { audit } from '@/lib/audit';
 
 const ROLES = ['admin', 'hr', 'dept_head', 'interviewer'];
-
-async function requireAdmin() {
-  const user = await currentUser();
-  if (user.role !== 'admin') throw new Error('Admins only');
-  return user;
-}
 
 export async function addUser(formData: FormData) {
   const admin = await requireAdmin();

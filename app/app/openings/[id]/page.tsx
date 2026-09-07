@@ -4,7 +4,7 @@ import { notFound } from 'next/navigation';
 import { q } from '@/lib/db';
 import SubmitButton from '@/components/SubmitButton';
 import RichTextArea from '@/components/RichTextArea';
-import { currentUser } from '@/lib/auth';
+import { canAccessOpening, currentUser } from '@/lib/auth';
 import { POSTER_ACCEPT } from '@/lib/uploads';
 import { deleteOpeningData, updateOpening } from '../actions';
 
@@ -45,7 +45,7 @@ export default async function OpeningPage({
      from public.openings o where o.id = $1`,
     [Number(id)]
   );
-  if (!o) notFound();
+  if (!o || !(await canAccessOpening(user, Number(id)))) notFound();
 
   return (
     <div>

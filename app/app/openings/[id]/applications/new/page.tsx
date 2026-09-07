@@ -2,6 +2,7 @@ import Link from 'next/link';
 import BackButton from '@/components/BackButton';
 import { notFound } from 'next/navigation';
 import { q } from '@/lib/db';
+import { canAccessOpening, currentUser } from '@/lib/auth';
 import SubmitButton from '@/components/SubmitButton';
 import { RESUME_ACCEPT } from '@/lib/uploads';
 import { addCandidate, importCsv } from '@/app/app/candidates/actions';
@@ -29,6 +30,7 @@ export default async function AddCandidatePage({
     rows: [opening],
   } = await q<{ title: string }>('select title from public.openings where id = $1', [openingId]);
   if (!opening) notFound();
+  if (!(await canAccessOpening(await currentUser(), openingId))) notFound();
   const { rows: stages } = await q<{ id: number; name: string }>(
     'select id, name from public.stages where opening_id = $1 order by position',
     [openingId]

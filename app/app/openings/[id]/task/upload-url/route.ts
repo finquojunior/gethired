@@ -1,12 +1,13 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { currentUserOrNull, isStaff } from '@/lib/auth';
+import { canAccessOpening, currentUserOrNull } from '@/lib/auth';
 import { createSignedUpload } from '@/lib/storage';
 import { taskExt } from '@/lib/uploads';
 
 /** Staff-only: mint a direct upload URL for a task brief document. */
-export async function POST(req: NextRequest) {
+export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const user = await currentUserOrNull();
-  if (!user || !isStaff(user)) return new NextResponse('Forbidden', { status: 403 });
+  const { id } = await ctx.params;
+  if (!user || !(await canAccessOpening(user, Number(id)))) return new NextResponse('Forbidden', { status: 403 });
 
   const { name } = await req.json().catch(() => ({ name: '' }));
   const ext = taskExt(String(name ?? ''));

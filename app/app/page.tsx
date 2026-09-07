@@ -1,11 +1,16 @@
 import Link from 'next/link';
 import { q } from '@/lib/db';
+import { currentUser, openingScope, scopeSql } from '@/lib/auth';
+import Toaster from '@/components/Toaster';
 import { fmtSlot } from '@/lib/tz';
 import ContinueChip from '@/components/ContinueChip';
 
 export const dynamic = 'force-dynamic';
 
-export default async function DashboardPage() {
+export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ e?: string }> }) {
+  const { e } = await searchParams;
+  const user = await currentUser();
+  const scope = await openingScope(user);
   const [
     { rows: interviews },
     { rows: newApps },
@@ -23,13 +28,16 @@ export default async function DashboardPage() {
          join public.openings o on o.id = a.opening_id
          join public.profiles p on p.id = sl.interviewer_id
          where sl.starts_at between now() and now() + interval '24 hours' and a.status = 'active'
-         order by sl.starts_at limit 10`
+           and ${scopeSql('o.id', 1)}
+         order by sl.starts_at limit 10`,
+        [scope]
       ),
       q<{ opening_id: number; title: string; count: number }>(
         `select o.id as opening_id, o.title, count(*)::int as count
          from public.applications a join public.openings o on o.id = a.opening_id
-         where a.created_at > now() - interval '7 days'
-         group by o.id order by count desc`
+         where a.created_at > now() - interval '7 days' and ${scopeSql('o.id', 1)}
+         group by o.id order by count desc`,
+        [scope]
       ),
       q<{ id: number; name: string; title: string; interviewer: string; starts_at: Date }>(
         `select distinct a.id, a.name, o.title, p.full_name as interviewer, sl.starts_at
@@ -42,30 +50,36 @@ export default async function DashboardPage() {
            and a.status = 'active'
            and not exists (select 1 from public.feedback f
              where f.application_id = a.id and f.author_id = sl.interviewer_id)
-         order by sl.starts_at desc limit 10`
+           and ${scopeSql('o.id', 1)}
+         order by sl.starts_at desc limit 10`,
+        [scope]
       ),
       q<{ opening_id: number; title: string; stage: string; position: number; count: number }>(
         `select o.id as opening_id, o.title, s.name as stage, s.position, count(a.id)::int as count
          from public.openings o
          join public.stages s on s.opening_id = o.id
          left join public.applications a on a.current_stage_id = s.id and a.status = 'active'
-         where o.status = 'open'
-         group by o.id, s.id order by o.created_at desc, s.position`
+         where o.status = 'open' and ${scopeSql('o.id', 1)}
+         group by o.id, s.id order by o.created_at desc, s.position`,
+        [scope]
       ),
       q<{ pending: number }>(
-        `select count(*)::int as pending from public.email_log where status in ('pending', 'failed')`
+        `select count(*)::int as pending from public.email_log e join public.applications a on a.id = e.application_id
+         where e.status in ('pending', 'failed') and ${scopeSql('a.opening_id', 1)}`,
+        [scope]
       ),
       q<{ active: number; interviews7: number; offers: number; hired30: number }>(
         `select
-           (select count(*)::int from public.applications where status = 'active') as active,
+           (select count(*)::int from public.applications where status = 'active' and ${scopeSql('opening_id', 1)}) as active,
            (select count(distinct sl.application_id)::int from public.slots sl
              join public.applications a on a.id = sl.application_id
-             where sl.starts_at between now() and now() + interval '7 days' and a.status = 'active') as interviews7,
+             where sl.starts_at between now() and now() + interval '7 days' and a.status = 'active' and ${scopeSql('a.opening_id', 1)}) as interviews7,
            (select count(*)::int from public.applications a
              join public.stages s on s.id = a.current_stage_id
-             where a.status = 'active' and s.kind = 'offer') as offers,
+             where a.status = 'active' and s.kind = 'offer' and ${scopeSql('a.opening_id', 1)}) as offers,
            (select count(*)::int from public.applications
-             where status = 'hired' and updated_at > now() - interval '30 days') as hired30`
+             where status = 'hired' and updated_at > now() - interval '30 days' and ${scopeSql('opening_id', 1)}) as hired30`,
+        [scope]
       ),
       // task round: per opening, candidates in a task stage and how many have submitted
       q<{ opening_id: number; title: string; in_stage: number; submitted: number }>(
@@ -77,8 +91,9 @@ export default async function DashboardPage() {
          from public.stages s
          join public.openings o on o.id = s.opening_id
          join public.applications a on a.current_stage_id = s.id and a.status = 'active'
-         where s.kind = 'task'
-         group by o.id order by in_stage desc`
+         where s.kind = 'task' and ${scopeSql('o.id', 1)}
+         group by o.id order by in_stage desc`,
+        [scope]
       ),
       // stale: active candidates with no stage movement for 14+ days
       q<{ id: number; name: string; title: string; stage: string; last_move: Date }>(
@@ -93,7 +108,9 @@ export default async function DashboardPage() {
            and greatest(a.created_at, coalesce(
                  (select max(h.created_at) from public.stage_history h where h.application_id = a.id),
                  a.created_at)) < now() - interval '14 days'
-         order by last_move limit 10`
+           and ${scopeSql('o.id', 1)}
+         order by last_move limit 10`,
+        [scope]
       ),
     ]);
 
@@ -106,6 +123,10 @@ export default async function DashboardPage() {
   const card = 'rounded-lg border border-line bg-card p-5';
   return (
     <div>
+      <Toaster
+        initial={e === 'forbidden' ? { kind: 'error', message: "You don't have access to that. Ask an admin to add you to the opening." } : null}
+        cleanParams={['e']}
+      />
       <h1 className="track font-display text-3xl font-bold">Dashboard</h1>
       <ContinueChip />
 

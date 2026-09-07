@@ -4,7 +4,7 @@ import path from 'node:path';
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { q, tx } from '@/lib/db';
-import { currentUser, isStaff } from '@/lib/auth';
+import { requireAdmin, requireOpeningAccess, requireStaff } from '@/lib/auth';
 import { audit } from '@/lib/audit';
 import { orgTimeToUtc } from '@/lib/tz';
 import { EMPTY_SCHEMA, type FormSchema } from '@/lib/form-schema';
@@ -19,12 +19,6 @@ const DEFAULT_STAGES: Array<[string, string]> = [
   ['Interview', 'interview'],
   ['Offer', 'offer'],
 ];
-
-async function requireStaff() {
-  const user = await currentUser();
-  if (!isStaff(user)) throw new Error('Not allowed');
-  return user;
-}
 
 function slugify(title: string): string {
   return (
@@ -82,8 +76,8 @@ export async function createOpening(formData: FormData) {
 }
 
 export async function updateOpening(formData: FormData) {
-  await requireStaff();
   const id = Number(formData.get('id'));
+  const user = await requireOpeningAccess(id);
   const status = String(formData.get('status') ?? 'draft');
   if (!['draft', 'open', 'paused', 'closed'].includes(status)) return;
   const newSlug = slugify(String(formData.get('slug') ?? ''));
@@ -131,14 +125,13 @@ export async function updateOpening(formData: FormData) {
       posterPath,
     ]
   );
-  const user = await currentUser();
   await audit(user.id, 'update', 'opening', id, { status });
   revalidatePath(`/app/openings/${id}`);
   revalidatePath('/careers');
 }
 
 export async function saveDraftForm(openingId: number, schema: FormSchema) {
-  const user = await requireStaff();
+  const user = await requireOpeningAccess(openingId);
   await q(
     `update public.forms set schema = $2
      where opening_id = $1 and is_published = false
@@ -150,7 +143,7 @@ export async function saveDraftForm(openingId: number, schema: FormSchema) {
 }
 
 export async function publishForm(openingId: number, schema: FormSchema) {
-  const user = await requireStaff();
+  const user = await requireOpeningAccess(openingId);
   await tx(async (c) => {
     // serialize concurrent publishes for this opening
     await c.query(`select id from public.openings where id = $1 for update`, [openingId]);
@@ -182,7 +175,7 @@ export async function publishForm(openingId: number, schema: FormSchema) {
 
 /** Latest question set from another opening, for reuse in the builder. */
 export async function fetchOpeningQuestions(openingId: number) {
-  await requireStaff();
+  await requireOpeningAccess(openingId);
   const {
     rows: [form],
   } = await q<{ schema: FormSchema }>(
@@ -200,8 +193,7 @@ export async function fetchOpeningQuestions(openingId: number) {
  * archive first.
  */
 export async function deleteOpeningData(formData: FormData) {
-  const user = await currentUser();
-  if (user.role !== 'admin') throw new Error('Admins only');
+  const user = await requireAdmin();
   const openingId = Number(formData.get('openingId'));
   const confirm = String(formData.get('confirmSlug') ?? '').trim();
 
@@ -251,8 +243,8 @@ export async function deleteOpeningData(formData: FormData) {
 const STAGE_KINDS = ['screen', 'task', 'interview', 'offer'];
 
 export async function addStage(formData: FormData) {
-  const user = await requireStaff();
   const openingId = Number(formData.get('openingId'));
+  const user = await requireOpeningAccess(openingId);
   if (!STAGE_KINDS.includes(String(formData.get('kind')))) return;
   await audit(user.id, 'add_stage', 'opening', openingId, {
     name: String(formData.get('name') ?? ''),
@@ -266,17 +258,18 @@ export async function addStage(formData: FormData) {
 }
 
 export async function updateStage(formData: FormData) {
-  const user = await requireStaff();
   const openingId = Number(formData.get('openingId'));
+  const user = await requireOpeningAccess(openingId);
   if (!STAGE_KINDS.includes(String(formData.get('kind')))) return;
   await audit(user.id, 'update_stage', 'stage', Number(formData.get('stageId')));
   await q(
-    `update public.stages set name = $2, kind = $3, brief = $4 where id = $1`,
+    `update public.stages set name = $2, kind = $3, brief = $4 where id = $1 and opening_id = $5`,
     [
       Number(formData.get('stageId')),
       String(formData.get('name') ?? '').trim(),
       String(formData.get('kind') ?? 'screen'),
       String(formData.get('brief') ?? '').trim(),
+      openingId,
     ]
   );
   revalidatePath(`/app/openings/${openingId}/stages`);
@@ -284,8 +277,8 @@ export async function updateStage(formData: FormData) {
 
 /** Save a task stage's brief text, reference links, and optional document. */
 export async function updateTaskMaterials(formData: FormData) {
-  const user = await requireStaff();
   const openingId = Number(formData.get('openingId'));
+  const user = await requireOpeningAccess(openingId);
   const stageId = Number(formData.get('stageId'));
 
   const {
@@ -352,7 +345,7 @@ export async function updateTaskMaterials(formData: FormData) {
 // bound with (openingId, stageId, dir) — submitter name/value is not
 // delivered to formAction functions, so the args ride on the binding
 export async function shiftStage(openingId: number, stageId: number, dir: number) {
-  const user = await requireStaff();
+  const user = await requireOpeningAccess(openingId);
   await audit(user.id, 'reorder_stage', 'stage', stageId, { dir });
   await tx(async (c) => {
     const { rows: stages } = await c.query(
@@ -369,8 +362,8 @@ export async function shiftStage(openingId: number, stageId: number, dir: number
 }
 
 export async function deleteStage(formData: FormData) {
-  const user = await requireStaff();
   const openingId = Number(formData.get('openingId'));
+  const user = await requireOpeningAccess(openingId);
   const stageId = Number(formData.get('stageId'));
   const {
     rows: [{ active, booked }],
@@ -382,6 +375,10 @@ export async function deleteStage(formData: FormData) {
          where stage_id = $1 and application_id is not null and starts_at > now()) as booked`,
     [stageId]
   );
+  const {
+    rows: [owned],
+  } = await q(`select 1 from public.stages where id = $1 and opening_id = $2`, [stageId, openingId]);
+  if (!owned) return;
   if (active > 0) throw new Error('Move candidates out of this stage first');
   if (booked > 0) throw new Error('This stage has booked future interviews — cancel them first');
   const {
@@ -411,8 +408,13 @@ export async function addMember(formData: FormData) {
   const user = await requireStaff();
   const openingId = Number(formData.get('openingId'));
   const memberId = String(formData.get('userId'));
-  const memberRole = String(formData.get('memberRole'));
-  if (!['requester', 'interviewer', 'viewer'].includes(memberRole)) return;
+  // member_role is a label now (every member can do everything in the
+  // opening); derive it from the person's global role for the archive/team lists
+  const {
+    rows: [person],
+  } = await q<{ role: string }>(`select role from public.profiles where id = $1`, [memberId]);
+  if (!person) return;
+  const memberRole = person.role === 'interviewer' ? 'interviewer' : 'requester';
   await q(
     `insert into public.opening_members (opening_id, user_id, member_role)
      values ($1, $2, $3)
@@ -438,9 +440,13 @@ export async function removeMember(formData: FormData) {
 // --- interview slots ---
 
 export async function createSlots(formData: FormData) {
-  await requireStaff();
   const openingId = Number(formData.get('openingId'));
   const stageId = Number(formData.get('stageId'));
+  const user = await requireOpeningAccess(openingId);
+  const {
+    rows: [stageOk],
+  } = await q(`select 1 from public.stages where id = $1 and opening_id = $2 and kind = 'interview'`, [stageId, openingId]);
+  if (!stageOk) return;
   // first selected person is the primary interviewer; the rest form the panel
   const panelIds = formData.getAll('interviewerIds').map(String).filter(Boolean);
   const interviewerId = panelIds[0];
@@ -469,16 +475,15 @@ export async function createSlots(formData: FormData) {
      values ${values.join(', ')}`,
     params
   );
-  const user = await currentUser();
   await audit(user.id, 'create_slots', 'opening', openingId, { count: values.length, date });
   revalidatePath(`/app/openings/${openingId}/slots`);
 }
 
 export async function deleteSlot(formData: FormData) {
-  const user = await requireStaff();
   const openingId = Number(formData.get('openingId'));
+  const user = await requireOpeningAccess(openingId);
   const slotId = Number(formData.get('slotId'));
-  await q(`delete from public.slots where id = $1 and application_id is null`, [slotId]);
+  await q(`delete from public.slots where id = $1 and opening_id = $2 and application_id is null`, [slotId, openingId]);
   await audit(user.id, 'delete', 'slot', slotId);
   revalidatePath(`/app/openings/${openingId}/slots`);
 }
