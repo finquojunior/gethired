@@ -14,7 +14,9 @@ const STATUS_STYLE: Record<string, string> = {
   cancelled: 'bg-line text-ink-soft',
 };
 
-export default async function EmailsPage() {
+export default async function EmailsPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
+  const { q: query = '' } = await searchParams;
+  const term = query.trim().slice(0, 100);
   const { rows: emails } = await q<{
     id: number;
     template: string;
@@ -32,7 +34,10 @@ export default async function EmailsPage() {
     `select e.id, e.template, e.to_email, e.subject, e.body, e.status, e.send_after,
             e.service, e.error, e.created_at, a.id as application_id, a.name as candidate
      from public.email_log e join public.applications a on a.id = e.application_id
-     order by e.id desc limit 100`
+     where $1 = '' or e.subject ilike $2 or e.to_email ilike $2 or a.name ilike $2
+        or e.template ilike $2 or e.status ilike $2 or e.body ilike $2
+     order by e.id desc limit 100`,
+    [term, `%${term}%`]
   );
 
   return (
@@ -50,6 +55,21 @@ export default async function EmailsPage() {
         wait until you send them; failed sends retry up to 3 times.
         {!process.env.RESEND_API_KEY && ' No RESEND_API_KEY is set, so emails are logged but not delivered.'}
       </p>
+
+      <form method="get" className="mt-6 flex gap-2">
+        <input
+          name="q"
+          defaultValue={term}
+          placeholder="Search by candidate, email address, subject, template, or status…"
+          className="input flex-1"
+        />
+        <button className="btn-primary">Search</button>
+        {term && (
+          <Link href="/app/emails" className="btn-quiet">
+            Clear
+          </Link>
+        )}
+      </form>
 
       <ul className="mt-6 space-y-2">
         {emails.map((e) => (
@@ -125,7 +145,7 @@ export default async function EmailsPage() {
         ))}
         {emails.length === 0 && (
           <li className="rounded-lg border border-line bg-card px-4 py-8 text-center text-sm text-ink-soft">
-            No emails yet.
+            {term ? `No emails match “${term}”.` : 'No emails yet.'}
           </li>
         )}
       </ul>

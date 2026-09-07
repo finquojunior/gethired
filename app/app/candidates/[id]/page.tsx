@@ -22,6 +22,14 @@ import {
 
 export const dynamic = 'force-dynamic';
 
+const EMAIL_STATUS_STYLE: Record<string, string> = {
+  draft: 'bg-amber/15 text-amber',
+  sent: 'bg-pine-wash text-pine-deep',
+  pending: 'bg-amber/15 text-amber',
+  failed: 'bg-rust/10 text-rust',
+  cancelled: 'bg-line text-ink-soft',
+};
+
 const STATUS_STYLE: Record<string, string> = {
   active: 'bg-pine-wash text-pine-deep',
   hired: 'bg-pine text-white',
@@ -114,8 +122,8 @@ export default async function CandidatePage({
          where sl.application_id = $1 order by sl.starts_at`,
         [appId]
       ),
-      q<{ id: number; template: string; subject: string; status: string; created_at: Date }>(
-        `select id, template, subject, status, created_at from public.email_log
+      q<{ id: number; template: string; subject: string; body: string; to_email: string; status: string; service: string; error: string; created_at: Date }>(
+        `select id, template, subject, body, to_email, status, service, error, created_at from public.email_log
          where application_id = $1 order by id desc`,
         [appId]
       ),
@@ -200,7 +208,6 @@ export default async function CandidatePage({
       text: e.status === 'sent' ? 'Email: ' : `Email (${e.status}): `,
       strong: e.subject,
       extra: '',
-      emailId: e.status === 'sent' || e.status === 'failed' ? e.id : undefined,
     })),
     ...responses.map((r, i) => ({
       at: r.created_at,
@@ -419,6 +426,42 @@ export default async function CandidatePage({
           </section>
 
           <section>
+            <h2 className="font-display text-lg font-semibold">Emails sent</h2>
+            <ul className="mt-3 space-y-2 text-sm">
+              {emails.map((e) => (
+                <li key={e.id} className="rounded-lg border border-line bg-card">
+                  <details>
+                    <summary className="flex cursor-pointer flex-wrap items-center gap-2 px-3 py-2">
+                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${EMAIL_STATUS_STYLE[e.status] ?? 'bg-line text-ink-soft'}`}>
+                        {e.status}
+                      </span>
+                      <span className="font-medium">{e.subject}</span>
+                      <span className="text-xs text-ink-soft">
+                        {e.template} · {fmt(e.created_at)}{e.service ? ` · via ${e.service}` : ''}
+                      </span>
+                    </summary>
+                    <div className="border-t border-line px-3 py-2">
+                      <p className="text-xs text-ink-soft">to {e.to_email}</p>
+                      <p className="mt-1 whitespace-pre-line">{e.body}</p>
+                      {e.error && <p className="mt-2 text-rust">error: {e.error}</p>}
+                      {(e.status === 'sent' || e.status === 'failed') && (
+                        <form action={resendEmail} className="mt-2">
+                          <input type="hidden" name="applicationId" value={a.id} />
+                          <input type="hidden" name="emailId" value={e.id} />
+                          <SubmitButton className="btn-quiet !py-1" pendingLabel="Resending…" doneMessage="Email resent">
+                            Resend this email
+                          </SubmitButton>
+                        </form>
+                      )}
+                    </div>
+                  </details>
+                </li>
+              ))}
+              {emails.length === 0 && <li className="text-ink-soft">No emails sent yet.</li>}
+            </ul>
+          </section>
+
+          <section>
             <div className="flex items-center justify-between">
               <h2 className="font-display text-lg font-semibold">Interviews</h2>
               <Link
@@ -470,15 +513,6 @@ export default async function CandidatePage({
                     {t.text}
                     <strong>{t.strong}</strong>
                     <span className="text-ink-soft"> · {fmt(t.at)}{t.extra ? ` · ${t.extra}` : ''}</span>
-                    {'emailId' in t && t.emailId && (
-                      <form action={resendEmail} className="ml-2 inline">
-                        <input type="hidden" name="applicationId" value={a.id} />
-                        <input type="hidden" name="emailId" value={t.emailId} />
-                        <SubmitButton className="text-xs text-pine underline" pendingLabel="Resending…" doneMessage="Email resent">
-                          Resend
-                        </SubmitButton>
-                      </form>
-                    )}
                   </span>
                 </li>
               ))}
