@@ -10,12 +10,13 @@ export const PIPELINE_SORTS: Record<string, string> = {
   name: 'a.name asc',
 };
 
-// params: [openingId, stageId|null, status, from|null, to|null]
+// params: [openingId, stageId|null, status, from|null, to|null, q|null]
 export const PIPELINE_WHERE = `a.opening_id = $1
   and ($2::bigint is null or a.current_stage_id = $2)
   and a.status = $3
   and ($4::date is null or a.created_at >= $4::date)
-  and ($5::date is null or a.created_at < $5::date + 1)`;
+  and ($5::date is null or a.created_at < $5::date + 1)
+  and ($6::text is null or a.name ilike $6 or a.email ilike $6)`;
 
 export const FEEDBACK_JOIN = `left join (
   select application_id, avg(rating) as avg_rating, count(*)::int as rating_count
@@ -24,18 +25,18 @@ export const FEEDBACK_JOIN = `left join (
 
 export const isDate = (s: string) => /^\d{4}-\d{2}-\d{2}$/.test(s);
 
-export type PipelineCtx = { stage?: string; status?: string; from?: string; to?: string; sort?: string };
+export type PipelineCtx = { stage?: string; status?: string; from?: string; to?: string; sort?: string; q?: string };
 
 /** Query-string carrying the list's filter context into a candidate link. */
 export function pipelineCtxParams(openingId: number, ctx: PipelineCtx): string {
   const p = new URLSearchParams({ o: String(openingId) });
-  for (const k of ['stage', 'status', 'from', 'to', 'sort'] as const) {
+  for (const k of ['stage', 'status', 'from', 'to', 'sort', 'q'] as const) {
     if (ctx[k]) p.set(k, ctx[k]!);
   }
   return p.toString();
 }
 
-/** Bound params for the pipeline WHERE clause. */
+/** Bound params for the pipeline WHERE clause (filters only — see pipelineWhereParams). */
 export function pipelineParams(openingId: number, ctx: PipelineCtx): (string | number | null)[] {
   return [
     openingId,
@@ -44,4 +45,10 @@ export function pipelineParams(openingId: number, ctx: PipelineCtx): (string | n
     ctx.from && isDate(ctx.from) ? ctx.from : null,
     ctx.to && isDate(ctx.to) ? ctx.to : null,
   ];
+}
+
+/** Full param list for PIPELINE_WHERE: filters plus the name/email search term. */
+export function pipelineWhereParams(openingId: number, ctx: PipelineCtx): (string | number | null)[] {
+  const term = (ctx.q ?? '').trim().slice(0, 100);
+  return [...pipelineParams(openingId, ctx), term ? `%${term}%` : null];
 }

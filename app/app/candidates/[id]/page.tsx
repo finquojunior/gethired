@@ -9,7 +9,8 @@ import { allFields, type FormSchema } from '@/lib/form-schema';
 import { parseSubmissionFields } from '@/lib/brief';
 import SubmitButton from '@/components/SubmitButton';
 import LinkifyText from '@/components/LinkifyText';
-import { FEEDBACK_JOIN, PIPELINE_SORTS, PIPELINE_WHERE, pipelineParams, type PipelineCtx } from '@/lib/pipeline';
+import Flash from '@/components/Flash';
+import { FEEDBACK_JOIN, PIPELINE_SORTS, PIPELINE_WHERE, pipelineWhereParams, type PipelineCtx } from '@/lib/pipeline';
 import {
   addFeedback,
   addNote,
@@ -18,10 +19,20 @@ import {
   resendEmail,
   staffBookSlot,
   staffCancelSlot,
+  updateCandidate,
   updateTags,
 } from '../actions';
+import { pipelineFlash } from '../flash';
 
 export const dynamic = 'force-dynamic';
+
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const {
+    rows: [a],
+  } = await q<{ name: string }>('select name from public.applications where id = $1', [Number(id)]);
+  return { title: a ? a.name : 'Candidate' };
+}
 
 const EMAIL_STATUS_STYLE: Record<string, string> = {
   draft: 'bg-amber/15 text-amber',
@@ -43,11 +54,12 @@ export default async function CandidatePage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ o?: string } & PipelineCtx>;
+  searchParams: Promise<{ o?: string; ok?: string; e?: string } & PipelineCtx>;
 }) {
   const { id } = await params;
-  const { o, ...ctx } = await searchParams;
+  const { o, ok, e: err, ...ctx } = await searchParams;
   const appId = Number(id);
+  const user = await currentUser();
 
   const {
     rows: [a],
@@ -77,7 +89,7 @@ export default async function CandidatePage({
      where a.id = $1`,
     [appId]
   );
-  if (!a || !(await canAccessOpening(await currentUser(), Number(a.opening_id)))) notFound();
+  if (!a || !(await canAccessOpening(user, Number(a.opening_id)))) notFound();
 
   const [{ rows: stages }, { rows: history }, { rows: feedback }, { rows: notes }, { rows: subs }, { rows: slots }, { rows: emails }, { rows: taskStages }, { rows: responses }] =
     await Promise.all([
@@ -94,8 +106,8 @@ export default async function CandidatePage({
          where h.application_id = $1 order by h.id desc`,
         [appId]
       ),
-      q<{ author: string; stage: string | null; rating: number | null; comment: string; created_at: Date }>(
-        `select p.full_name as author, s.name as stage, f.rating, f.comment, f.created_at
+      q<{ author: string; author_id: string; stage_id: number | null; stage: string | null; rating: number | null; comment: string; created_at: Date }>(
+        `select p.full_name as author, f.author_id, f.stage_id, s.name as stage, f.rating, f.comment, f.created_at
          from public.feedback f
          join public.profiles p on p.id = f.author_id
          left join public.stages s on s.id = f.stage_id
@@ -108,15 +120,15 @@ export default async function CandidatePage({
          where n.application_id = $1 order by n.created_at desc`,
         [appId]
       ),
-      q<{ id: number; title: string; field_id: string; file_path: string; link_url: string; note: string; stage: string | null; created_at: Date }>(
-        `select su.id, su.title, su.field_id, su.file_path, su.link_url, su.note, s.name as stage, su.created_at
+      q<{ id: number; title: string; field_id: string; file_path: string; file_name: string; link_url: string; note: string; stage: string | null; created_at: Date }>(
+        `select su.id, su.title, su.field_id, su.file_path, su.file_name, su.link_url, su.note, s.name as stage, su.created_at
          from public.submissions su
          left join public.stages s on s.id = su.stage_id
          where su.application_id = $1 order by su.created_at desc`,
         [appId]
       ),
-      q<{ starts_at: Date; duration_mins: number; stage: string; interviewer: string }>(
-        `select sl.starts_at, sl.duration_mins, st.name as stage, p.full_name as interviewer
+      q<{ id: number; starts_at: Date; duration_mins: number; stage: string; interviewer: string }>(
+        `select sl.id, sl.starts_at, sl.duration_mins, st.name as stage, p.full_name as interviewer
          from public.slots sl
          join public.stages st on st.id = sl.stage_id
          join public.profiles p on p.id = sl.interviewer_id
@@ -160,11 +172,18 @@ export default async function CandidatePage({
             `select sl.id, sl.starts_at, p.full_name as interviewer
              from public.slots sl join public.profiles p on p.id = sl.interviewer_id
              where sl.stage_id = $1 and sl.application_id is null and sl.starts_at > now()
-             order by sl.starts_at limit 30`,
+             order by sl.starts_at limit 31`,
             [a.current_stage_id]
           )
         ).rows
       : [];
+  const moreSlots = openSlots.length > 30;
+  if (moreSlots) openSlots.pop();
+
+  // the current author's feedback for the current stage, if any — the form
+  // updates it rather than silently overwriting
+  const myFeedback = feedback.find((f) => f.author_id === user.id && f.stage_id === a.current_stage_id);
+  const selfHref = `/app/candidates/${a.id}`;
 
   // prev/next within the pipeline list the reviewer came from (?o=… carries its filters)
   const navQs = new URLSearchParams({ o: String(o ?? ''), ...ctx } as Record<string, string>).toString();
@@ -175,7 +194,7 @@ export default async function CandidatePage({
        ${FEEDBACK_JOIN}
        where ${PIPELINE_WHERE}
        order by ${PIPELINE_SORTS[ctx.sort ?? ''] ?? PIPELINE_SORTS.score}`,
-      pipelineParams(a.opening_id, ctx)
+      pipelineWhereParams(a.opening_id, ctx)
     );
     const i = ids.findIndex((r) => r.id === appId);
     if (i !== -1) {
@@ -217,7 +236,44 @@ export default async function CandidatePage({
       strong: r.response === 'yes' ? 'Yes' : 'No',
       extra: '',
     })),
+    ...feedback.map((f) => ({
+      at: f.created_at,
+      kind: 'feedback' as const,
+      text: 'Feedback: ',
+      strong: `${f.rating ? '★'.repeat(f.rating) + ' ' : ''}${f.comment}`.trim() || '(no comment)',
+      extra: f.author,
+    })),
+    ...notes.map((n) => ({
+      at: n.created_at,
+      kind: 'note' as const,
+      text: 'Note: ',
+      strong: n.body.length > 120 ? `${n.body.slice(0, 120)}…` : n.body,
+      extra: n.author,
+    })),
+    ...subs.map((s) => ({
+      at: s.created_at,
+      kind: 'submission' as const,
+      text: 'Task submitted: ',
+      strong: s.title || s.file_name || s.link_url || 'submission',
+      extra: '',
+    })),
+    ...slots.map((s) => ({
+      at: s.starts_at,
+      kind: 'interview' as const,
+      text: s.starts_at > new Date() ? 'Interview booked: ' : 'Interview: ',
+      strong: `${s.stage} with ${s.interviewer}`,
+      extra: '',
+    })),
   ].sort((x, y) => y.at.getTime() - x.at.getTime());
+  const dot: Record<string, string> = {
+    stage: 'bg-pine',
+    email: 'bg-amber',
+    response: 'bg-amber',
+    feedback: 'bg-ink-soft',
+    note: 'bg-line',
+    submission: 'bg-pine-deep',
+    interview: 'bg-pine-wash border border-pine',
+  };
 
   const navArrow = (id: number | undefined, label: string) =>
     id ? (
@@ -228,8 +284,10 @@ export default async function CandidatePage({
       <span className="btn-quiet !py-1 cursor-default opacity-40">{label}</span>
     );
 
+  const flash = pipelineFlash(ok, err);
   return (
     <div>
+      <Flash kind={flash?.kind ?? 'success'} message={flash?.message} />
       <div className="flex items-center justify-between">
         <BackButton fallback="/app/candidates" />
         {nav && (
@@ -247,6 +305,10 @@ export default async function CandidatePage({
           <p className="text-sm text-ink-soft">
             <Link href={`/app/openings/${a.opening_id}/applications`} className="hover:underline">
               {a.opening_title}
+            </Link>
+            {' · '}
+            <Link href={`/app/emails?q=${encodeURIComponent(a.email)}`} className="hover:underline">
+              Emails
             </Link>
           </p>
           <h1 className="font-display text-3xl font-bold">{a.name}</h1>
@@ -282,6 +344,25 @@ export default async function CandidatePage({
         >
           Candidate portal ↗
         </a>
+        <details className="basis-full">
+          <summary className="cursor-pointer text-pine hover:underline">Edit details</summary>
+          <form action={updateCandidate} className="mt-2 flex flex-wrap items-end gap-2">
+            <input type="hidden" name="applicationId" value={a.id} />
+            <div className="min-w-40 flex-1">
+              <label className="field-label" htmlFor="edit-name">Name</label>
+              <input id="edit-name" name="name" required defaultValue={a.name} className="input py-1.5" />
+            </div>
+            <div className="min-w-48 flex-1">
+              <label className="field-label" htmlFor="edit-email">Email</label>
+              <input id="edit-email" name="email" type="email" required defaultValue={a.email} className="input py-1.5" />
+            </div>
+            <div className="w-40">
+              <label className="field-label" htmlFor="edit-phone">Phone</label>
+              <input id="edit-phone" name="phone" defaultValue={a.phone} className="input py-1.5" />
+            </div>
+            <SubmitButton className="btn-quiet" pendingLabel="Saving…">Save details</SubmitButton>
+          </form>
+        </details>
       </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
@@ -299,30 +380,42 @@ export default async function CandidatePage({
         ))}
         <form action={updateTags} className="flex items-center gap-1">
           <input type="hidden" name="applicationId" value={a.id} />
-          <input name="add" placeholder="+ tag" className="input w-28 px-2 py-0.5 text-xs" />
+          <input name="add" aria-label="New tag" placeholder="+ tag" className="input w-28 px-2 py-0.5 text-xs" />
+          <SubmitButton className="btn-quiet !px-2 !py-0.5 text-xs" pendingLabel="…">Add</SubmitButton>
         </form>
       </div>
 
       <form action={bulkPipeline} className="mt-6 flex flex-wrap items-center gap-2 rounded-lg border border-line bg-card px-4 py-3 text-sm">
         <input type="hidden" name="openingId" value={a.opening_id} />
         <input type="hidden" name="appId" value={a.id} />
-        <select name="stageId" className="input w-44 py-1.5" defaultValue={a.current_stage_id ?? undefined}>
+        <input type="hidden" name="back" value={`${selfHref}?${navQs}`} />
+        <label className="sr-only" htmlFor="stageId">Stage to move to</label>
+        <select id="stageId" name="stageId" className="input w-44 py-1.5" defaultValue={a.current_stage_id ?? undefined}>
           {stages.map((s) => (
             <option key={s.id} value={s.id}>{s.name}</option>
           ))}
         </select>
-        <SubmitButton name="intent" value="move" className="btn-quiet" pendingLabel="Moving…" doneMessage="Moved to stage — candidate emailed">Move to stage</SubmitButton>
+        <SubmitButton name="intent" value="move" className="btn-quiet" pendingLabel="Moving…">Move to stage</SubmitButton>
+        <label className="flex items-center gap-1.5 text-xs text-ink-soft">
+          <input type="checkbox" name="notify" value="1" defaultChecked className="accent-pine" />
+          Email the candidate about this move
+        </label>
         <div className="mx-2 h-5 w-px bg-line" />
         {a.status === 'active' ? (
           <>
-            <SubmitButton name="intent" value="hire" className="btn-quiet text-pine-deep" pendingLabel="Hiring…" doneMessage="Marked hired — congratulations email sent">Mark hired</SubmitButton>
-            <SubmitButton name="intent" value="reject_send" className="btn-quiet text-rust" pendingLabel="Rejecting…" doneMessage="Rejected — email sent">Reject + email now</SubmitButton>
-            <SubmitButton name="intent" value="reject_draft" className="btn-quiet text-rust" pendingLabel="Rejecting…" doneMessage="Rejected — email drafted in Emails tab" title="Rejects and drafts the email — send it manually from the Emails tab">Reject + draft email</SubmitButton>
+            <SubmitButton name="intent" value="hire" className="btn-quiet text-pine-deep" pendingLabel="Hiring…" confirmText={`Mark ${a.name} as hired? They will get the congratulations email.`}>Mark hired</SubmitButton>
+            <SubmitButton name="intent" value="reject_send" className="btn-danger" pendingLabel="Rejecting…" confirmText={`Reject ${a.name} and email them now?`}>Reject + email now</SubmitButton>
+            <SubmitButton name="intent" value="reject_draft" className="btn-danger" pendingLabel="Rejecting…" confirmText={`Reject ${a.name}? The email is drafted in Emails for you to send later.`} title="Rejects and drafts the email — send it manually from the Emails tab">Reject + draft email</SubmitButton>
+            <SubmitButton name="intent" value="withdraw" className="btn-quiet" pendingLabel="Updating…" confirmText={`Mark ${a.name} as withdrawn? No email is sent.`} title="For candidates who told you they are no longer interested">Mark withdrawn</SubmitButton>
           </>
         ) : (
           <SubmitButton name="intent" value="restore" className="btn-quiet" pendingLabel="Restoring…">Restore to active</SubmitButton>
         )}
       </form>
+      <p className="mt-2 text-xs text-ink-soft">
+        Task and interview stages email instructions; other forward moves send a short update;
+        backward moves never email. Untick the box to move silently.
+      </p>
 
       <div className="mt-8 grid gap-8 lg:grid-cols-2">
         <div className="space-y-8">
@@ -372,7 +465,7 @@ export default async function CandidatePage({
                         <span key={s.id} className={i > 0 ? 'mt-1 block pl-4' : ''}>
                           {s.file_path && (
                             <a href={`/api/files/${s.file_path}`} target="_blank" className="font-medium text-pine underline">
-                              file
+                              {s.file_name || 'file'}
                             </a>
                           )}
                           {s.link_url && (
@@ -401,7 +494,7 @@ export default async function CandidatePage({
                   <span className="mr-2 font-medium">{s.title || 'Submission'}</span>
                   {s.file_path && (
                     <a href={`/api/files/${s.file_path}`} target="_blank" className="font-medium text-pine underline">
-                      file
+                      {s.file_name || 'file'}
                     </a>
                   )}
                   {s.link_url && (
@@ -449,7 +542,7 @@ export default async function CandidatePage({
                         <form action={resendEmail} className="mt-2">
                           <input type="hidden" name="applicationId" value={a.id} />
                           <input type="hidden" name="emailId" value={e.id} />
-                          <SubmitButton className="btn-quiet !py-1" pendingLabel="Resending…" doneMessage="Email resent">
+                          <SubmitButton className="btn-quiet !py-1" pendingLabel="Resending…" doneMessage="Email queued — status updates below">
                             Resend this email
                           </SubmitButton>
                         </form>
@@ -469,12 +562,12 @@ export default async function CandidatePage({
                 href={`/app/openings/${a.opening_id}/slots`}
                 className="text-sm text-pine underline"
               >
-                Manage slots →
+                Interview slots →
               </Link>
             </div>
             <ul className="mt-3 space-y-2 text-sm">
-              {slots.map((s, i) => (
-                <li key={i} className="flex items-center justify-between rounded-lg border border-line bg-card p-3">
+              {slots.map((s) => (
+                <li key={s.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-line bg-card p-3">
                   <span>
                     <span className="font-medium">{fmt(s.starts_at)}</span>
                     <span className="text-ink-soft"> · {s.duration_mins}m · {s.stage} · with {s.interviewer}</span>
@@ -482,7 +575,14 @@ export default async function CandidatePage({
                   {s.starts_at > new Date() && (
                     <form action={staffCancelSlot}>
                       <input type="hidden" name="applicationId" value={a.id} />
-                      <SubmitButton className="text-rust hover:underline" pendingLabel="…">Cancel</SubmitButton>
+                      <input type="hidden" name="slotId" value={s.id} />
+                      <SubmitButton
+                        className="btn-danger !py-1"
+                        pendingLabel="Cancelling…"
+                        confirmText={`Cancel the ${fmt(s.starts_at)} interview? ${a.name} and ${s.interviewer} will be emailed.`}
+                      >
+                        Cancel interview
+                      </SubmitButton>
                     </form>
                   )}
                 </li>
@@ -490,9 +590,10 @@ export default async function CandidatePage({
               {slots.length === 0 && <li className="text-ink-soft">No interview booked.</li>}
             </ul>
             {openSlots.length > 0 && (
-              <form action={staffBookSlot} className="mt-3 flex items-center gap-2 text-sm">
+              <form action={staffBookSlot} className="mt-3 flex flex-wrap items-center gap-2 text-sm">
                 <input type="hidden" name="applicationId" value={a.id} />
-                <select name="slotId" className="input flex-1 py-1.5">
+                <label className="sr-only" htmlFor="slotId">Open slot</label>
+                <select id="slotId" name="slotId" className="input flex-1 py-1.5">
                   {openSlots.map((s) => (
                     <option key={s.id} value={s.id}>
                       {fmt(s.starts_at)} — {s.interviewer}
@@ -500,6 +601,7 @@ export default async function CandidatePage({
                   ))}
                 </select>
                 <SubmitButton className="btn-quiet" pendingLabel="Booking…">Book for candidate</SubmitButton>
+                {moreSlots && <span className="basis-full text-xs text-ink-soft">Showing the first 30 open slots.</span>}
               </form>
             )}
           </section>
@@ -509,7 +611,7 @@ export default async function CandidatePage({
             <ul className="mt-3 space-y-1.5 text-sm">
               {timeline.map((t, i) => (
                 <li key={i} className="flex gap-2">
-                  <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${t.kind === 'stage' ? 'bg-pine' : 'bg-amber'}`} />
+                  <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${dot[t.kind] ?? 'bg-amber'}`} />
                   <span>
                     {t.text}
                     <strong>{t.strong}</strong>
@@ -542,16 +644,29 @@ export default async function CandidatePage({
             <h2 className="font-display text-lg font-semibold">Feedback</h2>
             <form action={addFeedback} className="mt-3 rounded-lg border border-line bg-card p-4 text-sm">
               <input type="hidden" name="applicationId" value={a.id} />
-              <div className="flex items-center gap-2">
-                <select name="rating" className="input w-28">
+              <div className="flex flex-wrap items-center gap-2">
+                <select name="rating" aria-label="Rating" className="input w-32" defaultValue={myFeedback?.rating ?? ''}>
                   <option value="">No rating</option>
                   {[5, 4, 3, 2, 1].map((r) => (
-                    <option key={r} value={r}>{'★'.repeat(r)}</option>
+                    <option key={r} value={r}>{'★'.repeat(r)} {r}/5</option>
                   ))}
                 </select>
-                <input name="comment" placeholder="Your verdict for the current stage…" className="input flex-1" />
-                <SubmitButton className="btn-primary" pendingLabel="Saving…">Save</SubmitButton>
+                <input
+                  name="comment"
+                  aria-label="Feedback comment"
+                  placeholder="Your verdict for the current stage…"
+                  defaultValue={myFeedback?.comment ?? ''}
+                  className="input min-w-48 flex-1"
+                />
+                <SubmitButton className="btn-primary" pendingLabel="Saving…" doneMessage={myFeedback ? 'Feedback updated' : 'Feedback saved'}>
+                  {myFeedback ? 'Update feedback' : 'Save'}
+                </SubmitButton>
               </div>
+              {myFeedback && (
+                <p className="mt-2 text-xs text-ink-soft">
+                  You already left feedback for this stage on {fmt(myFeedback.created_at)} — saving replaces it.
+                </p>
+              )}
             </form>
             <ul className="mt-3 space-y-2 text-sm">
               {feedback.map((f, i) => (

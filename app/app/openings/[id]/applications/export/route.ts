@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { q } from '@/lib/db';
 import { canAccessOpening, currentUser } from '@/lib/auth';
 import { allFields, type FormSchema } from '@/lib/form-schema';
+import { fmtDate } from '@/lib/tz';
 
 const csv = (v: unknown) => {
   let s = v == null ? '' : Array.isArray(v) ? v.join('; ') : String(v);
@@ -55,7 +56,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
         a.score ?? '',
         a.status,
         a.stage ?? '',
-        a.created_at.toISOString().slice(0, 10),
+        fmtDate(a.created_at),
         ...qids.map((k) => a.answers[k]),
       ]
         .map(csv)

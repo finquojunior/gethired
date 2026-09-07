@@ -41,30 +41,50 @@ authorization, secrets, headers, DoS surface.
 | F5 | Booking route selected interviewer email it never used | Info | Removed |
 | F6 | Enum fields (opening status, stage kind) hit DB check constraints on bad input → 500 error pages | Low | Whitelist-validated in the actions |
 
-## Known, accepted, and pre-production items
+## Known / accepted risks
 
-1. **Auth is a dev stub — the deploy blocker.** Every internal route currently
-   runs as a seeded admin. Before any non-local deployment, Supabase Auth must
-   replace `lib/auth.ts`. This was a deliberate phase decision; nothing else
-   in this audit matters until it lands.
-2. **RLS is written but not yet enforced at runtime**, because the server
-   connects as superuser locally. On migration, either query through
-   supabase-js with the user's JWT (RLS enforces everything, policies are
-   already written and tested) or keep direct Postgres and mirror the checks
-   in app code. Recommendation: supabase-js for internal reads/writes; keep
-   service-role only for candidate routes.
-3. **Portal token in URL** (256-bit, revocable by rotation): accepted for this
-   stakes level; the portal exposes only the candidate's own status. Referrer
-   leakage mitigated by `Referrer-Policy` and no external links on the page.
-4. **No rate limiting** on public endpoints (apply spam, task re-uploads
-   filling disk). Local-only today. Pre-production: front with
-   Vercel/Cloudflare protections; storage moves to Supabase with per-file
-   limits already enforced.
-5. **Orphaned resume files** when a submission later fails (e.g. duplicate
-   email): harmless disk waste; cleanup job not warranted yet.
-6. **Lockfile not yet committed** — nothing is; first commit should include
-   `package-lock.json` (supply-chain pinning is only as good as the committed
-   lockfile).
-7. **Resume/task content is not virus-scanned.** Files are stored and served
-   with a no-execute CSP, never executed server-side. If staff will open
-   `.doc`/`.zip` locally at scale, add scanning at the storage layer later.
+Rewritten 2026-09-07 against the deployed code. The two sections above are the
+original audit record; where they differ from this section, this section wins.
+
+1. **Auth is real, not a stub.** `lib/auth.ts` stores scrypt password hashes,
+   issues HMAC-signed `userId.expiry.sig` cookies (7 days, `httpOnly`,
+   `secure` in production) and refuses to boot in production without
+   `SESSION_SECRET`. Every page and server action re-verifies the cookie
+   server-side; middleware is only a redirect convenience. Accepted: session
+   revocation is "change the password and wait out the cookie" — there is no
+   per-device session list.
+2. **Authorization is enforced in app code, scoped per opening.** `admin` and
+   `hr` are global. `dept_head` and `interviewer` may only act inside openings
+   they are a member of (`opening_members`) or hold an interview slot in
+   (`slots.interviewer_id` / `panel`); `requireOpeningAccess`,
+   `requireApplicationAccess`, and `openingIdForFile` gate actions, pages, and
+   file downloads. People management, settings, and deleting opening data are
+   admin-only (`requireAdmin`).
+3. **RLS exists but is dormant.** The policies in `supabase/migrations/` are
+   applied and exercised by `npm run db:check`, but the app connects as the
+   `postgres` role, which bypasses them. They are defence in depth only; the
+   checks in item 2 are the real boundary. Do not add new policies expecting
+   them to protect anything.
+4. **Rate limiting is per serverless instance.** `lib/ratelimit.ts` is an
+   in-memory fixed window used by login, public apply, both signed-upload-URL
+   routes, task submit, task response, and the client error log. It blunts a
+   single-instance burst, not a distributed one — Vercel WAF / bot protection
+   is still the real shield (see the deploy checklist).
+5. **Files live in private Supabase Storage buckets** (`lib/storage.ts`);
+   local disk under `db/files` is the dev fallback only, and the app refuses to
+   start on Vercel without Storage configured. Large uploads go browser →
+   Storage via signed URLs; the submit request carries an HMAC of the minted
+   path so a candidate cannot point at someone else's file. Orphaned uploads
+   (upload succeeded, submit failed) are harmless bucket waste; no cleanup job.
+6. **`X-Frame-Options` is `SAMEORIGIN`, not `DENY`** as the F3 row says. The
+   staff candidate page iframes our own `/api/files` route for the resume
+   preview; third-party framing is still blocked. Non-PDF downloads keep the
+   `sandbox; default-src 'none'` CSP.
+7. **Portal token in URL** (256-bit): unchanged and accepted. Candidate routes
+   additionally send `X-Robots-Tag: noindex, nofollow`.
+8. **Supply chain:** `package-lock.json` is committed, versions are pinned
+   exactly, and `pg` is a runtime dependency; `postcss`/`sharp` are overridden
+   to patched versions.
+9. **Resume/task content is not virus-scanned.** Files are never executed
+   server-side and are served with `nosniff` plus the CSP above. Add scanning at
+   the storage layer if staff start opening `.doc`/`.zip` locally at scale.

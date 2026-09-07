@@ -5,35 +5,55 @@ import { q } from '@/lib/db';
 import { canAccessOpening, currentUser } from '@/lib/auth';
 import { fmtDate } from '@/lib/tz';
 import SubmitButton from '@/components/SubmitButton';
-import SelectAll from '@/components/SelectAll';
+import SelectAll, { SelectedCount } from '@/components/SelectAll';
 import BulkProgress from '@/components/BulkProgress';
+import Flash from '@/components/Flash';
+import DownloadLink from '@/components/DownloadLink';
+import OpeningTabs from '@/components/OpeningTabs';
 import { bulkPipeline } from '@/app/app/candidates/actions';
+import { pipelineFlash } from '@/app/app/candidates/flash';
 import BoardView from './BoardView';
 import {
   FEEDBACK_JOIN,
   PIPELINE_SORTS as SORTS,
   PIPELINE_WHERE,
-  isDate,
   pipelineCtxParams,
-  pipelineParams,
+  pipelineWhereParams,
 } from '@/lib/pipeline';
 
 export const dynamic = 'force-dynamic';
+
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const {
+    rows: [o],
+  } = await q<{ title: string }>('select title from public.openings where id = $1', [Number(id)]);
+  return { title: o ? `${o.title} · Pipeline` : 'Pipeline' };
+}
 
 export default async function ApplicationsPage({
   params,
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ stage?: string; status?: string; from?: string; to?: string; view?: string; sort?: string }>;
+  searchParams: Promise<{
+    stage?: string; status?: string; from?: string; to?: string; view?: string; sort?: string; q?: string;
+    ok?: string; e?: string; imported?: string; skipped?: string;
+  }>;
 }) {
   const { id } = await params;
-  const { stage, status = 'active', from = '', to = '', view, sort = 'score' } = await searchParams;
+  const { stage, status = 'active', from = '', to = '', view, sort = 'score', q: term = '', ok, e, imported, skipped } =
+    await searchParams;
   const board = view === 'board';
   const openingId = Number(id);
   const {
     rows: [opening],
-  } = await q<{ title: string }>('select title from public.openings where id = $1', [openingId]);
+  } = await q<{ title: string; status: string; slug: string; published: boolean }>(
+    `select title, status, slug,
+            exists (select 1 from public.forms f where f.opening_id = o.id and f.is_published) as published
+     from public.openings o where id = $1`,
+    [openingId]
+  );
   if (!opening) notFound();
   if (!(await canAccessOpening(await currentUser(), openingId))) notFound();
 
@@ -57,7 +77,7 @@ export default async function ApplicationsPage({
   );
 
   const stageId = stage ? Number(stage) : null;
-  const ctx = { stage, status, from, to, sort };
+  const ctx = { stage, status, from, to, sort, q: term };
   const { rows: apps } = await q<{
     id: number;
     name: string;
@@ -81,9 +101,32 @@ export default async function ApplicationsPage({
      ${FEEDBACK_JOIN}
      where ${PIPELINE_WHERE}
      order by ${SORTS[sort] ?? SORTS.score}`,
-    pipelineParams(openingId, ctx)
+    pipelineWhereParams(openingId, ctx)
   );
   const ctxQs = pipelineCtxParams(openingId, ctx);
+  const base = `/app/openings/${openingId}/applications`;
+  // this page's own query string, for the view toggle and the post-action redirect
+  const listQs = new URLSearchParams(
+    Object.entries({ stage, status: status !== 'active' ? status : '', from, to, sort: sort !== 'score' ? sort : '', q: term })
+      .filter(([, v]) => v) as [string, string][]
+  );
+  const withView = (v?: string) => {
+    const p = new URLSearchParams(listQs);
+    if (v) p.set('view', v);
+    const qs = p.toString();
+    return qs ? `${base}?${qs}` : base;
+  };
+  const backHref = withView(board ? 'board' : undefined);
+  const flash =
+    pipelineFlash(ok, e) ??
+    (imported != null
+      ? {
+          kind: 'success' as const,
+          message: `Imported ${imported} candidate${imported === '1' ? '' : 's'}${
+            Number(skipped) > 0 ? `; skipped ${skipped} (bad email or already in this pipeline)` : ''
+          }`,
+        }
+      : null);
 
   const tab = (href: string, label: string, active: boolean, count?: number) => (
     <Link
@@ -98,9 +141,9 @@ export default async function ApplicationsPage({
     </Link>
   );
 
-  const base = `/app/openings/${openingId}/applications`;
   return (
     <div>
+      <Flash kind={flash?.kind ?? 'success'} message={flash?.message} cleanParams={['ok', 'e', 'imported', 'skipped']} />
       <BackButton fallback={`/app/openings/${openingId}`} />
       <div className="track flex flex-wrap items-end justify-between gap-3">
         <h1 className="font-display text-3xl font-bold">
@@ -111,9 +154,18 @@ export default async function ApplicationsPage({
         </h1>
         <div className="mb-1 flex gap-2">
           <Link href={`${base}/new`} className="btn-primary">Add candidate</Link>
-          <a href={`${base}/export`} className="btn-quiet">Download CSV</a>
+          <DownloadLink href={`${base}/export`} preparingLabel="Preparing CSV…">Download CSV</DownloadLink>
         </div>
       </div>
+      <OpeningTabs openingId={openingId} current="pipeline" />
+
+      {imported != null && (
+        <p className="mt-4 rounded-md bg-pine-wash px-4 py-3 text-sm text-pine-deep">
+          Imported {imported} candidate{imported === '1' ? '' : 's'}
+          {Number(skipped) > 0 && ` · skipped ${skipped} row${skipped === '1' ? '' : 's'} with a missing name, bad email, or an email already in this pipeline`}
+          .
+        </p>
+      )}
 
       {dryStages.length > 0 && (
         <p className="mt-4 rounded-md bg-amber/15 px-4 py-3 text-sm text-amber">
@@ -124,7 +176,7 @@ export default async function ApplicationsPage({
       )}
 
       <div className="mt-6 flex flex-wrap items-center gap-2">
-        {tab(`${base}${board ? '' : '?view=board'}`, board ? 'List view' : 'Board view', false)}
+        {tab(withView(board ? undefined : 'board'), board ? 'List view' : 'Board view', false)}
         <span className="mx-1 text-line">|</span>
         {tab(base, 'All active', !board && !stageId && status === 'active')}
         {stages.map((s) =>
@@ -139,6 +191,11 @@ export default async function ApplicationsPage({
       <form method="get" className="mt-4 flex flex-wrap items-end gap-2 text-sm">
         {stage && <input type="hidden" name="stage" value={stage} />}
         {status !== 'active' && <input type="hidden" name="status" value={status} />}
+        {board && <input type="hidden" name="view" value="board" />}
+        <div className="min-w-48 flex-1">
+          <label className="field-label" htmlFor="q">Name or email</label>
+          <input id="q" type="search" name="q" defaultValue={term} placeholder="Search this pipeline…" className="input py-1.5" />
+        </div>
         <div>
           <label className="field-label" htmlFor="from">Applied from</label>
           <input id="from" type="date" name="from" defaultValue={from} className="input w-40 py-1.5" />
@@ -158,7 +215,7 @@ export default async function ApplicationsPage({
           </select>
         </div>
         <button className="btn-quiet">Apply</button>
-        {(from || to || sort !== 'score') && (
+        {(from || to || term || sort !== 'score') && (
           <Link href={base} className="pb-2 text-ink-soft underline">clear</Link>
         )}
       </form>
@@ -166,6 +223,7 @@ export default async function ApplicationsPage({
       {board ? (
         <BoardView
           openingId={openingId}
+          ctxQs={ctxQs}
           stages={stages}
           cards={apps.map((a) => ({
             id: a.id,
@@ -179,6 +237,7 @@ export default async function ApplicationsPage({
       ) : (
       <form action={bulkPipeline} className="mt-6">
         <input type="hidden" name="openingId" value={openingId} />
+        <input type="hidden" name="back" value={backHref} />
         <div className="overflow-x-auto rounded-lg border border-line bg-card"><table className="w-full text-sm">
           <thead>
             <tr className="border-b border-line text-left text-xs uppercase tracking-wide text-ink-soft">
@@ -231,7 +290,31 @@ export default async function ApplicationsPage({
             {apps.length === 0 && (
               <tr>
                 <td colSpan={6} className="px-4 py-10 text-center text-ink-soft">
-                  Nothing here.
+                  {term || from || to || stageId || status !== 'active' ? (
+                    <>
+                      No candidates match these filters.{' '}
+                      <Link href={base} className="text-pine underline">Show all active</Link>
+                    </>
+                  ) : opening.status !== 'open' ? (
+                    <>
+                      No candidates yet — this opening is <strong>{opening.status}</strong>, so nobody can apply.{' '}
+                      {!opening.published && (
+                        <>
+                          <Link href={`/app/openings/${openingId}/form`} className="text-pine underline">Publish the form</Link>, then{' '}
+                        </>
+                      )}
+                      <Link href={`/app/openings/${openingId}`} className="text-pine underline">set the status to open</Link>, or{' '}
+                      <Link href={`${base}/new`} className="text-pine underline">add a candidate by hand</Link>.
+                    </>
+                  ) : (
+                    <>
+                      No applications yet. Share{' '}
+                      <a href={`/careers/${opening.slug}`} target="_blank" rel="noopener" className="text-pine underline">
+                        /careers/{opening.slug}
+                      </a>{' '}
+                      or <Link href={`${base}/new`} className="text-pine underline">add a candidate by hand</Link>.
+                    </>
+                  )}
                 </td>
               </tr>
             )}
@@ -241,19 +324,35 @@ export default async function ApplicationsPage({
         {apps.length > 0 && (
           <div className="mt-4 flex flex-wrap items-center gap-2 rounded-lg border border-line bg-card px-4 py-3 text-sm">
             <BulkProgress />
-            <span className="text-ink-soft">With selected:</span>
-            <select name="stageId" className="input w-44 py-1.5">
+            <SelectedCount name="appId" />
+            <span className="text-ink-soft">·</span>
+            <label className="sr-only" htmlFor="bulkStage">Stage to move to</label>
+            <select id="bulkStage" name="stageId" className="input w-44 py-1.5">
               {stages.map((s) => (
                 <option key={s.id} value={s.id}>{s.name}</option>
               ))}
             </select>
-            <SubmitButton name="intent" value="move" className="btn-quiet" pendingLabel="Moving…" doneMessage="Moved to stage — candidate emailed">Move to stage</SubmitButton>
+            <SubmitButton
+              name="intent"
+              value="move"
+              className="btn-quiet"
+              pendingLabel="Moving…"
+              confirmText="Move {n} candidates to {stage}?"
+              confirmMin={2}
+            >
+              Move to stage
+            </SubmitButton>
+            <label className="flex items-center gap-1.5 text-xs text-ink-soft">
+              <input type="checkbox" name="notify" value="1" defaultChecked className="accent-pine" />
+              Email the candidate about this move
+            </label>
             <div className="mx-2 h-5 w-px bg-line" />
             {status === 'active' ? (
               <>
-                <SubmitButton name="intent" value="hire" className="btn-quiet text-pine-deep" pendingLabel="Hiring…" doneMessage="Marked hired — congratulations email sent">Mark hired</SubmitButton>
-                <SubmitButton name="intent" value="reject_send" className="btn-quiet text-rust" pendingLabel="Rejecting…" doneMessage="Rejected — email sent">Reject + email now</SubmitButton>
-                <SubmitButton name="intent" value="reject_draft" className="btn-quiet text-rust" pendingLabel="Rejecting…" doneMessage="Rejected — email drafted in Emails tab" title="Rejects and drafts the email — send it manually from the Emails tab">Reject + draft email</SubmitButton>
+                <SubmitButton name="intent" value="hire" className="btn-quiet text-pine-deep" pendingLabel="Hiring…" confirmText="Mark {n} candidate(s) as hired? They will each get the congratulations email.">Mark hired</SubmitButton>
+                <SubmitButton name="intent" value="reject_send" className="btn-danger" pendingLabel="Rejecting…" confirmText="Reject {n} candidate(s) and email them now? This cannot be undone quietly — the email goes out immediately.">Reject + email now</SubmitButton>
+                <SubmitButton name="intent" value="reject_draft" className="btn-danger" pendingLabel="Rejecting…" confirmText="Reject {n} candidate(s)? The rejection email is drafted in Emails for you to send later." title="Rejects and drafts the email — send it manually from the Emails tab">Reject + draft email</SubmitButton>
+                <SubmitButton name="intent" value="withdraw" className="btn-quiet" pendingLabel="Updating…" confirmText="Mark {n} candidate(s) as withdrawn? No email is sent." title="For candidates who told you they are no longer interested">Mark withdrawn</SubmitButton>
               </>
             ) : (
               <SubmitButton name="intent" value="restore" className="btn-quiet" pendingLabel="Restoring…">Restore to active</SubmitButton>
@@ -262,10 +361,12 @@ export default async function ApplicationsPage({
         )}
         {apps.length > 0 && (
           <p className="mt-2 text-xs text-ink-soft">
-            Moving candidates into a task or interview stage automatically emails them their
-            instructions and portal link. &quot;Reject + email now&quot; sends immediately;
-            &quot;Reject + draft email&quot; parks the mail in{' '}
-            <Link href="/app/emails" className="underline">Emails</Link> until you send it.
+            With the email box ticked, a move into a task or interview stage sends the candidate
+            their instructions and portal link, and a move forward into any other stage sends a
+            short progress update. Moves backwards or sideways never email. Untick the box to move
+            silently. &quot;Reject + email now&quot; sends immediately; &quot;Reject + draft email&quot;
+            parks the mail in <Link href="/app/emails" className="underline">Emails</Link> until you
+            send it; &quot;Mark withdrawn&quot; never emails.
           </p>
         )}
       </form>

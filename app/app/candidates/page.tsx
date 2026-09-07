@@ -4,6 +4,9 @@ import { currentUser, openingScope, scopeSql } from '@/lib/auth';
 import { fmtDate } from '@/lib/tz';
 
 export const dynamic = 'force-dynamic';
+export const metadata = { title: 'Candidates' };
+
+const LIMIT = 50;
 
 export default async function CandidatesSearchPage({
   searchParams,
@@ -30,12 +33,14 @@ export default async function CandidatesSearchPage({
          from public.applications a
          join public.openings o on o.id = a.opening_id
          left join public.stages s on s.id = a.current_stage_id
-         where {scopeSql('o.id', 3)} and (($2::text is not null and $2 = any(a.tags))
+         where ${scopeSql('o.id', 3)} and (($2::text is not null and $2 = any(a.tags))
             or ($2::text is null and (a.name ilike $1 or a.email ilike $1)))
-         order by a.created_at desc limit 50`,
+         order by a.created_at desc limit ${LIMIT + 1}`,
         [`%${term}%`, tagSearch, scope]
       )
     : { rows: [] };
+  const truncated = results.length > LIMIT;
+  if (truncated) results.pop();
 
   const { rows: openings } = term
     ? { rows: [] }
@@ -45,7 +50,7 @@ export default async function CandidatesSearchPage({
                 count(a.id)::int as total
          from public.openings o
          left join public.applications a on a.opening_id = o.id
-         where {scopeSql('o.id', 1)}
+         where ${scopeSql('o.id', 1)}
          group by o.id
          having count(a.id) > 0
          order by o.status = 'open' desc, o.created_at desc`,
@@ -55,12 +60,14 @@ export default async function CandidatesSearchPage({
   return (
     <div>
       <h1 className="track font-display text-3xl font-bold">Candidates</h1>
-      <form method="get" className="mt-8 flex gap-2">
+      <form method="get" className="mt-8 flex flex-wrap gap-2">
+        <label className="sr-only" htmlFor="q">Search candidates</label>
         <input
+          id="q"
           name="q"
           defaultValue={term}
           placeholder="Search by name or email — or tag:frontend to search tags…"
-          className="input flex-1"
+          className="input min-w-48 flex-1"
           autoFocus
         />
         <button className="btn-primary">Search</button>
@@ -124,6 +131,11 @@ export default async function CandidatesSearchPage({
           {results.length === 0 && (
             <li className="px-5 py-8 text-center text-sm text-ink-soft">
               No candidates match “{term}”.
+            </li>
+          )}
+          {truncated && (
+            <li className="px-5 py-3 text-center text-xs text-ink-soft">
+              Showing the first {LIMIT} matches — refine your search.
             </li>
           )}
         </ul>

@@ -4,6 +4,7 @@ import SubmitButton from '@/components/SubmitButton';
 import { addUser, removeUser, setUserRole } from './actions';
 
 export const dynamic = 'force-dynamic';
+export const metadata = { title: 'Team' };
 
 const ROLES = ['admin', 'hr', 'dept_head', 'interviewer'];
 
@@ -54,13 +55,18 @@ export default async function TeamPage() {
                   ))}
                 </select>
                 {p.id !== me.id && (
-                  <SubmitButton className="btn-quiet" pendingLabel="…">Set role</SubmitButton>
+                  <SubmitButton className="btn-quiet" pendingLabel="Saving…" doneMessage="Role updated">Set role</SubmitButton>
                 )}
               </form>
               {p.id !== me.id && (
                 <form action={removeUser}>
                   <input type="hidden" name="userId" value={p.id} />
-                  <SubmitButton className="text-sm text-rust hover:underline" pendingLabel="…" doneMessage="Person removed">
+                  <SubmitButton
+                    className="btn-danger !py-1 text-sm"
+                    pendingLabel="Removing…"
+                    doneMessage="Person removed"
+                    confirmText={`Remove ${p.full_name}? Their login is deleted permanently and they are taken off ${p.openings} opening(s).`}
+                  >
                     Remove
                   </SubmitButton>
                 </form>
@@ -74,11 +80,11 @@ export default async function TeamPage() {
       {admin && (
       <form action={addUser} className="mt-6 flex flex-wrap items-end gap-2">
         <div className="min-w-48 flex-1">
-          <label className="field-label" htmlFor="name">Name</label>
+          <label className="field-label" htmlFor="name">Name *</label>
           <input id="name" name="name" required className="input" />
         </div>
         <div className="min-w-56 flex-1">
-          <label className="field-label" htmlFor="email">Email</label>
+          <label className="field-label" htmlFor="email">Email *</label>
           <input id="email" name="email" type="email" required className="input" />
         </div>
         <div className="w-40">
@@ -90,7 +96,7 @@ export default async function TeamPage() {
           </select>
         </div>
         <div className="min-w-44">
-          <label className="field-label" htmlFor="password">Password (min 8 chars)</label>
+          <label className="field-label" htmlFor="password">Password * (min 8 chars)</label>
           <input id="password" name="password" type="password" required minLength={8} className="input" />
         </div>
         <SubmitButton className="btn-primary" pendingLabel="Adding…" doneMessage="Person added">Add person</SubmitButton>

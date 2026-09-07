@@ -1,9 +1,10 @@
 import Link from 'next/link';
 import { q } from '@/lib/db';
 import { requireStaff } from '@/lib/auth';
-import { fmtDateTime } from '@/lib/tz';
+import { fmtDate, fmtDateTime } from '@/lib/tz';
 
 export const dynamic = 'force-dynamic';
+export const metadata = { title: 'Reports' };
 
 export default async function ReportsPage() {
   await requireStaff();
@@ -142,12 +143,13 @@ export default async function ReportsPage() {
         <h2 className="font-display text-lg font-semibold">Generate a hiring report</h2>
         <p className="mt-1 text-xs text-ink-soft">
           Opens a print-ready report — use the Download PDF button there to save it. Pick a month,
-          or a custom range; leave both empty for the last 30 days.
+          or a custom range; leave both empty for the last 30 days. If a month is set it wins over
+          From/To.
         </p>
         <form action="/app/reports/print" className="mt-4 flex flex-wrap items-end gap-3">
           <div>
-            <label className="field-label">Role</label>
-            <select name="opening" className="input w-56">
+            <label className="field-label" htmlFor="rep-opening">Role</label>
+            <select id="rep-opening" name="opening" className="input w-56">
               <option value="all">All roles</option>
               {openings.map((o) => (
                 <option key={o.id} value={o.id}>{o.title}</option>
@@ -155,17 +157,17 @@ export default async function ReportsPage() {
             </select>
           </div>
           <div>
-            <label className="field-label">Month</label>
-            <input type="month" name="month" className="input" />
+            <label className="field-label" htmlFor="rep-month">Month</label>
+            <input id="rep-month" type="month" name="month" className="input" />
           </div>
           <span className="pb-2 text-sm text-ink-soft">or</span>
           <div>
-            <label className="field-label">From</label>
-            <input type="date" name="from" className="input" />
+            <label className="field-label" htmlFor="rep-from">From</label>
+            <input id="rep-from" type="date" name="from" className="input" />
           </div>
           <div>
-            <label className="field-label">To</label>
-            <input type="date" name="to" className="input" />
+            <label className="field-label" htmlFor="rep-to">To</label>
+            <input id="rep-to" type="date" name="to" className="input" />
           </div>
           <button className="btn-primary">Open report</button>
         </form>
@@ -175,7 +177,7 @@ export default async function ReportsPage() {
         <section className={card}>
           <h2 className="font-display text-lg font-semibold">How far candidates get</h2>
           <p className="mt-1 text-xs text-ink-soft">
-            Candidates who ever reached each round, with conversion from applied.
+            Candidates who ever reached each kind of stage, with conversion from applied.
           </p>
           <div className="overflow-x-auto"><table className="mt-3 w-full text-sm">
             <thead>
@@ -326,12 +328,12 @@ export default async function ReportsPage() {
                     <g key={p.week.toISOString()}>
                       <circle cx={p.cx} cy={p.cy} r="4" fill="var(--color-pine)"
                         stroke="var(--color-card)" strokeWidth="2">
-                        <title>{`Week of ${p.week.toISOString().slice(0, 10)}: ${p.count} application(s)`}</title>
+                        <title>{`Week of ${fmtDate(p.week)}: ${p.count} application(s)`}</title>
                       </circle>
                       <text x={p.cx} y={p.cy - 9} textAnchor="middle" fontSize="10"
                         fill="var(--color-ink-soft)">{p.count}</text>
                       <text x={p.cx} y={H - padBottom + 14} textAnchor="middle" fontSize="9"
-                        fill="var(--color-ink-soft)">{p.week.toISOString().slice(5, 10)}</text>
+                        fill="var(--color-ink-soft)">{fmtDate(p.week).slice(5)}</text>
                     </g>
                   ))}
                 </svg>

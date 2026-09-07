@@ -4,6 +4,9 @@ import { currentUser, openingScope, scopeSql } from '@/lib/auth';
 import { fmtDateTime } from '@/lib/tz';
 
 export const dynamic = 'force-dynamic';
+export const metadata = { title: 'Interviews' };
+
+const LIMIT = 50;
 
 export default async function InterviewsPage() {
   const scope = await openingScope(await currentUser());
@@ -27,8 +30,8 @@ export default async function InterviewsPage() {
        join public.openings o on o.id = a.opening_id
        join public.stages st on st.id = sl.stage_id
        join public.profiles p on p.id = sl.interviewer_id
-       where sl.starts_at > now() and a.status = 'active' and {scopeSql('o.id', 1)}
-       order by sl.starts_at limit 50`,
+       where sl.starts_at > now() and a.status = 'active' and ${scopeSql('o.id', 1)}
+       order by sl.starts_at limit ${LIMIT + 1}`,
       [scope]
     ),
     q<{ id: number; title: string; status: string; open_slots: number; booked: number }>(
@@ -38,12 +41,14 @@ export default async function InterviewsPage() {
        from public.openings o
        join public.stages s on s.opening_id = o.id and s.kind = 'interview'
        left join public.slots sl on sl.opening_id = o.id
-       where o.status <> 'closed' and {scopeSql('o.id', 1)}
+       where o.status <> 'closed' and ${scopeSql('o.id', 1)}
        group by o.id
        order by o.created_at desc`,
       [scope]
     ),
   ]);
+  const truncated = upcoming.length > LIMIT;
+  if (truncated) upcoming.pop();
 
   return (
     <div>
@@ -77,6 +82,11 @@ export default async function InterviewsPage() {
           {upcoming.length === 0 && (
             <li className="rounded-lg border border-line bg-card px-4 py-6 text-center text-ink-soft">
               No upcoming interviews booked.
+            </li>
+          )}
+          {truncated && (
+            <li className="px-4 py-2 text-center text-xs text-ink-soft">
+              Showing the next {LIMIT} — later ones appear as these pass.
             </li>
           )}
         </ul>

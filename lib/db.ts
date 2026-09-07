@@ -3,9 +3,9 @@ import pg, { Pool, type QueryResultRow } from 'pg';
 // int8 comes back as a string by default; our ids never exceed 2^53
 pg.types.setTypeParser(20, (v) => Number(v));
 
-// ponytail: direct Postgres from the server for now; swap the connection
-// string when we point at hosted Supabase (server-side only, never exposed).
-// On serverless, DATABASE_URL must be the pooled (pgbouncer) connection string.
+// Direct Postgres from the server (hosted Supabase in production, embedded
+// locally); never exposed to the client. On serverless, DATABASE_URL must be
+// the pooled (pgbouncer) connection string.
 if (process.env.NODE_ENV === 'production' && !process.env.DATABASE_URL) {
   throw new Error('DATABASE_URL is required in production');
 }
@@ -19,7 +19,8 @@ pool.on('error', (err) => console.error('pg pool error', err));
 
 // Local/self-hosted cron ticker: this module only ever loads in the Node
 // server (every page imports it), so the timer starts with the first request.
-// Serverless platforms use vercel.json crons instead.
+// Skipped on Vercel, where /api/cron is hit every 15 min by
+// .github/workflows/cron.yml and daily by the vercel.json cron as a fallback.
 declare global {
   // eslint-disable-next-line no-var
   var __gethiredCron: ReturnType<typeof setInterval> | undefined;

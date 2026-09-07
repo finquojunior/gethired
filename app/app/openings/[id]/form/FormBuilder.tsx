@@ -1,7 +1,8 @@
 'use client';
 
-import { useMemo, useState, useTransition } from 'react';
+import { useEffect, useMemo, useState, useTransition } from 'react';
 import FormFields from '@/components/FormFields';
+import { toast } from '@/components/Toaster';
 import {
   CHOICE_TYPES,
   fieldOptions,
@@ -42,13 +43,23 @@ export default function FormBuilder({
   publishedVersion: number | null;
   otherOpenings: { id: number; title: string }[];
   saveDraft: (openingId: number, schema: FormSchema) => Promise<void>;
-  publish: (openingId: number, schema: FormSchema) => Promise<void>;
+  publish: (openingId: number, schema: FormSchema) => Promise<{ version: number | null }>;
   fetchQuestions: (openingId: number) => Promise<Field[]>;
 }) {
   const [schema, setSchema] = useState<FormSchema>(initialSchema);
   const [dirty, setDirty] = useState(false);
   const [pending, startTransition] = useTransition();
   const [previewAnswers, setPreviewAnswers] = useState<Answers>({});
+
+  // unsaved edits: warn before the tab closes or navigates away
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+    };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [dirty]);
 
   const update = (fn: (s: FormSchema) => FormSchema) => {
     setSchema((s) => fn(structuredClone(s)));
@@ -115,14 +126,23 @@ export default function FormBuilder({
             <div className="mb-3 flex items-center gap-2">
               <input
                 className="input font-medium"
+                aria-label={`Page ${pi + 1} title`}
                 value={page.title}
                 onChange={(e) => update((s) => ((s.pages[pi].title = e.target.value), s))}
               />
               {schema.pages.length > 1 && (
                 <button
                   type="button"
-                  className="btn-quiet text-rust"
-                  onClick={() => update((s) => (s.pages.splice(pi, 1), s))}
+                  className="btn-danger"
+                  onClick={() => {
+                    const n = page.fields.length;
+                    if (
+                      n > 0 &&
+                      !window.confirm(`Delete "${page.title || `Page ${pi + 1}`}" and its ${n} question${n === 1 ? '' : 's'}?`)
+                    )
+                      return;
+                    update((s) => (s.pages.splice(pi, 1), s));
+                  }}
                 >
                   Delete page
                 </button>
@@ -134,12 +154,14 @@ export default function FormBuilder({
                 <div key={f.id} className="rounded-md border border-line p-3">
                   <input
                     className="input mb-2"
+                    aria-label="Question label"
                     placeholder="Question label"
                     value={f.label}
                     onChange={(e) => updateField(pi, fi, { label: e.target.value })}
                   />
                   <input
                     className="input mb-2 text-xs"
+                    aria-label="Help text"
                     placeholder="Help text shown under the question (optional)"
                     value={f.help ?? ''}
                     onChange={(e) => updateField(pi, fi, { help: e.target.value || undefined })}
@@ -147,6 +169,7 @@ export default function FormBuilder({
                   <div className="flex flex-wrap items-center gap-2">
                     <select
                       className="input w-40"
+                      aria-label="Question type"
                       value={f.type}
                       onChange={(e) => {
                         const type = e.target.value as FieldType;
@@ -174,6 +197,7 @@ export default function FormBuilder({
                     <button
                       type="button"
                       title="Move up"
+                      aria-label="Move question up"
                       className="text-ink-soft hover:text-ink disabled:opacity-30"
                       disabled={fi === 0}
                       onClick={() =>
@@ -189,6 +213,7 @@ export default function FormBuilder({
                     <button
                       type="button"
                       title="Move down"
+                      aria-label="Move question down"
                       className="text-ink-soft hover:text-ink disabled:opacity-30"
                       disabled={fi === page.fields.length - 1}
                       onClick={() =>
@@ -204,6 +229,7 @@ export default function FormBuilder({
                     <button
                       type="button"
                       title="Duplicate question"
+                      aria-label="Duplicate question"
                       className="text-ink-soft hover:text-ink"
                       onClick={() =>
                         update((s) => {
@@ -219,8 +245,12 @@ export default function FormBuilder({
                     <button
                       type="button"
                       title="Delete question"
+                      aria-label="Delete question"
                       className="text-rust"
-                      onClick={() => update((s) => (s.pages[pi].fields.splice(fi, 1), s))}
+                      onClick={() => {
+                        if (f.label.trim() && !window.confirm(`Delete the question "${f.label}"?`)) return;
+                        update((s) => (s.pages[pi].fields.splice(fi, 1), s));
+                      }}
                     >
                       ✕
                     </button>
@@ -407,6 +437,7 @@ export default function FormBuilder({
               startTransition(async () => {
                 await saveDraft(openingId, schema);
                 setDirty(false);
+                toast('success', 'Draft saved');
               })
             }
           >
@@ -418,8 +449,10 @@ export default function FormBuilder({
             disabled={pending}
             onClick={() =>
               startTransition(async () => {
-                await publish(openingId, schema);
+                const { version } = await publish(openingId, schema);
                 setDirty(false);
+                if (version) toast('success', `Published v${version} — live for new applicants`);
+                else toast('error', 'Nothing to publish — no draft found');
               })
             }
           >

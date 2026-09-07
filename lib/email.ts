@@ -15,65 +15,75 @@ if (process.env.NODE_ENV === 'production') {
 
 const FROM = process.env.EMAIL_FROM ?? 'Hiring <hiring@example.com>';
 
+export const ORG_NAME = process.env.ORG_NAME ?? 'Finquo Junior';
+/** Where candidates write back: SUPPORT_EMAIL, else the address in EMAIL_FROM. */
+export const SUPPORT_EMAIL =
+  process.env.SUPPORT_EMAIL ??
+  /[^\s<>"]+@[^\s<>"]+/.exec(process.env.EMAIL_FROM ?? '')?.[0] ??
+  'hiring@finquojunior.com';
+
+// candidate-facing sign-off, appended to every template a candidate receives
+const SIGN = `\n\n— The {{org}} hiring team\nQuestions? Reply to this email or write to {{support_email}}.`;
+
 export const DEFAULT_TEMPLATES: Record<string, { subject: string; body: string; vars: string[] }> = {
   application_received: {
-    subject: 'Application received — {{role}}',
-    body: `Hi {{name}},\n\nThanks for applying for {{role}}. We've received your application and will be in touch.\n\nTrack your application status any time:\n{{portal_link}}\n`,
+    subject: 'Application received — {{role}} at {{org}}',
+    body: `Hi {{name}},\n\nThanks for applying for {{role}}. We've received your application and will be in touch.\n\nTrack your application status any time:\n{{portal_link}}\n` + SIGN,
     vars: ['name', 'role', 'portal_link'],
   },
   interview_invite: {
-    subject: 'Interview round — {{role}}',
-    body: `Hi {{name}},\n\nGood news — you're moving to the interview round for {{role}}.\n\nPick an interview slot that works for you here:\n{{portal_link}}\n\nSee you soon!`,
+    subject: 'Interview round — {{role}} at {{org}}',
+    body: `Hi {{name}},\n\nGood news — you're moving to the interview round for {{role}}.\n\nPick an interview slot that works for you here:\n{{portal_link}}\n\nSee you soon!` + SIGN,
     vars: ['name', 'role', 'portal_link'],
   },
   task_assigned: {
-    subject: 'Your task for {{role}}',
-    body: `Hi {{name}},\n\nYou've progressed to the task round for {{role}}.\n\n{{brief}}\n\nSubmit your work here:\n{{portal_link}}\n`,
+    subject: 'Your task for {{role}} at {{org}}',
+    body: `Hi {{name}},\n\nYou've progressed to the task round for {{role}}.\n\n{{brief}}\n\nSubmit your work here:\n{{portal_link}}\n` + SIGN,
     vars: ['name', 'role', 'brief', 'portal_link'],
   },
   booking_confirmation: {
-    subject: 'Interview confirmed — {{role}}',
-    body: `Hi {{name}},\n\nYour interview for {{role}} is confirmed:\n\n{{when}} ({{duration}} minutes) with {{interviewer}}.\n{{link}}\n\nNeed to change it? Use your status page up to 24 hours before.\n`,
+    subject: 'Interview confirmed — {{role}} at {{org}}',
+    body: `Hi {{name}},\n\nYour interview for {{role}} is confirmed:\n\n{{when}} ({{duration}} minutes) with {{interviewer}}.\n{{link}}\n\nNeed to change it? Use your status page up to 24 hours before.\n` + SIGN,
     vars: ['name', 'role', 'when', 'duration', 'interviewer', 'link'],
   },
   interview_reminder: {
-    subject: 'Reminder: your interview tomorrow — {{role}}',
-    body: `Hi {{name}},\n\nA reminder about your interview for {{role}}:\n\n{{when}} ({{duration}} minutes) with {{interviewer}}.\n{{link}}\n\nGood luck!\n`,
+    subject: 'Reminder: your interview tomorrow — {{role}} at {{org}}',
+    body: `Hi {{name}},\n\nA reminder about your interview for {{role}}:\n\n{{when}} ({{duration}} minutes) with {{interviewer}}.\n{{link}}\n\nGood luck!\n` + SIGN,
     vars: ['name', 'role', 'when', 'duration', 'interviewer', 'link'],
   },
   stage_update: {
-    subject: 'Application update — {{role}}',
-    body: `Hi {{name}},\n\nGood news — your application for {{role}} has moved forward to the {{stage}} stage.\n\nTrack your application any time:\n{{portal_link}}\n`,
+    subject: 'Application update — {{role}} at {{org}}',
+    body: `Hi {{name}},\n\nYour application for {{role}} is now at the {{stage}} stage.\n\nTrack your application any time:\n{{portal_link}}\n` + SIGN,
     vars: ['name', 'role', 'stage', 'portal_link'],
   },
   hired: {
-    subject: 'Congratulations — {{role}}!',
-    body: `Hi {{name}},\n\nCongratulations! We're delighted to let you know you've been selected for {{role}}.\n\nOur team will reach out shortly with the next steps and your offer details.\n\nWelcome aboard!`,
+    subject: 'Congratulations — {{role}} at {{org}}!',
+    body: `Hi {{name}},\n\nCongratulations! We're delighted to let you know you've been selected for {{role}}.\n\nOur team will reach out shortly with the next steps and your offer details.\n\nWelcome aboard!` + SIGN,
     vars: ['name', 'role'],
   },
   rejection: {
-    subject: 'Update on your application — {{role}}',
-    body: `Hi {{name}},\n\nThank you for applying for {{role}}. After careful review we won't be moving forward with your application this time.\n\nWe'd love to see you apply again for future roles.\n`,
-    vars: ['name', 'role'],
+    subject: 'Update on your application — {{role}} at {{org}}',
+    body: `Hi {{name}},\n\nThank you for applying for {{role}}. After careful review we won't be moving forward with your application this time.\n\nWe'd love to see you apply again for future roles — see what's open at {{careers_link}}\n` + SIGN,
+    vars: ['name', 'role', 'careers_link'],
   },
   booking_cancelled: {
-    subject: 'Interview cancelled — {{role}}',
-    body: `Hi {{name}},\n\nYour interview for {{role}} on {{when}} has been cancelled by our team.\n\nIf there are open slots you can pick a new time on your status page:\n{{portal_link}}\n\nOtherwise we'll be in touch to reschedule.\n`,
+    subject: 'Interview cancelled — {{role}} at {{org}}',
+    body: `Hi {{name}},\n\nYour interview for {{role}} on {{when}} has been cancelled by our team.\n\nIf there are open slots you can pick a new time on your status page:\n{{portal_link}}\n\nOtherwise we'll be in touch to reschedule.\n` + SIGN,
     vars: ['name', 'role', 'when', 'portal_link'],
   },
   task_received: {
-    subject: 'We received your task — {{role}}',
-    body: `Hi {{name}},\n\nThanks — we've received your task submission for {{role}}:\n\n{{items}}\n\nYou can add a newer version any time before the deadline from your status page:\n{{portal_link}}\n`,
+    subject: 'We received your task — {{role}} at {{org}}',
+    body: `Hi {{name}},\n\nThanks — we've received your task submission for {{role}}:\n\n{{items}}\n\nYou can add a newer version any time before the deadline from your status page:\n{{portal_link}}\n` + SIGN,
     vars: ['name', 'role', 'items', 'portal_link'],
   },
   task_reminder: {
-    subject: 'Reminder: your task is due {{deadline}} — {{role}}',
-    body: `Hi {{name}},\n\nA quick reminder that your task for {{role}} is due {{deadline}}.\n\nSubmit it here:\n{{portal_link}}\n`,
+    subject: 'Reminder: your task is due {{deadline}} — {{role}} at {{org}}',
+    body: `Hi {{name}},\n\nA quick reminder that your task for {{role}} is due {{deadline}}.\n\nSubmit it here:\n{{portal_link}}\n` + SIGN,
     vars: ['name', 'role', 'deadline', 'portal_link'],
   },
   withdrawn: {
-    subject: 'Application withdrawn — {{role}}',
-    body: `Hi {{name}},\n\nYou've withdrawn your application for {{role}}. Thanks for your interest — we'd be glad to see you apply again in future.\n\nIf this was a mistake, reply to this email and we'll restore it.\n`,
+    subject: 'Application withdrawn — {{role}} at {{org}}',
+    body: `Hi {{name}},\n\nYou've withdrawn your application for {{role}}. Thanks for your interest — we'd be glad to see you apply again in future.\n\nIf this was a mistake, reply to this email and we'll restore it.\n` + SIGN,
     vars: ['name', 'role'],
   },
   interviewer_booked: {
@@ -93,8 +103,11 @@ export const DEFAULT_TEMPLATES: Record<string, { subject: string; body: string; 
   },
 };
 
+for (const t of Object.values(DEFAULT_TEMPLATES)) t.vars.push('org', 'support_email');
+
 function render(text: string, vars: Record<string, string>): string {
-  return text.replace(/\{\{(\w+)\}\}/g, (_, k) => vars[k] ?? '');
+  const all: Record<string, string> = { org: ORG_NAME, support_email: SUPPORT_EMAIL, careers_link: appUrl('/careers'), ...vars };
+  return text.replace(/\{\{(\w+)\}\}/g, (_, k) => all[k] ?? '');
 }
 
 export async function sendEmail(input: {
@@ -293,6 +306,8 @@ export function icsEvent(opts: {
   startsAt: Date;
   durationMins: number;
   description?: string;
+  url?: string;
+  location?: string;
 }): string {
   const fmt = (d: Date) => d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
   const end = new Date(opts.startsAt.getTime() + opts.durationMins * 60_000);
@@ -307,6 +322,8 @@ export function icsEvent(opts: {
     `DTEND:${fmt(end)}`,
     `SUMMARY:${opts.title}`,
     opts.description ? `DESCRIPTION:${opts.description.replace(/\n/g, '\\n')}` : '',
+    opts.url ? `URL:${opts.url}` : '',
+    opts.location ? `LOCATION:${opts.location.replace(/,/g, '\\,')}` : '',
     'END:VEVENT',
     'END:VCALENDAR',
   ]

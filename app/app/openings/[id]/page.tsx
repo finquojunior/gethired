@@ -4,21 +4,33 @@ import { notFound } from 'next/navigation';
 import { q } from '@/lib/db';
 import SubmitButton from '@/components/SubmitButton';
 import RichTextArea from '@/components/RichTextArea';
-import { canAccessOpening, currentUser } from '@/lib/auth';
+import { canAccessOpening, currentUser, isStaff } from '@/lib/auth';
 import { POSTER_ACCEPT } from '@/lib/uploads';
-import { deleteOpeningData, updateOpening } from '../actions';
+import { fmtDate } from '@/lib/tz';
+import Flash from '@/components/Flash';
+import DownloadLink from '@/components/DownloadLink';
+import OpeningTabs from '@/components/OpeningTabs';
+import { cloneOpening, deleteOpeningData, updateOpening } from '../actions';
 
 export const dynamic = 'force-dynamic';
+
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const {
+    rows: [o],
+  } = await q<{ title: string }>('select title from public.openings where id = $1', [Number(id)]);
+  return { title: o ? o.title : 'Opening' };
+}
 
 export default async function OpeningPage({
   params,
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ e?: string }>;
+  searchParams: Promise<{ e?: string; ok?: string }>;
 }) {
   const { id } = await params;
-  const { e } = await searchParams;
+  const { e, ok } = await searchParams;
   const user = await currentUser();
   const {
     rows: [o],
@@ -38,43 +50,107 @@ export default async function OpeningPage({
     poster_path: string;
     published_version: number | null;
     applications: string;
+    stage_count: number;
+    task_stages: number;
+    task_missing: number;
+    open_slots: number;
+    has_interview: boolean;
+    team_count: number;
   }>(
     `select o.*,
             (select version from public.forms f where f.opening_id = o.id and f.is_published) as published_version,
-            (select count(*) from public.applications a where a.opening_id = o.id) as applications
+            (select count(*) from public.applications a where a.opening_id = o.id) as applications,
+            (select count(*)::int from public.stages s where s.opening_id = o.id) as stage_count,
+            (select count(*)::int from public.stages s where s.opening_id = o.id and s.kind = 'task') as task_stages,
+            (select count(*)::int from public.stages s where s.opening_id = o.id and s.kind = 'task'
+               and s.brief = '' and s.brief_file_path = '' and s.brief_links = '') as task_missing,
+            (select count(*)::int from public.slots sl where sl.opening_id = o.id
+               and sl.application_id is null and sl.starts_at > now()) as open_slots,
+            exists (select 1 from public.stages s where s.opening_id = o.id and s.kind = 'interview') as has_interview,
+            (select count(*)::int from public.opening_members m where m.opening_id = o.id) as team_count
      from public.openings o where o.id = $1`,
     [Number(id)]
   );
   if (!o || !(await canAccessOpening(user, Number(id)))) notFound();
 
+  const href = (tab: string) => `/app/openings/${o.id}/${tab}`;
+  const setup: Array<{ ok: boolean; text: string; href: string; warn?: boolean }> = [
+    {
+      ok: !!o.published_version,
+      text: o.published_version ? `Application form published (v${o.published_version})` : 'Application form not published — candidates cannot apply',
+      href: href('form'),
+      warn: !o.published_version && o.status === 'open',
+    },
+    { ok: o.stage_count > 0, text: `${o.stage_count} stage${o.stage_count === 1 ? '' : 's'}`, href: href('stages') },
+    ...(o.task_stages > 0
+      ? [{ ok: o.task_missing === 0, text: o.task_missing === 0 ? 'Task brief set' : `Task brief missing on ${o.task_missing} task stage${o.task_missing === 1 ? '' : 's'}`, href: href('task') }]
+      : []),
+    ...(o.has_interview
+      ? [{ ok: o.open_slots > 0, text: o.open_slots > 0 ? `${o.open_slots} open interview slot${o.open_slots === 1 ? '' : 's'}` : 'No open interview slots', href: href('slots') }]
+      : []),
+    { ok: o.team_count > 0, text: o.team_count > 0 ? `${o.team_count} team member${o.team_count === 1 ? '' : 's'}` : 'No team members added', href: href('team') },
+    { ok: o.status === 'open', text: `Status: ${o.status}`, href: '#status' },
+  ];
+
   return (
     <div>
+      <Flash
+        kind={ok ? 'success' : 'error'}
+        message={ok === 'saved' ? 'Opening saved' : e === 'poster' ? 'Saved — but the poster was not accepted (JPG, PNG, or WebP up to 3 MB).' : e === 'slug' ? 'Not saved — that public link is empty or already used.' : null}
+      />
       <BackButton fallback="/app/openings" />
       <div className="track flex flex-wrap items-end justify-between gap-3">
         <h1 className="font-display text-3xl font-bold">{o.title}</h1>
         <div className="flex flex-wrap gap-2 pb-1">
-          <Link href={`/app/openings/${o.id}/form`} className="btn-quiet">
-            Form{o.published_version ? ` · v${o.published_version}` : ' · unpublished'}
+          <Link href={`/app/openings/${o.id}/applications`} className="btn-primary">
+            Pipeline ({o.applications})
           </Link>
-          <Link href={`/app/openings/${o.id}/stages`} className="btn-quiet">Stages</Link>
-          <Link href={`/app/openings/${o.id}/task`} className="btn-quiet">Task</Link>
-          <Link href={`/app/openings/${o.id}/team`} className="btn-quiet">Team</Link>
-          <Link href={`/app/openings/${o.id}/slots`} className="btn-quiet">Slots</Link>
-          <Link href={`/app/openings/${o.id}/applications`} className="btn-quiet">
-            Applications ({o.applications})
-          </Link>
+          {isStaff(user) && (
+            <form action={cloneOpening}>
+              <input type="hidden" name="openingId" value={o.id} />
+              <SubmitButton className="btn-quiet" pendingLabel="Cloning…" title="New draft opening with the same stages, form, task brief, and team">
+                Clone opening
+              </SubmitButton>
+            </form>
+          )}
         </div>
       </div>
+      <OpeningTabs openingId={o.id} current="overview" />
 
       {o.status === 'open' && (
         <p className="mt-4 text-sm text-ink-soft">
           Public link:{' '}
-          <Link href={`/careers/${o.slug}`} className="font-medium text-pine underline">
+          <a href={`/careers/${o.slug}`} target="_blank" rel="noopener" className="font-medium text-pine underline">
             /careers/{o.slug}
-          </Link>{' '}
+          </a>{' '}
           — use this in your Meta ads.
         </p>
       )}
+
+      <section className="mt-6 rounded-lg border border-line bg-card p-4">
+        <h2 className="font-display text-lg font-semibold">Setup</h2>
+        <ul className="mt-2 space-y-1 text-sm">
+          {setup.map((s) => (
+            <li key={s.text} className={s.warn ? 'text-rust' : ''}>
+              <span aria-hidden className={`mr-2 ${s.ok ? 'text-pine-deep' : 'text-amber'}`}>{s.ok ? '✓' : '○'}</span>
+              <Link href={s.href} className="hover:underline">{s.text}</Link>
+            </li>
+          ))}
+        </ul>
+        {o.status === 'open' && !o.published_version && (
+          <p className="mt-2 text-sm text-rust">
+            This opening is open but has no published form — the public page shows nothing to fill in.{' '}
+            <Link href={href('form')} className="underline">Publish the form</Link>.
+          </p>
+        )}
+        {o.status === 'draft' && (
+          <p className="mt-2 text-xs text-ink-soft">
+            Order of play: publish the form, check the stages, set the task brief and interview slots if you use those
+            stages, then set the status to <strong>open</strong> below. Paused hides the public page but keeps the
+            pipeline; closed ends applications for good.
+          </p>
+        )}
+      </section>
 
       {e === 'slug' && (
         <p className="mt-4 rounded-md bg-rust/10 px-4 py-3 text-sm text-rust">
@@ -85,7 +161,7 @@ export default async function OpeningPage({
       <form action={updateOpening} className="mt-8 max-w-2xl space-y-4">
         <input type="hidden" name="id" value={o.id} />
         <div>
-          <label className="field-label" htmlFor="title">Title</label>
+          <label className="field-label" htmlFor="title">Title *</label>
           <input id="title" name="title" defaultValue={o.title} required className="input" />
         </div>
         <div>
@@ -106,10 +182,10 @@ export default async function OpeningPage({
           <div className="w-44">
             <label className="field-label" htmlFor="status">Status</label>
             <select id="status" name="status" defaultValue={o.status} className="input">
-              <option value="draft">draft</option>
-              <option value="open">open</option>
-              <option value="paused">paused</option>
-              <option value="closed">closed</option>
+              <option value="draft">draft — not public yet</option>
+              <option value="open">open — accepting applications</option>
+              <option value="paused">paused — hidden, pipeline continues</option>
+              <option value="closed">closed — no more applications</option>
             </select>
           </div>
         </div>
@@ -134,7 +210,7 @@ export default async function OpeningPage({
               id="close_date"
               type="date"
               name="close_date"
-              defaultValue={o.close_at ? o.close_at.toISOString().slice(0, 10) : ''}
+              defaultValue={o.close_at ? fmtDate(o.close_at) : ''}
               className="input"
             />
           </div>
@@ -204,9 +280,9 @@ export default async function OpeningPage({
             The zip is saved to <strong>your computer only</strong>; the system keeps no copy,
             so store it somewhere safe before deleting below.
           </p>
-          <a href={`/app/openings/${o.id}/archive`} className="btn-quiet mt-3">
+          <DownloadLink href={`/app/openings/${o.id}/archive`} className="btn-quiet mt-3" preparingLabel="Preparing archive…">
             Download full archive (.zip)
-          </a>
+          </DownloadLink>
           <hr className="my-5 border-rust/20" />
           <p className="text-sm text-ink-soft">
             Permanently delete this opening and <strong>everything</strong> under it: all
@@ -226,7 +302,7 @@ export default async function OpeningPage({
               </label>
               <input id="confirmSlug" name="confirmSlug" autoComplete="off" className="input" />
             </div>
-            <SubmitButton className="btn-quiet border-rust text-rust" pendingLabel="Deleting…">
+            <SubmitButton className="btn-danger" pendingLabel="Deleting…" confirmText={`Permanently delete "${o.title}" and every candidate, file, and email under it? There is no undo.`}>
               Delete everything
             </SubmitButton>
           </form>

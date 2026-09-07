@@ -25,7 +25,8 @@ export default function Toaster({
   const push = useCallback((t: ToastInput) => {
     const id = nextId.current++;
     setToasts((cur) => [...cur, { ...t, id }]);
-    setTimeout(() => setToasts((cur) => cur.filter((x) => x.id !== id)), 5000);
+    // errors stay until dismissed — the candidate needs time to read what to fix
+    if (t.kind === 'success') setTimeout(() => setToasts((cur) => cur.filter((x) => x.id !== id)), 5000);
   }, []);
 
   useEffect(() => {
@@ -50,7 +51,7 @@ export default function Toaster({
       {toasts.map((t) => (
         <div
           key={t.id}
-          role="status"
+          role={t.kind === 'error' ? 'alert' : 'status'}
           className={`pointer-events-auto flex max-w-md items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium text-white shadow-lg ${
             t.kind === 'success' ? 'bg-pine-deep' : 'bg-rust'
           }`}
@@ -60,7 +61,7 @@ export default function Toaster({
           <button
             onClick={() => setToasts((cur) => cur.filter((x) => x.id !== t.id))}
             aria-label="Dismiss"
-            className="ml-1 opacity-70 hover:opacity-100"
+            className="ml-1 min-h-11 min-w-11 opacity-70 hover:opacity-100"
           >
             ×
           </button>

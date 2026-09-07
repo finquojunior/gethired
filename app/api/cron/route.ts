@@ -1,7 +1,9 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { runCronWork } from '@/lib/cron-work';
 
-// Hourly worker (vercel.json cron). Also runs locally via instrumentation.ts.
+// The scheduled tick. Hit every 15 min by .github/workflows/cron.yml and once a
+// day by the vercel.json cron as a fallback. Locally there is no HTTP caller:
+// lib/db.ts runs runCronWork on a timer instead.
 export async function GET(req: NextRequest) {
   const secret = process.env.CRON_SECRET;
   if (!secret && process.env.NODE_ENV === 'production') {

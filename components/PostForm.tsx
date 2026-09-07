@@ -7,13 +7,23 @@ import { toast } from '@/components/Toaster';
 export default function PostForm({
   pendingText = 'Sending…',
   submitToast,
+  confirmText,
   ...props
-}: React.ComponentProps<'form'> & { pendingText?: string; submitToast?: string }) {
+}: React.ComponentProps<'form'> & {
+  pendingText?: string;
+  submitToast?: string;
+  /** ask before submitting (irreversible actions: cancel booking, withdraw) */
+  confirmText?: string;
+}) {
   return (
     <form
       {...props}
       onSubmit={(e) => {
         const f = e.currentTarget;
+        if (confirmText && !window.confirm(confirmText)) {
+          e.preventDefault();
+          return;
+        }
         if (submitToast) toast('success', submitToast);
         // after this tick, so button values still ride along in the POST
         setTimeout(() => {

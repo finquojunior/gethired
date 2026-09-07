@@ -2,10 +2,14 @@ import Link from 'next/link';
 import { q } from '@/lib/db';
 import { currentUser, isStaff, openingScope, scopeSql } from '@/lib/auth';
 import { fmtDateTime } from '@/lib/tz';
+import { mailConfigured } from '@/lib/email';
 import SubmitButton from '@/components/SubmitButton';
 import { cancelEmail, processOutbox, resendFailedEmail, sendDraft } from './actions';
 
 export const dynamic = 'force-dynamic';
+export const metadata = { title: 'Emails' };
+
+const LIMIT = 100;
 
 const STATUS_STYLE: Record<string, string> = {
   draft: 'bg-amber/15 text-amber',
@@ -37,12 +41,15 @@ export default async function EmailsPage({ searchParams }: { searchParams: Promi
     `select e.id, e.template, e.to_email, e.subject, e.body, e.status, e.send_after,
             e.service, e.error, e.created_at, a.id as application_id, a.name as candidate
      from public.email_log e join public.applications a on a.id = e.application_id
-     where {scopeSql('a.opening_id', 3)}
+     where ${scopeSql('a.opening_id', 3)}
        and ($1 = '' or e.subject ilike $2 or e.to_email ilike $2 or a.name ilike $2
         or e.template ilike $2 or e.status ilike $2 or e.body ilike $2)
-     order by e.id desc limit 100`,
+     order by e.id desc limit ${LIMIT + 1}`,
     [term, `%${term}%`, scope]
   );
+  const truncated = emails.length > LIMIT;
+  if (truncated) emails.pop();
+  const configured = mailConfigured();
 
   return (
     <div>
@@ -59,15 +66,18 @@ export default async function EmailsPage({ searchParams }: { searchParams: Promi
       <p className="mt-4 text-sm text-ink-soft">
         Every email the system sends is logged here. Drafts (from &quot;Reject + draft email&quot;)
         wait until you send them; failed sends retry up to 3 times.
-        {!process.env.RESEND_API_KEY && ' No RESEND_API_KEY is set, so emails are logged but not delivered.'}
+        {!configured.resend && !configured.gmail &&
+          ' Neither Resend nor Gmail is configured (RESEND_API_KEY, or GMAIL_USER + GMAIL_APP_PASSWORD), so emails are logged but not delivered.'}
       </p>
 
-      <form method="get" className="mt-6 flex gap-2">
+      <form method="get" className="mt-6 flex flex-wrap gap-2">
+        <label className="sr-only" htmlFor="q">Search emails</label>
         <input
+          id="q"
           name="q"
           defaultValue={term}
           placeholder="Search by candidate, email address, subject, template, or status…"
-          className="input flex-1"
+          className="input min-w-48 flex-1"
         />
         <button className="btn-primary">Search</button>
         {term && (
@@ -139,7 +149,7 @@ export default async function EmailsPage({ searchParams }: { searchParams: Promi
                   {(e.status === 'pending' || e.status === 'draft') && (
                     <form action={cancelEmail}>
                       <input type="hidden" name="emailId" value={e.id} />
-                      <SubmitButton className="text-rust underline" pendingLabel="…">
+                      <SubmitButton className="btn-danger !py-1" pendingLabel="Cancelling…" confirmText="Cancel this email? It will not be sent.">
                         Cancel this email
                       </SubmitButton>
                     </form>
@@ -152,6 +162,11 @@ export default async function EmailsPage({ searchParams }: { searchParams: Promi
         {emails.length === 0 && (
           <li className="rounded-lg border border-line bg-card px-4 py-8 text-center text-sm text-ink-soft">
             {term ? `No emails match “${term}”.` : 'No emails yet.'}
+          </li>
+        )}
+        {truncated && (
+          <li className="px-4 py-3 text-center text-xs text-ink-soft">
+            Showing the most recent {LIMIT} — search to narrow it down.
           </li>
         )}
       </ul>

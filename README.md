@@ -125,8 +125,10 @@ See [`.env.example`](.env.example) for every variable and when it's required.
 ```bash
 npm run db:start     # boots project-local Postgres on 127.0.0.1:54322,
                      # applies all migrations, seeds the dev admin
-npm run db:restore   # (optional) load the checked-in snapshot from db/dump.json
 ```
+
+There is no checked-in data snapshot; `db:reset` gives you a clean, migrated,
+empty database with the dev admin.
 
 ### 4. Run
 
@@ -140,7 +142,9 @@ npm run dev          # → http://localhost:3000
 | Staff app | http://localhost:3000/login | `dev-admin@example.com` / `devadmin` |
 
 Outbound emails appear in the app's **Emails** tab (not delivered) unless
-`RESEND_API_KEY` or `GMAIL_USER` + `GMAIL_APP_PASSWORD` are set.
+`RESEND_API_KEY` or `GMAIL_USER` + `GMAIL_APP_PASSWORD` are set. Optional
+branding: `ORG_NAME` (organisation display name), `ORG_TZ` (candidate-facing
+timezone), `SUPPORT_EMAIL` (candidate support address).
 
 ### 5. Verify
 
@@ -157,9 +161,7 @@ npm run db:check     # schema + RLS assertions on a throwaway database
 | `npm run build` / `start` | production build / serve |
 | `npm test` | unit tests |
 | `npm run db:start` / `db:stop` / `db:reset` | manage the local database |
-| `npm run db:dump` / `db:restore` | snapshot local data to/from `db/dump.json` |
 | `npm run db:check` | schema + RLS assertions on a throwaway database |
-| `node scripts/purge.mjs <days> --dry-run` | data-retention anonymization |
 
 ## Project layout
 
@@ -167,11 +169,11 @@ npm run db:check     # schema + RLS assertions on a throwaway database
 app/         Next.js App Router — careers site, candidate portal, staff app, API
 components/  shared React components
 lib/         domain logic: pipeline, forms, email, auth, storage
-db/          local Postgres home: data/ (cluster, gitignored), dump.json, shim.sql
+db/          local Postgres home: data/ (cluster, gitignored), shim.sql
 supabase/    migrations/ — apply locally via db:start, to prod via supabase db push
-scripts/     db.mjs (local Postgres runner), purge.mjs (retention)
+scripts/     db.mjs (local Postgres runner)
 tests/       node:test unit tests
-docs/        deploy runbook, security audit, reviews
+docs/        deploy runbook, security audit, usability audit; history/ holds past reviews
 ```
 
 ## Deployment
@@ -183,7 +185,8 @@ and the post-deploy smoke test.
 - Migrations in `supabase/migrations/` apply unchanged to hosted Supabase via
   `supabase db push`
 - The scheduled tick (email outbox, reminders, auto-close) runs from
-  [`.github/workflows/cron.yml`](.github/workflows/cron.yml) every 15 minutes
+  [`.github/workflows/cron.yml`](.github/workflows/cron.yml) every 15 minutes,
+  with a daily `vercel.json` cron as a fallback
 - `GET /api/health` reports `ok`, `email_configured`, `storage_configured`
 
 ## Docs
@@ -191,6 +194,6 @@ and the post-deploy smoke test.
 | File | Contents |
 | --- | --- |
 | [`docs/deploy-checklist.md`](docs/deploy-checklist.md) | production runbook |
-| [`docs/security-audit.md`](docs/security-audit.md) | security review + accepted risks |
-| [`docs/system-review.md`](docs/system-review.md) | architecture review findings |
-| [`docs/design-review.md`](docs/design-review.md) | UX/design principles applied |
+| [`docs/security-audit.md`](docs/security-audit.md) | security review + current accepted risks |
+| [`docs/ux-audit-2026-09-07.md`](docs/ux-audit-2026-09-07.md) | usability + codebase hygiene audit |
+| [`docs/history/`](docs/history/) | earlier point-in-time reviews (findings shipped) |

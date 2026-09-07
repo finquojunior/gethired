@@ -2,22 +2,17 @@ import path from 'node:path';
 import { NextResponse, type NextRequest } from 'next/server';
 import { q } from '@/lib/db';
 import { getFile } from '@/lib/storage';
-
-const MIME: Record<string, string> = {
-  '.pdf': 'application/pdf',
-  '.doc': 'application/msword',
-  '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  '.zip': 'application/zip',
-};
+import { MIME_BY_EXT as MIME } from '@/lib/uploads';
 
 /** Candidate download of the task brief document, gated by portal token. */
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ token: string }> }) {
   const { token } = await ctx.params;
   const {
     rows: [a],
-  } = await q<{ brief_file_path: string | null; kind: string | null }>(
-    `select s.brief_file_path, s.kind
+  } = await q<{ brief_file_path: string | null; kind: string | null; slug: string }>(
+    `select s.brief_file_path, s.kind, o.slug
      from public.applications a
+     join public.openings o on o.id = a.opening_id
      left join public.stages s on s.id = a.current_stage_id
      where a.portal_token = $1 and a.status = 'active'`,
     [token]
@@ -33,7 +28,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ token: str
     headers: {
       'content-type': MIME[ext] ?? 'application/octet-stream',
       ...(file.size ? { 'content-length': String(file.size) } : {}),
-      'content-disposition': `attachment; filename="task-brief${ext}"`,
+      'content-disposition': `attachment; filename="${a.slug.replace(/[^a-z0-9-]/gi, '')}-task-brief${ext}"`,
       'x-content-type-options': 'nosniff',
     },
   });

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 // Header checkbox for bulk-select tables: toggles every row checkbox with the
 // given name in the enclosing form, shows indeterminate for partial selections,
@@ -49,6 +49,7 @@ export default function SelectAll({ name }: { name: string }) {
     form
       ?.querySelectorAll<HTMLInputElement>(`input[type="checkbox"][name="${name}"]`)
       .forEach((b) => (b.checked = checked));
+    form?.dispatchEvent(new Event('change', { bubbles: true }));
   };
 
   return (
@@ -60,5 +61,34 @@ export default function SelectAll({ name }: { name: string }) {
       className="accent-pine"
       onChange={(e) => toggleAll(e.currentTarget.checked)}
     />
+  );
+}
+
+// Live "N selected" count for the bulk bar; disables the bar's submit buttons
+// while nothing is ticked so a no-op can't look like a success.
+export function SelectedCount({ name }: { name: string }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  const [n, setN] = useState(0);
+  useEffect(() => {
+    const form = ref.current?.closest('form');
+    if (!form) return;
+    const bar = ref.current?.parentElement;
+    const count = () => {
+      const c = form.querySelectorAll<HTMLInputElement>(`input[type="checkbox"][name="${name}"]:checked`).length;
+      setN(c);
+      bar?.querySelectorAll('button').forEach((b) => (b.disabled = c === 0));
+    };
+    form.addEventListener('change', count);
+    form.addEventListener('click', count);
+    count();
+    return () => {
+      form.removeEventListener('change', count);
+      form.removeEventListener('click', count);
+    };
+  }, [name]);
+  return (
+    <span ref={ref} className="text-ink-soft">
+      <span data-selected={n} className="font-medium text-ink">{n}</span> selected
+    </span>
   );
 }

@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useState, useTransition } from 'react';
 import { moveOne } from '@/app/app/candidates/actions';
+import { toast } from '@/components/Toaster';
 
 export interface BoardCard {
   id: number;
@@ -15,10 +16,13 @@ export interface BoardCard {
 
 export default function BoardView({
   openingId,
+  ctxQs,
   stages,
   cards,
 }: {
   openingId: number;
+  /** pipeline filter context, carried onto card links so Prev/Next work */
+  ctxQs: string;
   stages: { id: number; name: string }[];
   cards: BoardCard[];
 }) {
@@ -36,8 +40,23 @@ export default function BoardView({
     if (!appId) return;
     const card = cards.find((c) => c.id === appId);
     if (!card || columnOf(card) === stageId) return;
+    const stage = stages.find((s) => s.id === stageId)?.name ?? 'that stage';
+    if (!window.confirm(`Move ${card.name} to ${stage}? They will be emailed.`)) return;
+    const before = columnOf(card);
     setPlacement((p) => ({ ...p, [appId]: stageId }));
-    startTransition(() => moveOne(openingId, appId, stageId));
+    startTransition(async () => {
+      try {
+        await moveOne(openingId, appId, stageId);
+        toast('success', `Moved ${card.name} to ${stage} — candidate emailed`);
+      } catch {
+        // put the card back where it was
+        setPlacement((p) => {
+          const { [appId]: _dropped, ...rest } = p;
+          return before == null ? rest : { ...rest, [appId]: before };
+        });
+        toast('error', `Could not move ${card.name} — try again`);
+      }
+    });
   };
 
   return (
@@ -69,7 +88,7 @@ export default function BoardView({
                   onDragStart={(e) => e.dataTransfer.setData('text/plain', String(c.id))}
                   className="cursor-grab rounded-md border border-line bg-card p-3 text-sm shadow-sm active:cursor-grabbing"
                 >
-                  <Link href={`/app/candidates/${c.id}`} className="font-medium hover:underline">
+                  <Link href={`/app/candidates/${c.id}?${ctxQs}`} className="font-medium hover:underline">
                     {c.name}
                   </Link>
                   <div className="mt-0.5 flex justify-between text-xs text-ink-soft">

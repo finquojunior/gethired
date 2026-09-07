@@ -10,9 +10,18 @@ import SubmissionFieldsEditor from '@/components/SubmissionFieldsEditor';
 import { directUploads } from '@/lib/storage';
 import SubmitButton from '@/components/SubmitButton';
 import DirectUploadForm from '@/components/DirectUploadForm';
+import OpeningTabs from '@/components/OpeningTabs';
 import { updateTaskMaterials } from '../../actions';
 
 export const dynamic = 'force-dynamic';
+
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const {
+    rows: [o],
+  } = await q<{ title: string }>('select title from public.openings where id = $1', [Number(id)]);
+  return { title: o ? `${o.title} · Task` : 'Task' };
+}
 
 export default async function TaskPage({
   params,
@@ -102,6 +111,7 @@ export default async function TaskPage({
         </Link>{' '}
         · Task
       </h1>
+      <OpeningTabs openingId={openingId} current="task" />
       <p className="mt-4 text-sm text-ink-soft">
         The brief, reference links, and document below are shown on the candidate&apos;s status page.
         Moving a candidate into the task stage emails them the brief and links; the document is
@@ -152,8 +162,9 @@ export default async function TaskPage({
 
             <div className="mt-4 space-y-4">
               <div>
-                <label className="field-label">Brief</label>
+                <label className="field-label" htmlFor={`brief-${t.id}`}>Brief</label>
                 <textarea
+                  id={`brief-${t.id}`}
                   name="brief"
                   rows={5}
                   defaultValue={t.brief}
@@ -163,12 +174,13 @@ export default async function TaskPage({
               </div>
 
               <div>
-                <label className="field-label">Days to complete</label>
+                <label className="field-label" htmlFor={`days-${t.id}`}>Days to complete</label>
                 <p className="mb-2 text-xs text-ink-soft">
                   Each candidate&apos;s deadline is counted from the day they were moved into this
                   stage. Leave 0 for no deadline.
                 </p>
                 <input
+                  id={`days-${t.id}`}
                   type="number"
                   name="taskDays"
                   min={0}
@@ -179,8 +191,9 @@ export default async function TaskPage({
               </div>
 
               <div>
-                <label className="field-label">Links (one per line, must start with http)</label>
+                <label className="field-label" htmlFor={`links-${t.id}`}>Links (one per line, must start with http)</label>
                 <textarea
+                  id={`links-${t.id}`}
                   name="links"
                   rows={3}
                   defaultValue={t.brief_links}
@@ -190,7 +203,7 @@ export default async function TaskPage({
               </div>
 
               <div>
-                <label className="field-label">Brief document (PDF, Word, or ZIP up to 16 MB)</label>
+                <label className="field-label" htmlFor={`doc-${t.id}`}>Brief document (PDF, Word, or ZIP up to 16 MB)</label>
                 {t.brief_file_path && (
                   <p className="mb-2 flex items-center gap-3 text-sm">
                     <a
@@ -207,7 +220,7 @@ export default async function TaskPage({
                     </label>
                   </p>
                 )}
-                <input type="file" name="document" className="input" />
+                <input id={`doc-${t.id}`} type="file" name="document" className="input" />
               </div>
 
               <div>
@@ -235,7 +248,7 @@ export default async function TaskPage({
           </DirectUploadForm>
 
           <section className="rounded-lg border border-line bg-card p-5">
-            <h3 className="font-display text-lg font-semibold">Candidates in this task round</h3>
+            <h3 className="font-display text-lg font-semibold">Candidates in this task stage</h3>
             <p className="mt-1 text-xs text-ink-soft">
               Everyone who reached {t.name}, including candidates who have since moved on.
             </p>
@@ -274,6 +287,7 @@ export default async function TaskPage({
                         {c.deadline ? (
                           <span className={fmtDate(c.deadline) < today ? 'text-rust' : 'text-pine-deep'}>
                             {fmtDay(c.deadline)}
+                            {fmtDate(c.deadline) < today && ' (overdue)'}
                           </span>
                         ) : (
                           <span className="text-ink-soft">—</span>

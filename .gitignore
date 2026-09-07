@@ -7,3 +7,6 @@ db/postgres.log
 .env.*
 !.env.example
 .playwright-mcp/
+tsconfig.tsbuildinfo
+db/dump.sql
+supabase/.temp/

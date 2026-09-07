@@ -5,6 +5,9 @@ import PrintButton from '@/components/PrintButton';
 import BackButton from '@/components/BackButton';
 
 export const dynamic = 'force-dynamic';
+export const metadata = { title: 'Hiring report' };
+
+const EVENT_LIMIT = 300;
 
 // Period resolution: ?month=YYYY-MM wins, else ?from/?to (YYYY-MM-DD), else last 30 days.
 function resolvePeriod(sp: { month?: string; from?: string; to?: string }): {
@@ -154,9 +157,11 @@ export default async function ReportPrintPage({
      from public.applications a join public.openings o on o.id = a.opening_id
      where ($1::bigint is null or a.opening_id = $1) and a.status in ('hired', 'rejected', 'withdrawn')
        and a.updated_at >= $2 and a.updated_at < $3
-     order by 1 limit 300`,
+     order by 1 limit ${EVENT_LIMIT + 1}`,
     [openingId, start.toISOString(), end.toISOString()]
   );
+  const moreEvents = events.length > EVENT_LIMIT;
+  if (moreEvents) events.pop();
 
   const eventText = (e: (typeof events)[number]) =>
     e.kind === 'applied'
@@ -182,7 +187,7 @@ export default async function ReportPrintPage({
       <header className="mt-4 border-b border-line pb-4">
         <h1 className="track font-display text-3xl font-bold">Hiring report</h1>
         <p className="mt-2 text-sm text-ink-soft">
-          {scope} · {label} · generated {fmtDateTime(new Date())}
+          {scope} · {label}{sp.month && sp.from ? ' (month selected — From/To ignored)' : ''} · generated {fmtDateTime(new Date())}
         </p>
         <p className="text-xs text-ink-soft">
           Contains candidate personal data — for internal use only.
@@ -275,6 +280,11 @@ export default async function ReportPrintPage({
               </li>
             ))}
           </ul>
+          {moreEvents && (
+            <p className="mt-2 text-xs text-ink-soft">
+              Showing the first {EVENT_LIMIT} events — narrow the period or pick one role for the full list.
+            </p>
+          )}
         </section>
       )}
     </div>

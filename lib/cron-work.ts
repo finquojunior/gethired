@@ -1,10 +1,10 @@
 import { q } from '@/lib/db';
-import { appUrl, attemptSend, sendEmail } from '@/lib/email';
-import { fmtDateTimeFull } from '@/lib/tz';
+import { appUrl, attemptSend, portalUrl, sendEmail } from '@/lib/email';
+import { fmtDateTimeFull, fmtDay } from '@/lib/tz';
 
 // The periodic work: deliver/retry the outbox, interview reminders, feedback
 // nudges, auto-close openings. Called by /api/cron, the outbox "process now"
-// button, and the local ticker in instrumentation.ts.
+// button, and the local ticker in lib/db.ts.
 export async function runCronWork() {
   // 1. deliver due outbox rows (incl. delayed rejections and failed retries)
   const { rows: due } = await q<{ id: number }>(
@@ -51,6 +51,51 @@ export async function runCronWork() {
         duration: String(r.duration_mins),
         interviewer: r.interviewer,
         link: r.meeting_link,
+      },
+    });
+  }
+
+  // 2b. task reminders: deadline within 24h, nothing submitted for this stage, once
+  //     (deadline = stage entry + task_days — same expression as the candidate portal)
+  const { rows: dueTasks } = await q<{
+    application_id: number;
+    name: string;
+    email: string;
+    title: string;
+    portal_token: string;
+    deadline: Date;
+  }>(
+    `with t as (
+       select a.id as application_id, a.name, a.email, a.portal_token, o.title, s.id as stage_id,
+              coalesce((select max(h.created_at) from public.stage_history h
+                         where h.application_id = a.id and h.to_stage_id = s.id), a.created_at)
+              + make_interval(days => s.task_days) as deadline
+       from public.applications a
+       join public.stages s on s.id = a.current_stage_id and s.kind = 'task' and s.task_days > 0
+       join public.openings o on o.id = a.opening_id
+       where a.status = 'active'
+     )
+     select application_id, name, email, title, portal_token, deadline from t
+     where deadline between now() and now() + interval '24 hours'
+       and not exists (
+         select 1 from public.submissions su
+         where su.application_id = t.application_id and su.stage_id = t.stage_id
+       )
+       and not exists (
+         select 1 from public.email_log e
+         where e.application_id = t.application_id and e.template = 'task_reminder'
+       )`
+  );
+  for (const r of dueTasks) {
+    await sendEmail({
+      applicationId: r.application_id,
+      template: 'task_reminder',
+      to: r.email,
+      vars: {
+        name: r.name,
+        role: r.title,
+        deadline: fmtDay(r.deadline),
+        portal_link: portalUrl(r.portal_token),
       },
     });
   }
@@ -103,6 +148,7 @@ export async function runCronWork() {
   return {
     delivered: due.length,
     reminded: upcoming.length,
+    taskReminded: dueTasks.length,
     nudged: pendingFeedback.length,
     closed: closed ?? 0,
   };

@@ -2,17 +2,7 @@ import path from 'node:path';
 import { NextResponse, type NextRequest } from 'next/server';
 import { canAccessOpening, currentUserOrNull, isStaff, openingIdForFile } from '@/lib/auth';
 import { getFile } from '@/lib/storage';
-
-const MIME: Record<string, string> = {
-  '.pdf': 'application/pdf',
-  '.doc': 'application/msword',
-  '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  '.zip': 'application/zip',
-  '.jpg': 'image/jpeg',
-  '.jpeg': 'image/jpeg',
-  '.png': 'image/png',
-  '.webp': 'image/webp',
-};
+import { MIME_BY_EXT } from '@/lib/uploads';
 
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ path: string[] }> }) {
   const { path: parts } = await ctx.params;
@@ -32,7 +22,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ path: stri
   const ext = path.extname(parts[parts.length - 1] ?? '').toLowerCase();
   return new NextResponse(file.body, {
     headers: {
-      'content-type': MIME[ext] ?? 'application/octet-stream',
+      'content-type': MIME_BY_EXT[ext] ?? 'application/octet-stream',
       ...(file.size ? { 'content-length': String(file.size) } : {}),
       'content-disposition': 'inline',
       'x-content-type-options': 'nosniff',

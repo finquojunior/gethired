@@ -1,14 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { TASK_TYPE_HELP } from '@/lib/uploads';
-
-function uploadErrorText(e: unknown): string {
-  const status = e instanceof Error ? e.message : '';
-  if (status === '400') return `That file type is not accepted. ${TASK_TYPE_HELP}`;
-  if (status === '429') return 'Too many upload attempts — wait a few minutes and try again.';
-  return 'Upload failed — check your connection and try again. If it keeps failing, zip the file and retry.';
-}
+import { uploadErrorText } from '@/lib/uploads';
 
 // Form wrapper that, when direct uploads are enabled, intercepts submit,
 // uploads the chosen file straight to Supabase Storage via a signed URL from

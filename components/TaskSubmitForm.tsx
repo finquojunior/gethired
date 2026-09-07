@@ -1,14 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { TASK_TYPE_HELP } from '@/lib/uploads';
-
-function uploadErrorText(e: unknown): string {
-  const status = e instanceof Error ? e.message : '';
-  if (status === '400') return `That file type is not accepted. ${TASK_TYPE_HELP}`;
-  if (status === '429') return 'Too many upload attempts — wait a few minutes and try again.';
-  return 'Upload failed — check your connection and try again. If it keeps failing, zip the file and retry.';
-}
+import { uploadErrorText } from '@/lib/uploads';
 
 type Requirement = {
   id: string;
@@ -106,6 +99,7 @@ export default function TaskSubmitForm({
         if (!up.ok) throw new Error(String(up.status));
         (el.elements.namedItem(`filePath_${it.r.id}`) as HTMLInputElement).value = path;
         (el.elements.namedItem(`fileSig_${it.r.id}`) as HTMLInputElement).value = sig ?? '';
+        (el.elements.namedItem(`fileName_${it.r.id}`) as HTMLInputElement).value = it.file!.name;
         it.fileEl!.value = '';
       }
       passthrough.current = true;
@@ -127,13 +121,13 @@ export default function TaskSubmitForm({
       className="mt-4 space-y-3"
     >
       {requirements.map((r) => (
-        <div key={r.id} className="space-y-2 rounded-md border border-line p-4">
-          <p className="text-sm font-medium">
+        <fieldset key={r.id} className="space-y-2 rounded-md border border-line p-4">
+          <legend className="px-1 text-sm font-medium">
             {r.title}{' '}
             <span className={`text-xs font-normal ${r.required ? 'text-rust' : 'text-ink-soft'}`}>
               {r.required ? 'required' : 'optional'}
             </span>
-          </p>
+          </legend>
           {r.done && (
             <p className="text-xs text-pine-deep">
               Submitted {r.done} — attach again to add a new version.
@@ -141,19 +135,31 @@ export default function TaskSubmitForm({
           )}
           <input type="hidden" name={`filePath_${r.id}`} defaultValue="" />
           <input type="hidden" name={`fileSig_${r.id}`} defaultValue="" />
+          <input type="hidden" name={`fileName_${r.id}`} defaultValue="" />
           {r.kind !== 'link' && (
-            <input type="file" name={`file_${r.id}`} accept={accept} className="input" />
+            <div>
+              <label htmlFor={`file_${r.id}`} className="mb-1 block text-xs text-ink-soft">
+                {r.kind === 'either' ? 'Upload a file' : 'File'}
+              </label>
+              <input id={`file_${r.id}`} type="file" name={`file_${r.id}`} accept={accept} className="input" />
+            </div>
           )}
           {r.kind !== 'file' && (
-            <input type="url" name={`link_${r.id}`} placeholder="https://…" className="input" />
+            <div>
+              <label htmlFor={`link_${r.id}`} className="mb-1 block text-xs text-ink-soft">
+                {r.kind === 'either' ? 'or paste a link' : 'Link'}
+              </label>
+              <input id={`link_${r.id}`} type="url" name={`link_${r.id}`} placeholder="https://…" className="input" />
+            </div>
           )}
-        </div>
+        </fieldset>
       ))}
-      <textarea name="note" rows={2} placeholder="Anything we should know? (context)" className="input" />
-      <button className="btn-primary" disabled={busy}>
+      <label htmlFor="task-note" className="sr-only">Note for the team</label>
+      <textarea id="task-note" name="note" rows={2} placeholder="Anything we should know? (context)" className="input" />
+      <button className="btn-primary min-h-11" disabled={busy}>
         {busy ? 'Sending…' : 'Submit task'}
       </button>
-      {error && <p className="text-sm text-rust">{error}</p>}
+      {error && <p className="text-sm text-rust" role="alert">{error}</p>}
     </form>
   );
 }

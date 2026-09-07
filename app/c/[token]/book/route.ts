@@ -63,6 +63,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ token: str
     startsAt: slot.starts_at,
     durationMins: slot.duration_mins,
     description: `Interview with ${slot.interviewer}`,
+    ...(/^https?:\/\//.test(slot.meeting_link) ? { url: slot.meeting_link } : {}),
+    location: slot.meeting_link,
   });
   await sendEmail({
     applicationId: a.id,

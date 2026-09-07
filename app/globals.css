@@ -89,3 +89,8 @@ h1 {
 .animate-progress {
   animation: gh-progress 1.2s linear infinite;
 }
+
+/* destructive actions: one look everywhere */
+.btn-danger {
+  @apply inline-flex items-center gap-1.5 rounded-md border border-rust/40 bg-card px-3.5 py-2 text-sm font-medium text-rust transition-colors hover:border-rust hover:bg-rust/10 disabled:opacity-40;
+}

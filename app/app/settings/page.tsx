@@ -6,6 +6,10 @@ import SubmitButton from '@/components/SubmitButton';
 import { saveTemplate, setMailService } from './actions';
 
 export const dynamic = 'force-dynamic';
+export const metadata = { title: 'Settings' };
+
+const AUDIT_LIMIT = 200;
+const ERROR_LIMIT = 100;
 
 export default async function SettingsPage() {
   const user = await requireStaff();
@@ -31,9 +35,11 @@ export default async function SettingsPage() {
       }>(
         `select l.action, l.entity, l.entity_id, l.detail, l.actor_id, p.full_name as actor, l.created_at
          from public.audit_log l left join public.profiles p on p.id = l.actor_id
-         order by l.id desc limit 200`
+         order by l.id desc limit ${AUDIT_LIMIT + 1}`
       )
     : { rows: [] };
+  const moreAudit = auditRows.length > AUDIT_LIMIT;
+  if (moreAudit) auditRows.pop();
 
   const { rows: errorRows } = isAdmin
     ? await q<{
@@ -45,9 +51,11 @@ export default async function SettingsPage() {
         created_at: Date;
       }>(
         `select id, source, message, stack, context, created_at
-         from public.error_log order by id desc limit 100`
+         from public.error_log order by id desc limit ${ERROR_LIMIT + 1}`
       )
     : { rows: [] };
+  const moreErrors = errorRows.length > ERROR_LIMIT;
+  if (moreErrors) errorRows.pop();
 
   return (
     <div>
@@ -113,7 +121,7 @@ export default async function SettingsPage() {
                     className="input font-mono text-xs"
                     aria-label="Body"
                   />
-                  <SubmitButton className="btn-primary" pendingLabel="Saving…">Save template</SubmitButton>
+                  <SubmitButton className="btn-primary" pendingLabel="Saving…" doneMessage="Template saved">Save template</SubmitButton>
                 </form>
               </details>
             );
@@ -124,11 +132,9 @@ export default async function SettingsPage() {
       <section className="mt-10">
         <h2 className="font-display text-xl font-semibold">Data retention</h2>
         <p className="mt-2 text-sm text-ink-soft">
-          Candidate PII accumulates indefinitely by default. To anonymize rejected/withdrawn
-          candidates older than N days (removes resumes, task files, and personal details;
-          keeps anonymous rows for reports), run{' '}
-          <code className="rounded bg-paper px-1.5 py-0.5">node scripts/purge.mjs &lt;days&gt; --dry-run</code>{' '}
-          from the project — deliberately a manual, dry-run-first operation.
+          Candidate PII accumulates indefinitely by default. To remove it, download an opening&apos;s
+          archive and then delete its data from the Danger zone on the opening page (admins only).
+          Per-candidate anonymisation is not available yet.
         </p>
       </section>
 
@@ -171,6 +177,9 @@ export default async function SettingsPage() {
                 No errors recorded. Good sign.
               </li>
             )}
+            {moreErrors && (
+              <li className="px-4 py-2 text-center text-xs text-ink-soft">Showing the most recent {ERROR_LIMIT}.</li>
+            )}
           </ul>
         </section>
       )}
@@ -203,6 +212,9 @@ export default async function SettingsPage() {
             ))}
             {auditRows.length === 0 && (
               <li className="px-4 py-6 text-center text-ink-soft">No activity recorded yet.</li>
+            )}
+            {moreAudit && (
+              <li className="px-4 py-2 text-center text-xs text-ink-soft">Showing the most recent {AUDIT_LIMIT}.</li>
             )}
           </ul>
         </section>

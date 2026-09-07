@@ -32,9 +32,15 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ slug: stri
        and (o.close_at is null or o.close_at > now())`,
     [slug]
   );
-  if (!form || form.form_id !== Number(fd.get('formId'))) {
+  if (!form) {
     return NextResponse.json(
-      { message: 'This role is no longer accepting applications. Refresh the page.' },
+      { message: 'This role is no longer accepting applications.' },
+      { status: 409 }
+    );
+  }
+  if (form.form_id !== Number(fd.get('formId'))) {
+    return NextResponse.json(
+      { message: 'The application form was updated while you were filling it in. Refresh the page — your answers are kept on this device — and submit again.' },
       { status: 409 }
     );
   }
@@ -162,5 +168,12 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ slug: stri
     );
   }
 
-  return NextResponse.json({ ok: true });
+  // the portal link goes in the response too, so a lost/late email never locks the candidate out
+  return NextResponse.json({ ok: true, portal_url: created ? portalUrl(created.portal_token) : '' });
+}
+
+/** Direct visits to the apply URL land on the opening page instead of a bare 405. */
+export async function GET(_req: NextRequest, ctx: { params: Promise<{ slug: string }> }) {
+  const { slug } = await ctx.params;
+  return NextResponse.redirect(new URL(`/careers/${slug}`, _req.url), 303);
 }

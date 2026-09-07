@@ -1,10 +1,10 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import { q } from '@/lib/db';
+import { ORG_NAME as ORG } from '@/lib/email';
+import CandidateFooter from '@/components/CandidateFooter';
 
 export const revalidate = 60; // ad-burst traffic hits cache, not Postgres
-
-const ORG = process.env.ORG_NAME ?? 'Finquo Junior';
 
 export const metadata: Metadata = {
   title: `Careers at ${ORG}`,
@@ -72,6 +72,7 @@ export default async function CareersPage() {
           </li>
         )}
       </ul>
+      <CandidateFooter />
     </main>
   );
 }

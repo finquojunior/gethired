@@ -12,6 +12,7 @@ const STATUS_STYLE: Record<string, string> = {
 };
 
 export const dynamic = 'force-dynamic';
+export const metadata = { title: 'Openings' };
 
 export default async function OpeningsPage({
   searchParams,
@@ -33,7 +34,7 @@ export default async function OpeningsPage({
             count(a.id) as applications
      from public.openings o
      left join public.applications a on a.opening_id = o.id
-     where (o.status = 'closed') = $1 and {scopeSql('o.id', 2)}
+     where (o.status = 'closed') = $1 and ${scopeSql('o.id', 2)}
      group by o.id
      order by o.created_at desc`,
     [closed, scope]
@@ -63,7 +64,7 @@ export default async function OpeningsPage({
 
       <form action={createOpening} className="mt-8 flex flex-wrap items-end gap-3">
         <div className="flex-1">
-          <label className="field-label" htmlFor="title">New opening</label>
+          <label className="field-label" htmlFor="title">New opening *</label>
           <input id="title" name="title" required placeholder="e.g. Performance Marketer" className="input" />
         </div>
         <div className="w-48">
@@ -87,7 +88,7 @@ export default async function OpeningsPage({
                 <div className="text-sm text-ink-soft">{o.department || '—'}</div>
               </div>
               <div className="flex items-center gap-4 text-sm">
-                <span className="text-ink-soft">{o.applications} applications</span>
+                <span className="text-ink-soft">{o.applications} candidate{o.applications === '1' ? '' : 's'}</span>
                 <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_STYLE[o.status]}`}>
                   {o.status}
                 </span>

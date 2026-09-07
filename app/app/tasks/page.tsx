@@ -4,6 +4,7 @@ import { currentUser, openingScope, scopeSql } from '@/lib/auth';
 import { briefLinks } from '@/lib/brief';
 
 export const dynamic = 'force-dynamic';
+export const metadata = { title: 'Tasks' };
 
 export default async function TasksPage() {
   const scope = await openingScope(await currentUser());
@@ -45,7 +46,7 @@ export default async function TasksPage() {
             (select count(*)::int from reached r where r.stage_id = s.id and r.response = 'yes') as yes,
             (select count(*)::int from reached r where r.stage_id = s.id and r.response = 'no') as no
      from public.stages s join public.openings o on o.id = s.opening_id
-     where s.kind = 'task' and {scopeSql('o.id', 1)}
+     where s.kind = 'task' and ${scopeSql('o.id', 1)}
      order by o.status = 'open' desc, o.id desc, s.position`,
     [scope]
   );
@@ -54,7 +55,7 @@ export default async function TasksPage() {
     <div>
       <h1 className="track font-display text-3xl font-bold">Tasks</h1>
       <p className="mt-4 text-sm text-ink-soft">
-        Every opening&apos;s task round in one place. Click an opening to edit its brief, links, and
+        Every opening&apos;s task stage in one place. Click an opening to edit its brief, links, and
         document.
       </p>
 

@@ -2,10 +2,11 @@ import Link from 'next/link';
 import { q } from '@/lib/db';
 import { currentUser, openingScope, scopeSql } from '@/lib/auth';
 import Toaster from '@/components/Toaster';
-import { fmtSlot } from '@/lib/tz';
+import { fmtDay, fmtSlot } from '@/lib/tz';
 import ContinueChip from '@/components/ContinueChip';
 
 export const dynamic = 'force-dynamic';
+export const metadata = { title: 'Dashboard' };
 
 export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ e?: string }> }) {
   const { e } = await searchParams;
@@ -195,7 +196,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         </section>
 
         <section className={card}>
-          <h2 className="font-display text-lg font-semibold">Task round</h2>
+          <h2 className="font-display text-lg font-semibold">Task stage</h2>
           <ul className="mt-3 space-y-2 text-sm">
             {taskRound.map((t) => (
               <li key={t.opening_id} className="flex justify-between">
@@ -208,7 +209,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
                 </span>
               </li>
             ))}
-            {taskRound.length === 0 && <li className="text-ink-soft">Nobody in a task round.</li>}
+            {taskRound.length === 0 && <li className="text-ink-soft">Nobody in a task stage.</li>}
           </ul>
         </section>
 
@@ -222,7 +223,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
                   {s.name}
                 </Link>
                 <span className="text-ink-soft">
-                  {s.title} · {s.stage ?? '—'} · since {s.last_move.toISOString().slice(0, 10)}
+                  {s.title} · {s.stage ?? '—'} · since {fmtDay(s.last_move)}
                 </span>
               </li>
             ))}
@@ -262,7 +263,10 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
             </Link>
           ))}
           {funnelByOpening.size === 0 && (
-            <p className="text-sm text-ink-soft">No open roles. Open one from Openings.</p>
+            <p className="text-sm text-ink-soft">
+              No open roles yet. <Link href="/app/openings" className="text-pine underline">Create an opening</Link>,
+              publish its form, then set its status to open.
+            </p>
           )}
         </div>
       </section>

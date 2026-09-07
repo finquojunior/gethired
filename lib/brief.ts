@@ -10,6 +10,9 @@ export type SubmissionField = {
   required: boolean;
 };
 
+/** What the portal asks for when staff defined no requirements: one "either" item. */
+export const FALLBACK_REQUIREMENT: SubmissionField = { id: 'work', title: 'Your work', kind: 'either', required: true };
+
 /** Validate/normalize a stage's submission_fields value (jsonb or client JSON). */
 export function parseSubmissionFields(raw: unknown): SubmissionField[] {
   const arr = Array.isArray(raw) ? raw : [];

@@ -93,22 +93,11 @@ export async function updateOpening(formData: FormData) {
     ? orgTimeToUtc(closeDate, '23:59').toISOString()
     : null;
 
-  // poster: null keeps the current one, '' removes it, a path replaces it
-  let posterPath: string | null = null;
-  const poster = formData.get('poster');
-  if (poster instanceof File && poster.size > 0) {
-    if (poster.size > POSTER_MAX_BYTES || !POSTER_EXTS.has(path.extname(poster.name).toLowerCase())) {
-      redirect(`/app/openings/${id}?e=poster`);
-    }
-    posterPath = await saveUpload('posters', poster);
-  } else if (formData.get('removePoster')) {
-    posterPath = '';
-  }
-
+  // text fields are saved first so a bad poster never discards what was typed
   await q(
     `update public.openings set title = $2, department = $3, description = $4, status = $5,
        location = $6, employment_type = $7, salary_range = $8, close_at = $9,
-       notes = $10, consent_text = $11, poster_path = coalesce($12, poster_path)
+       notes = $10, consent_text = $11
      where id = $1`,
     [
       id,
@@ -122,12 +111,23 @@ export async function updateOpening(formData: FormData) {
       closeAt,
       String(formData.get('notes') ?? '').trim(),
       String(formData.get('consent_text') ?? '').trim().slice(0, 500),
-      posterPath,
     ]
   );
   await audit(user.id, 'update', 'opening', id, { status });
   revalidatePath(`/app/openings/${id}`);
   revalidatePath('/careers');
+
+  // poster: a new file replaces it, the checkbox removes it, otherwise unchanged
+  const poster = formData.get('poster');
+  if (poster instanceof File && poster.size > 0) {
+    if (poster.size > POSTER_MAX_BYTES || !POSTER_EXTS.has(path.extname(poster.name).toLowerCase())) {
+      redirect(`/app/openings/${id}?e=poster`);
+    }
+    await q(`update public.openings set poster_path = $2 where id = $1`, [id, await saveUpload('posters', poster)]);
+  } else if (formData.get('removePoster')) {
+    await q(`update public.openings set poster_path = '' where id = $1`, [id]);
+  }
+  redirect(`/app/openings/${id}?ok=saved`);
 }
 
 export async function saveDraftForm(openingId: number, schema: FormSchema) {
@@ -142,9 +142,9 @@ export async function saveDraftForm(openingId: number, schema: FormSchema) {
   revalidatePath(`/app/openings/${openingId}/form`);
 }
 
-export async function publishForm(openingId: number, schema: FormSchema) {
+export async function publishForm(openingId: number, schema: FormSchema): Promise<{ version: number | null }> {
   const user = await requireOpeningAccess(openingId);
-  await tx(async (c) => {
+  const version = await tx(async (c) => {
     // serialize concurrent publishes for this opening
     await c.query(`select id from public.openings where id = $1 for update`, [openingId]);
     // persist latest edits, then promote the draft and open a fresh one
@@ -157,7 +157,7 @@ export async function publishForm(openingId: number, schema: FormSchema) {
        returning id, version`,
       [openingId, JSON.stringify(schema)]
     );
-    if (!draft) return;
+    if (!draft) return null;
     await c.query(
       `update public.forms set is_published = false where opening_id = $1 and is_published`,
       [openingId]
@@ -167,10 +167,13 @@ export async function publishForm(openingId: number, schema: FormSchema) {
       `insert into public.forms (opening_id, version, schema) values ($1, $2, $3)`,
       [openingId, draft.version + 1, JSON.stringify(schema)]
     );
+    return Number(draft.version);
   });
-  await audit(user.id, 'publish_form', 'opening', openingId);
+  await audit(user.id, 'publish_form', 'opening', openingId, { version });
   revalidatePath(`/app/openings/${openingId}/form`);
+  revalidatePath(`/app/openings/${openingId}`);
   revalidatePath('/careers');
+  return { version };
 }
 
 /** Latest question set from another opening, for reuse in the builder. */
@@ -238,6 +241,63 @@ export async function deleteOpeningData(formData: FormData) {
   redirect('/app/openings');
 }
 
+/**
+ * Copy an opening's setup — stages (kinds, briefs, task days, submission
+ * requirements), the latest form schema as a new draft, and team members — into
+ * a new draft opening. Candidates, slots, and files are not copied.
+ */
+export async function cloneOpening(formData: FormData) {
+  const sourceId = Number(formData.get('openingId'));
+  const user = await requireStaff(); // creating openings is global-staff only, like createOpening
+  const {
+    rows: [src],
+  } = await q<{ title: string; department: string; description: string; location: string; employment_type: string; salary_range: string; notes: string; consent_text: string }>(
+    `select title, department, description, location, employment_type, salary_range, notes, consent_text
+     from public.openings where id = $1`,
+    [sourceId]
+  );
+  if (!src) return;
+  const title = `${src.title} (copy)`.slice(0, 200);
+  const base = slugify(title);
+  const id = await tx(async (c) => {
+    let opening;
+    for (let attempt = 0; !opening && attempt < 4; attempt++) {
+      const trySlug = attempt === 0 ? base : `${base}-${Math.random().toString(36).slice(2, 6)}`;
+      ({
+        rows: [opening],
+      } = await c.query(
+        `insert into public.openings (slug, title, department, description, location, employment_type,
+           salary_range, notes, consent_text, status, created_by)
+         values ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'draft', $10) on conflict (slug) do nothing returning id`,
+        [trySlug, title, src.department, src.description, src.location, src.employment_type,
+          src.salary_range, src.notes, src.consent_text, user.id]
+      ));
+    }
+    if (!opening) throw new Error('Could not allocate a unique link for this opening');
+    await c.query(
+      `insert into public.forms (opening_id, schema)
+       select $1, schema from public.forms where opening_id = $2
+       order by is_published desc, version desc limit 1`,
+      [opening.id, sourceId]
+    );
+    await c.query(
+      `insert into public.stages (opening_id, name, kind, position, brief, brief_links, task_days, submission_fields)
+       select $1, name, kind, position, brief, brief_links, task_days, submission_fields
+       from public.stages where opening_id = $2`,
+      [opening.id, sourceId]
+    );
+    await c.query(
+      `insert into public.opening_members (opening_id, user_id, member_role)
+       select $1, user_id, member_role from public.opening_members where opening_id = $2`,
+      [opening.id, sourceId]
+    );
+    return opening.id as number;
+  });
+  await audit(user.id, 'clone', 'opening', id, { from: sourceId });
+  revalidatePath('/app/openings');
+  redirect(`/app/openings/${id}`);
+}
+
 // --- stages ---
 
 const STAGE_KINDS = ['screen', 'task', 'interview', 'offer'];
@@ -262,12 +322,16 @@ export async function updateStage(formData: FormData) {
   const user = await requireOpeningAccess(openingId);
   if (!STAGE_KINDS.includes(String(formData.get('kind')))) return;
   await audit(user.id, 'update_stage', 'stage', Number(formData.get('stageId')));
+  // brief is only written when the form carried it — task stages edit it on the Task tab
   await q(
-    `update public.stages set name = $2, kind = $3, brief = $4 where id = $1 and opening_id = $5`,
+    `update public.stages set name = coalesce(nullif($2, ''), name), kind = $3,
+       brief = case when $4::boolean then $5 else brief end
+     where id = $1 and opening_id = $6`,
     [
       Number(formData.get('stageId')),
-      String(formData.get('name') ?? '').trim(),
+      String(formData.get('name') ?? '').trim().slice(0, 100),
       String(formData.get('kind') ?? 'screen'),
+      formData.has('brief'),
       String(formData.get('brief') ?? '').trim(),
       openingId,
     ]
@@ -379,8 +443,8 @@ export async function deleteStage(formData: FormData) {
     rows: [owned],
   } = await q(`select 1 from public.stages where id = $1 and opening_id = $2`, [stageId, openingId]);
   if (!owned) return;
-  if (active > 0) throw new Error('Move candidates out of this stage first');
-  if (booked > 0) throw new Error('This stage has booked future interviews — cancel them first');
+  if (active > 0) redirect(`/app/openings/${openingId}/stages?e=hasCandidates`);
+  if (booked > 0) redirect(`/app/openings/${openingId}/stages?e=hasBookings`);
   const {
     rows: [old],
   } = await q<{ brief_file_path: string }>(
@@ -443,21 +507,26 @@ export async function createSlots(formData: FormData) {
   const openingId = Number(formData.get('openingId'));
   const stageId = Number(formData.get('stageId'));
   const user = await requireOpeningAccess(openingId);
+  const back = `/app/openings/${openingId}/slots`;
   const {
     rows: [stageOk],
   } = await q(`select 1 from public.stages where id = $1 and opening_id = $2 and kind = 'interview'`, [stageId, openingId]);
-  if (!stageOk) return;
-  // first selected person is the primary interviewer; the rest form the panel
-  const panelIds = formData.getAll('interviewerIds').map(String).filter(Boolean);
-  const interviewerId = panelIds[0];
-  const panel = panelIds.slice(1);
-  if (!interviewerId) return;
+  if (!stageOk) redirect(`${back}?e=stage`);
+  // primary interviewer + panel checkboxes (legacy multi-select: first = primary)
+  const legacy = formData.getAll('interviewerIds').map(String).filter(Boolean);
+  const interviewerId = String(formData.get('interviewerId') ?? '') || legacy[0];
+  const panel = [...new Set([...formData.getAll('panelIds').map(String), ...legacy.slice(1)])].filter(
+    (id) => id && id !== interviewerId
+  );
+  if (!interviewerId) redirect(`${back}?e=interviewer`);
   const date = String(formData.get('date')); // YYYY-MM-DD
   const from = String(formData.get('from')); // HH:MM
   const to = String(formData.get('to'));
   const duration = Math.max(5, Number(formData.get('duration')) || 30);
   const meetingLink = String(formData.get('meetingLink') ?? '').trim().slice(0, 500);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}$/.test(from) || !/^\d{2}:\d{2}$/.test(to)) return;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}$/.test(from) || !/^\d{2}:\d{2}$/.test(to)) {
+    redirect(`${back}?e=window`);
+  }
 
   // HR enters org-local wall time; store UTC regardless of server timezone
   const start = orgTimeToUtc(date, from);
@@ -469,14 +538,15 @@ export async function createSlots(formData: FormData) {
     values.push(`($1, $2, $3, $${++p}, $4, $5, $6)`);
     params.push(t.toISOString());
   }
-  if (values.length === 0) return;
+  if (values.length === 0) redirect(`${back}?e=window`);
   await q(
     `insert into public.slots (opening_id, stage_id, interviewer_id, starts_at, duration_mins, meeting_link, panel)
      values ${values.join(', ')}`,
     params
   );
   await audit(user.id, 'create_slots', 'opening', openingId, { count: values.length, date });
-  revalidatePath(`/app/openings/${openingId}/slots`);
+  revalidatePath(back);
+  redirect(`${back}?ok=slots:${values.length}`);
 }
 
 export async function deleteSlot(formData: FormData) {

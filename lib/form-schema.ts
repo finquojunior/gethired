@@ -16,7 +16,7 @@ export type FieldType =
   | 'url'
   | 'salary';
 
-export interface Condition {
+interface Condition {
   fieldId: string;
   op: 'eq' | 'neq' | 'in';
   value: string | string[];
@@ -34,7 +34,7 @@ export interface Field {
   showIf?: Condition;
 }
 
-export interface FormPage {
+interface FormPage {
   title: string;
   fields: Field[];
 }
@@ -47,7 +47,7 @@ export type AnswerValue = string | string[] | number;
 export type Answers = Record<string, AnswerValue | undefined>;
 
 export const CHOICE_TYPES: FieldType[] = ['dropdown', 'multiple_choice', 'checkboxes', 'yes_no'];
-export const YES_NO_OPTIONS = ['Yes', 'No'];
+const YES_NO_OPTIONS = ['Yes', 'No'];
 
 export function fieldOptions(f: Field): string[] {
   return f.type === 'yes_no' ? YES_NO_OPTIONS : (f.options ?? []);

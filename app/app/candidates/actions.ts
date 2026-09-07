@@ -4,26 +4,42 @@ import path from 'node:path';
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { q, tx } from '@/lib/db';
-import { requireApplicationAccess, requireOpeningAccess } from '@/lib/auth';
+import { requireApplicationAccess, requireOpeningAccess, verifyUploadPath } from '@/lib/auth';
 import { appUrl, attemptSend, icsEvent, portalUrl, sendCustomEmail, sendEmail } from '@/lib/email';
 import { fmtDateTimeFull, fmtDay } from '@/lib/tz';
 import { audit } from '@/lib/audit';
 import { composeBriefEmail } from '@/lib/brief';
 import { freeFutureSlots, staffEmails } from '@/lib/slots';
 import { RESUME_EXTS, RESUME_MAX_BYTES, saveUpload } from '@/lib/storage';
+import { uploadedPathRe } from '@/lib/uploads';
 
-async function notifyStage(applicationIds: number[], stageId: number) {
+/** Only paths starting with /app/ may be used as a post-action redirect target. */
+function safeBack(raw: unknown, fallback: string): string {
+  const s = String(raw ?? '');
+  return /^\/app\/[^\s]*$/.test(s) && !s.startsWith('//') ? s : fallback;
+}
+
+function withParam(path: string, key: string, value: string): string {
+  const u = new URL(path, 'http://x');
+  u.searchParams.set(key, value);
+  return u.pathname + u.search;
+}
+
+/**
+ * Email candidates about a stage move. Task and interview stages always send
+ * (the mail carries instructions); the generic "moved forward" update is only
+ * sent when the move is actually forward — backwards/sideways moves are silent.
+ */
+async function notifyStage(moved: { id: number; from_stage_id: number | null }[], stageId: number) {
   const {
     rows: [stage],
-  } = await q<{ name: string; kind: string; brief: string; brief_file_path: string; brief_links: string; task_days: number; title: string }>(
-    `select s.name, s.kind, s.brief, s.brief_file_path, s.brief_links, s.task_days, o.title
+  } = await q<{ name: string; kind: string; brief: string; brief_file_path: string; brief_links: string; task_days: number; title: string; position: number }>(
+    `select s.name, s.kind, s.brief, s.brief_file_path, s.brief_links, s.task_days, s.position, o.title
      from public.stages s join public.openings o on o.id = s.opening_id
      where s.id = $1`,
     [stageId]
   );
   if (!stage) return;
-  // every stage move emails the candidate: task/interview get their specific
-  // instructions, everything else (shortlist, offer, …) a progress update
   const template =
     stage.kind === 'interview'
       ? 'interview_invite'
@@ -31,9 +47,23 @@ async function notifyStage(applicationIds: number[], stageId: number) {
         ? 'task_assigned'
         : 'stage_update';
 
+  const { rows: positions } = await q<{ id: number; position: number }>(
+    `select id, position from public.stages where id = any($1)`,
+    [moved.map((m) => m.from_stage_id).filter((x): x is number => x != null)]
+  );
+  const posOf = new Map(positions.map((p) => [Number(p.id), p.position]));
+  const ids = moved
+    .filter((m) => {
+      if (template !== 'stage_update') return true;
+      const from = m.from_stage_id != null ? posOf.get(Number(m.from_stage_id)) : undefined;
+      return from == null || stage.position > from;
+    })
+    .map((m) => m.id);
+  if (ids.length === 0) return;
+
   const { rows: apps } = await q<{ id: number; name: string; email: string; portal_token: string }>(
     `select id, name, email, portal_token from public.applications where id = any($1)`,
-    [applicationIds]
+    [ids]
   );
   for (const a of apps) {
     await sendEmail({
@@ -59,11 +89,16 @@ async function notifyStage(applicationIds: number[], stageId: number) {
   }
 }
 
-const freeSlots = freeFutureSlots;
-
-async function moveApplications(userId: string, openingId: number, ids: number[], stageId: number) {
+/** Move candidates; returns how many actually changed stage. */
+async function moveApplications(
+  userId: string,
+  openingId: number,
+  ids: number[],
+  stageId: number,
+  email: boolean
+): Promise<number> {
   const moved = await tx(async (c) => {
-    const { rows } = await c.query(
+    const { rows } = await c.query<{ id: number; from_stage_id: number | null }>(
       `update public.applications a set current_stage_id = $2
        from public.applications old
        where old.id = a.id and a.id = any($1) and a.opening_id = $3
@@ -78,35 +113,43 @@ async function moveApplications(userId: string, openingId: number, ids: number[]
         [rows.map((m) => m.id), rows.map((m) => m.from_stage_id), stageId, userId]
       );
     }
-    return rows.map((m) => m.id as number);
+    return rows.map((m) => ({ id: Number(m.id), from_stage_id: m.from_stage_id }));
   });
   if (moved.length > 0) {
-    await freeSlots(moved, stageId);
-    await notifyStage(moved, stageId);
-    await audit(userId, 'move_stage', 'application', moved.join(','), { stageId });
+    const movedIds = moved.map((m) => m.id);
+    await freeFutureSlots(movedIds, stageId, { notifyCandidate: email });
+    if (email) await notifyStage(moved, stageId);
+    await audit(userId, 'move_stage', 'application', movedIds.join(','), { stageId, email });
   }
+  return moved.length;
 }
 
-/** Single-candidate move for the board view's drag-drop. */
+/** Single-candidate move for the board view's drag-drop (always emails; the board confirms first). */
 export async function moveOne(openingId: number, applicationId: number, stageId: number) {
   const user = await requireOpeningAccess(openingId);
-  await moveApplications(user.id, openingId, [applicationId], stageId);
+  await moveApplications(user.id, openingId, [applicationId], stageId, true);
   revalidatePath(`/app/openings/${openingId}/applications`);
   revalidatePath(`/app/candidates/${applicationId}`);
 }
 
-/** Bulk pipeline action from the applications table (move / reject / restore / hire). */
+/**
+ * Bulk pipeline action from the applications table and the candidate page
+ * (move / reject / restore / hire / withdraw). Redirects back to `back` with
+ * `?ok=<intent>:<n>` or `?e=nothing` so the page can report what happened.
+ */
 export async function bulkPipeline(formData: FormData) {
   const openingId = Number(formData.get('openingId'));
   const user = await requireOpeningAccess(openingId);
   const ids = formData.getAll('appId').map(Number).filter(Boolean);
   const intent = String(formData.get('intent'));
-  if (ids.length === 0) return;
+  const back = safeBack(formData.get('back'), `/app/openings/${openingId}/applications`);
+  if (ids.length === 0) redirect(withParam(back, 'e', 'nothing'));
 
+  let n = 0;
   if (intent === 'move') {
     const stageId = Number(formData.get('stageId'));
-    if (!stageId) return;
-    await moveApplications(user.id, openingId, ids, stageId);
+    if (!stageId) redirect(withParam(back, 'e', 'nothing'));
+    n = await moveApplications(user.id, openingId, ids, stageId, formData.get('notify') != null);
   } else if (intent === 'reject_send' || intent === 'reject_draft') {
     const { rows: apps } = await q<{ id: number; name: string; email: string; title: string }>(
       `update public.applications a set status = 'rejected'
@@ -115,7 +158,7 @@ export async function bulkPipeline(formData: FormData) {
        returning a.id, a.name, a.email, o.title`,
       [ids, openingId]
     );
-    await freeSlots(apps.map((a) => a.id), null);
+    await freeFutureSlots(apps.map((a) => a.id), null);
     for (const a of apps) {
       await sendEmail({
         applicationId: a.id,
@@ -126,10 +169,21 @@ export async function bulkPipeline(formData: FormData) {
         draft: intent === 'reject_draft',
       });
     }
+    n = apps.length;
     await audit(user.id, 'reject', 'application', ids.join(','));
+  } else if (intent === 'withdraw') {
+    // staff records a withdrawal the candidate made by phone/mail — no email
+    const { rowCount } = await q(
+      `update public.applications set status = 'withdrawn'
+       where id = any($1) and opening_id = $2 and status = 'active'`,
+      [ids, openingId]
+    );
+    await freeFutureSlots(ids, null);
+    n = rowCount ?? 0;
+    await audit(user.id, 'withdraw', 'application', ids.join(','));
   } else if (intent === 'restore') {
-    await q(
-      `update public.applications set status = 'active' where id = any($1) and opening_id = $2`,
+    const { rowCount } = await q(
+      `update public.applications set status = 'active' where id = any($1) and opening_id = $2 and status <> 'active'`,
       [ids, openingId]
     );
     // cancel rejection emails not yet delivered (drafts or queued retries)
@@ -138,6 +192,7 @@ export async function bulkPipeline(formData: FormData) {
        where application_id = any($1) and template = 'rejection' and status in ('draft', 'pending', 'failed')`,
       [ids]
     );
+    n = rowCount ?? 0;
     await audit(user.id, 'restore', 'application', ids.join(','));
   } else if (intent === 'hire') {
     const { rows: hired } = await q<{ id: number; name: string; email: string; title: string }>(
@@ -155,10 +210,39 @@ export async function bulkPipeline(formData: FormData) {
         vars: { name: a.name, role: a.title },
       });
     }
+    n = hired.length;
     await audit(user.id, 'hire', 'application', ids.join(','));
+  } else {
+    redirect(withParam(back, 'e', 'nothing'));
   }
   revalidatePath(`/app/openings/${openingId}/applications`);
   for (const id of ids) revalidatePath(`/app/candidates/${id}`);
+  redirect(n === 0 ? withParam(back, 'e', 'nothing') : withParam(back, 'ok', `${intent}:${n}`));
+}
+
+/** Staff edits a candidate's contact details (typos from walk-in entry). */
+export async function updateCandidate(formData: FormData) {
+  const applicationId = Number(formData.get('applicationId'));
+  const { user } = await requireApplicationAccess(applicationId);
+  const name = String(formData.get('name') ?? '').trim().slice(0, 200);
+  const email = String(formData.get('email') ?? '').trim().toLowerCase();
+  const phone = String(formData.get('phone') ?? '').trim().slice(0, 50);
+  const back = `/app/candidates/${applicationId}`;
+  if (!name || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) redirect(`${back}?e=invalid`);
+  try {
+    await q(`update public.applications set name = $2, email = $3, phone = $4 where id = $1`, [
+      applicationId,
+      name,
+      email,
+      phone,
+    ]);
+  } catch (e) {
+    if ((e as { code?: string }).code === '23505') redirect(`${back}?e=duplicate`);
+    throw e;
+  }
+  await audit(user.id, 'update_candidate', 'application', applicationId);
+  revalidatePath(back);
+  redirect(`${back}?ok=saved`);
 }
 
 /** Staff manually adds a candidate (walk-in / WhatsApp resume). */
@@ -175,7 +259,16 @@ export async function addCandidate(formData: FormData) {
   if (!name || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) redirect(`${back}?e=invalid`);
 
   let resumePath = '';
-  if (resume instanceof File && resume.size > 0) {
+  const preUploaded = String(formData.get('resumePath') ?? '');
+  if (preUploaded) {
+    // browser uploaded straight to storage (Vercel body cap); the path must be
+    // one our upload-url route minted, proven by its signature
+    const sig = String(formData.get('resumeSig') ?? '');
+    if (!uploadedPathRe('resumes').test(preUploaded) || !sig || !verifyUploadPath(0, preUploaded, sig)) {
+      redirect(`${back}?e=resume`);
+    }
+    resumePath = preUploaded;
+  } else if (resume instanceof File && resume.size > 0) {
     if (resume.size > RESUME_MAX_BYTES || !RESUME_EXTS.has(path.extname(resume.name).toLowerCase())) {
       redirect(`${back}?e=resume`);
     }
@@ -222,7 +315,7 @@ export async function addCandidate(formData: FormData) {
     throw e;
   }
   await audit(user.id, 'add_candidate', 'application', appId);
-  redirect(`/app/candidates/${appId}`);
+  redirect(`/app/candidates/${appId}?ok=added`);
 }
 
 /** Bulk import from the old Excel workflow (CSV: name,email,phone,status,notes). */
@@ -248,10 +341,14 @@ export async function importCsv(formData: FormData) {
   );
   const VALID = new Set(['active', 'hired', 'rejected', 'withdrawn']);
   let imported = 0;
+  let skipped = 0;
   for (const r of rows.slice(0, 1000)) {
     const name = col(r, 'name').slice(0, 200);
     const email = col(r, 'email').toLowerCase();
-    if (!name || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) continue;
+    if (!name || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+      skipped++;
+      continue;
+    }
     const status = VALID.has(col(r, 'status')) ? col(r, 'status') : 'active';
     try {
       const {
@@ -272,10 +369,11 @@ export async function importCsv(formData: FormData) {
       imported++;
     } catch (e) {
       if ((e as { code?: string }).code !== '23505') throw e; // duplicates skipped
+      skipped++;
     }
   }
-  await audit(user.id, 'import_csv', 'opening', openingId, { imported });
-  redirect(`/app/openings/${openingId}/applications`);
+  await audit(user.id, 'import_csv', 'opening', openingId, { imported, skipped });
+  redirect(`/app/openings/${openingId}/applications?imported=${imported}&skipped=${skipped}`);
 }
 
 /** One-off email from a candidate profile. */
@@ -340,7 +438,7 @@ export async function staffBookSlot(formData: FormData) {
        (select u.email from auth.users u where u.id = p.id) as interviewer_email, sl.panel`,
     [a.id, slotId, a.stage_id]
   );
-  if (!slot) return;
+  if (!slot) redirect(`/app/candidates/${applicationId}?e=taken`);
   const when = fmtDateTimeFull(slot.starts_at);
   const ics = icsEvent({
     title: `Interview — ${a.title}`,
@@ -373,15 +471,18 @@ export async function staffBookSlot(formData: FormData) {
   }
   await audit(user.id, 'book_slot', 'application', applicationId, { slotId });
   revalidatePath(`/app/candidates/${applicationId}`);
+  redirect(`/app/candidates/${applicationId}?ok=booked`);
 }
 
-/** Staff cancels a candidate's future booking. */
+/** Staff cancels one of a candidate's future bookings; interviewer and candidate are emailed. */
 export async function staffCancelSlot(formData: FormData) {
   const applicationId = Number(formData.get('applicationId'));
   const { user } = await requireApplicationAccess(applicationId);
-  await freeSlots([applicationId], null);
-  await audit(user.id, 'cancel_slot', 'application', applicationId);
+  const slotId = Number(formData.get('slotId')) || null;
+  const n = await freeFutureSlots([applicationId], null, { slotId, notifyCandidate: true });
+  await audit(user.id, 'cancel_slot', 'application', applicationId, { slotId });
   revalidatePath(`/app/candidates/${applicationId}`);
+  redirect(`/app/candidates/${applicationId}?${n ? 'ok=cancelled' : 'e=nothing'}`);
 }
 
 /** Add / remove a tag on a candidate. */

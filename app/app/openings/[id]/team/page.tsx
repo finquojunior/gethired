@@ -4,9 +4,18 @@ import { notFound } from 'next/navigation';
 import { q } from '@/lib/db';
 import { canAccessOpening, currentUser, isStaff } from '@/lib/auth';
 import SubmitButton from '@/components/SubmitButton';
+import OpeningTabs from '@/components/OpeningTabs';
 import { addMember, removeMember } from '../../actions';
 
 export const dynamic = 'force-dynamic';
+
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const {
+    rows: [o],
+  } = await q<{ title: string }>('select title from public.openings where id = $1', [Number(id)]);
+  return { title: o ? `${o.title} · Team` : 'Team' };
+}
 
 export default async function TeamPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -43,6 +52,7 @@ export default async function TeamPage({ params }: { params: Promise<{ id: strin
         </Link>{' '}
         · Team
       </h1>
+      <OpeningTabs openingId={openingId} current="team" />
       <p className="mt-4 text-sm text-ink-soft">
         Everyone added here can do everything in this opening: review candidates, move stages,
         book interviews, email, and edit the setup. Admins and HR have access to every opening
@@ -64,7 +74,7 @@ export default async function TeamPage({ params }: { params: Promise<{ id: strin
               <form action={removeMember}>
                 <input type="hidden" name="openingId" value={openingId} />
                 <input type="hidden" name="userId" value={m.user_id} />
-                <SubmitButton className="text-sm text-rust hover:underline" pendingLabel="…" doneMessage="Removed from opening">Remove</SubmitButton>
+                <SubmitButton className="btn-danger !py-1 text-sm" pendingLabel="Removing…" doneMessage="Removed from opening" confirmText={`Remove ${m.full_name} from this opening? They lose access to its candidates unless they hold an interview slot.`}>Remove</SubmitButton>
               </form>
               )}
             </div>
@@ -81,7 +91,7 @@ export default async function TeamPage({ params }: { params: Promise<{ id: strin
       <form action={addMember} className="mt-6 flex flex-wrap items-end gap-2">
         <input type="hidden" name="openingId" value={openingId} />
         <div className="min-w-56 flex-1">
-          <label className="field-label" htmlFor="member">Person</label>
+          <label className="field-label" htmlFor="member">Person *</label>
           <select id="member" name="userId" className="input">
             {people
               .filter((p) => !members.some((m) => m.user_id === p.id))
