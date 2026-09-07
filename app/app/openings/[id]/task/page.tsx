@@ -3,7 +3,7 @@ import BackButton from '@/components/BackButton';
 import { notFound } from 'next/navigation';
 import { q } from '@/lib/db';
 import { fmtDate, fmtDateTime, fmtDay } from '@/lib/tz';
-import { TASK_ACCEPT, TASK_MAX_BYTES } from '@/lib/uploads';
+import { TASK_MAX_BYTES, TASK_TYPE_HELP } from '@/lib/uploads';
 import { briefLinks, parseSubmissionFields } from '@/lib/brief';
 import SubmissionFieldsEditor from '@/components/SubmissionFieldsEditor';
 import { directUploads } from '@/lib/storage';
@@ -108,7 +108,7 @@ export default async function TaskPage({
 
       {errorCode === 'file' && (
         <p className="mt-4 rounded-md bg-rust/10 px-4 py-3 text-sm text-rust">
-          Document upload failed. Use PDF, Word, or ZIP up to 16 MB.
+          Document upload failed. {TASK_TYPE_HELP}
         </p>
       )}
 
@@ -205,7 +205,7 @@ export default async function TaskPage({
                     </label>
                   </p>
                 )}
-                <input type="file" name="document" accept={TASK_ACCEPT} className="input" />
+                <input type="file" name="document" className="input" />
               </div>
 
               <div>

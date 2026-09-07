@@ -5,7 +5,7 @@ import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { q, tx } from '@/lib/db';
 import { currentUser, isStaff } from '@/lib/auth';
-import { appUrl, icsEvent, portalUrl, sendCustomEmail, sendEmail } from '@/lib/email';
+import { appUrl, attemptSend, icsEvent, portalUrl, sendCustomEmail, sendEmail } from '@/lib/email';
 import { fmtDateTimeFull, fmtDay } from '@/lib/tz';
 import { audit } from '@/lib/audit';
 import { composeBriefEmail } from '@/lib/brief';
@@ -298,6 +298,27 @@ export async function composeEmail(formData: FormData) {
   await sendCustomEmail(applicationId, app.email, subject, body);
   const user = await currentUser();
   await audit(user.id, 'email_candidate', 'application', applicationId, { subject });
+  revalidatePath(`/app/candidates/${applicationId}`);
+}
+
+/** Send an already-logged email again, as a new outbox row, to the candidate's current address. */
+export async function resendEmail(formData: FormData) {
+  const user = await requireStaff();
+  const emailId = Number(formData.get('emailId'));
+  const applicationId = Number(formData.get('applicationId'));
+  const {
+    rows: [row],
+  } = await q<{ id: number }>(
+    `insert into public.email_log (application_id, template, to_email, subject, body, ics, status)
+     select e.application_id, e.template, a.email, e.subject, e.body, e.ics, 'pending'
+     from public.email_log e join public.applications a on a.id = e.application_id
+     where e.id = $1 and e.application_id = $2 and e.status in ('sent', 'failed')
+     returning id`,
+    [emailId, applicationId]
+  );
+  if (!row) return;
+  await attemptSend(row.id);
+  await audit(user.id, 'resend_email', 'application', applicationId, { emailId, newEmailId: row.id });
   revalidatePath(`/app/candidates/${applicationId}`);
 }
 

@@ -10,7 +10,7 @@ import { orgTimeToUtc } from '@/lib/tz';
 import { EMPTY_SCHEMA, type FormSchema } from '@/lib/form-schema';
 import { parseSubmissionFields } from '@/lib/brief';
 import { deleteFile, saveUpload } from '@/lib/storage';
-import { POSTER_EXTS, POSTER_MAX_BYTES, TASK_EXTS, TASK_MAX_BYTES, uploadedPathRe } from '@/lib/uploads';
+import { POSTER_EXTS, POSTER_MAX_BYTES, TASK_MAX_BYTES, taskExt, uploadedPathRe } from '@/lib/uploads';
 
 const DEFAULT_STAGES: Array<[string, string]> = [
   ['Applied', 'screen'],
@@ -305,7 +305,7 @@ export async function updateTaskMaterials(formData: FormData) {
     if (!uploadedPathRe('briefs').test(preUploaded)) redirect(`/app/openings/${openingId}/task?e=file`);
     docPath = preUploaded;
   } else if (doc instanceof File && doc.size > 0) {
-    if (doc.size > TASK_MAX_BYTES || !TASK_EXTS.has(path.extname(doc.name).toLowerCase())) {
+    if (doc.size > TASK_MAX_BYTES || taskExt(doc.name) === null) {
       redirect(`/app/openings/${openingId}/task?e=file`);
     }
     docPath = await saveUpload('briefs', doc);

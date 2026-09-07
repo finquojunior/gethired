@@ -1,6 +1,14 @@
 'use client';
 
 import { useRef, useState } from 'react';
+import { TASK_TYPE_HELP } from '@/lib/uploads';
+
+function uploadErrorText(e: unknown): string {
+  const status = e instanceof Error ? e.message : '';
+  if (status === '400') return `That file type is not accepted. ${TASK_TYPE_HELP}`;
+  if (status === '429') return 'Too many upload attempts — wait a few minutes and try again.';
+  return 'Upload failed — check your connection and try again. If it keeps failing, zip the file and retry.';
+}
 
 type Requirement = {
   id: string;
@@ -27,7 +35,7 @@ export default function TaskSubmitForm({
   signUrl: string;
   direct: boolean;
   maxBytes: number;
-  accept: string;
+  accept?: string;
   requirements: Requirement[];
 }) {
   const ref = useRef<HTMLFormElement>(null);
@@ -79,8 +87,10 @@ export default function TaskSubmitForm({
     e.preventDefault();
     setBusy(true);
     setError('');
+    let current = '';
     try {
       for (const it of withFiles) {
+        current = it.r.title;
         const res = await fetch(signUrl, {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
@@ -100,8 +110,8 @@ export default function TaskSubmitForm({
       }
       passthrough.current = true;
       el.requestSubmit();
-    } catch {
-      setError('Upload failed — check the file types and try again.');
+    } catch (err) {
+      setError(`"${current}": ${uploadErrorText(err)}`);
     } finally {
       setBusy(false);
     }

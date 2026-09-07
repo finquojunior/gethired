@@ -14,6 +14,7 @@ import {
   addNote,
   bulkPipeline,
   composeEmail,
+  resendEmail,
   staffBookSlot,
   staffCancelSlot,
   updateTags,
@@ -113,8 +114,8 @@ export default async function CandidatePage({
          where sl.application_id = $1 order by sl.starts_at`,
         [appId]
       ),
-      q<{ template: string; subject: string; created_at: Date }>(
-        `select template, subject, created_at from public.email_log
+      q<{ id: number; template: string; subject: string; status: string; created_at: Date }>(
+        `select id, template, subject, status, created_at from public.email_log
          where application_id = $1 order by id desc`,
         [appId]
       ),
@@ -196,9 +197,10 @@ export default async function CandidatePage({
     ...emails.map((e) => ({
       at: e.created_at,
       kind: 'email' as const,
-      text: 'Email: ',
+      text: e.status === 'sent' ? 'Email: ' : `Email (${e.status}): `,
       strong: e.subject,
       extra: '',
+      emailId: e.status === 'sent' || e.status === 'failed' ? e.id : undefined,
     })),
     ...responses.map((r, i) => ({
       at: r.created_at,
@@ -468,6 +470,15 @@ export default async function CandidatePage({
                     {t.text}
                     <strong>{t.strong}</strong>
                     <span className="text-ink-soft"> · {fmt(t.at)}{t.extra ? ` · ${t.extra}` : ''}</span>
+                    {'emailId' in t && t.emailId && (
+                      <form action={resendEmail} className="ml-2 inline">
+                        <input type="hidden" name="applicationId" value={a.id} />
+                        <input type="hidden" name="emailId" value={t.emailId} />
+                        <SubmitButton className="text-xs text-pine underline" pendingLabel="Resending…" doneMessage="Email resent">
+                          Resend
+                        </SubmitButton>
+                      </form>
+                    )}
                   </span>
                 </li>
               ))}

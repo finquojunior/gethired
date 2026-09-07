@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation';
 import { q } from '@/lib/db';
 import { fmtDate, fmtDay, fmtSlot } from '@/lib/tz';
-import { TASK_ACCEPT, TASK_MAX_BYTES } from '@/lib/uploads';
+import { TASK_MAX_BYTES, TASK_TYPE_HELP } from '@/lib/uploads';
 import { allFields, type FormSchema } from '@/lib/form-schema';
 import LinkifyText from '@/components/LinkifyText';
 import TaskSubmitForm from '@/components/TaskSubmitForm';
@@ -28,7 +28,7 @@ const OK_TEXT: Record<string, string> = {
 
 const ERROR_TEXT: Record<string, string> = {
   taken: 'That slot was just taken — pick another one.',
-  file: 'Submission failed — check what the task asks for: a file (PDF, Word, or ZIP up to 16 MB) and/or a valid link starting with http.',
+  file: `Submission failed — check what the task asks for: a file (${TASK_TYPE_HELP}) and/or a valid link starting with http.`,
 };
 
 const KIND_TEXT: Record<string, string> = {
@@ -318,7 +318,6 @@ export default async function PortalPage({
               signUrl={`/c/${token}/upload-url`}
               direct={directUploads}
               maxBytes={TASK_MAX_BYTES}
-              accept={TASK_ACCEPT}
               requirements={requirements.map((r) => {
                 const done = doneByField.get(r.id);
                 return { ...r, done: done ? fmt(done) : null };

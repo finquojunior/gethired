@@ -1,11 +1,10 @@
-import path from 'node:path';
 import { NextResponse, type NextRequest } from 'next/server';
 import { q } from '@/lib/db';
 import { audit } from '@/lib/audit';
 import { clientIp, rateLimit } from '@/lib/ratelimit';
 import { verifyUploadPath } from '@/lib/auth';
-import { saveUpload, TASK_EXTS, TASK_MAX_BYTES } from '@/lib/storage';
-import { uploadedPathRe } from '@/lib/uploads';
+import { saveUpload, TASK_MAX_BYTES } from '@/lib/storage';
+import { taskExt, uploadedPathRe } from '@/lib/uploads';
 import { parseSubmissionFields } from '@/lib/brief';
 
 // One POST submits the whole task: per requirement, either a browser-direct
@@ -67,7 +66,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ token: str
       } else {
         const file = fd.get(`file_${f.id}`);
         if (file instanceof File && file.size > 0) {
-          if (file.size > TASK_MAX_BYTES || !TASK_EXTS.has(path.extname(file.name).toLowerCase())) {
+          if (file.size > TASK_MAX_BYTES || taskExt(file.name) === null) {
             return back('?e=file');
           }
           relPath = await saveUpload('submissions', file);

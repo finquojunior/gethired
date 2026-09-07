@@ -1,15 +1,14 @@
-import path from 'node:path';
 import { NextResponse, type NextRequest } from 'next/server';
 import { q } from '@/lib/db';
 import { signUploadPath } from '@/lib/auth';
 import { clientIp, rateLimit } from '@/lib/ratelimit';
 import { createSignedUpload } from '@/lib/storage';
-import { TASK_EXTS } from '@/lib/uploads';
+import { taskExt } from '@/lib/uploads';
 
 /** Candidate: mint a direct upload URL for a task submission. */
 export async function POST(req: NextRequest, ctx: { params: Promise<{ token: string }> }) {
   const { token } = await ctx.params;
-  if (!rateLimit(`upload-url:${clientIp(req.headers)}`, 10, 5 * 60_000)) {
+  if (!rateLimit(`upload-url:${clientIp(req.headers)}`, 40, 5 * 60_000)) {
     return new NextResponse('Too many requests', { status: 429 });
   }
 
@@ -25,8 +24,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ token: str
   if (!a || a.kind !== 'task') return new NextResponse('Not found', { status: 404 });
 
   const { name } = await req.json().catch(() => ({ name: '' }));
-  const ext = path.extname(String(name ?? '')).toLowerCase();
-  if (!TASK_EXTS.has(ext)) return new NextResponse('Bad file type', { status: 400 });
+  const ext = taskExt(String(name ?? ''));
+  if (ext === null) return new NextResponse('Bad file type', { status: 400 });
 
   const signed = await createSignedUpload('submissions', ext);
   if (!signed) return new NextResponse('Direct upload unavailable', { status: 404 });

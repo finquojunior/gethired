@@ -12,7 +12,7 @@ import { Readable } from 'node:stream';
 // nothing else in the app knows which one is active.
 
 export const FILES_ROOT = path.join(process.cwd(), 'db', 'files');
-export { RESUME_MAX_BYTES, RESUME_EXTS, TASK_MAX_BYTES, TASK_EXTS } from '@/lib/uploads';
+export { RESUME_MAX_BYTES, RESUME_EXTS, TASK_MAX_BYTES } from '@/lib/uploads';
 
 const SUPA = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
 // accept both the classic service_role key and the new-style secret key that
