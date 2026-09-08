@@ -1,5 +1,11 @@
-import { q } from '@/lib/db';
-import { sendPlan, type MailService } from '@/lib/mailplan';
+// Relative + explicit .ts extension (not the usual '@/lib/...' alias): tests import this
+// file directly via plain `node --experimental-strip-types`, which has no alias resolution
+// and requires a literal extension on ESM specifiers. tsc flags the '.ts' extension as
+// TS5097 without allowImportingTsExtensions, hence the ts-ignore.
+// @ts-ignore
+import { q } from './db.ts';
+// @ts-ignore
+import { sendPlan, type MailService } from './mailplan.ts';
 
 // Outbox email: every send is a row in email_log first (status pending),
 // then delivered — immediately for normal sends, or by the cron for delayed
@@ -85,6 +91,16 @@ export const DEFAULT_TEMPLATES: Record<string, { subject: string; body: string; 
     subject: 'Application withdrawn — {{role}} at {{org}}',
     body: `Hi {{name}},\n\nYou've withdrawn your application for {{role}}. Thanks for your interest — we'd be glad to see you apply again in future.\n\nIf this was a mistake, reply to this email and we'll restore it.\n` + SIGN,
     vars: ['name', 'role'],
+  },
+  task_review: {
+    subject: 'Your task for {{role}} is under review — {{org}}',
+    body: `Hi {{name}},\n\nThanks for sending in your task for {{role}}. Your submission is now under review and we'll get back to you with the next step.\n\nYour application status:\n{{portal_link}}\n` + SIGN,
+    vars: ['name', 'role', 'portal_link'],
+  },
+  interview_review: {
+    subject: 'Thanks for interviewing — {{role}} at {{org}}',
+    body: `Hi {{name}},\n\nThanks for taking the time to interview for {{role}}. Your interview is complete and your application is now under review; we'll be in touch with the outcome.\n\nYour application status:\n{{portal_link}}\n` + SIGN,
+    vars: ['name', 'role', 'portal_link'],
   },
   interviewer_booked: {
     subject: 'Interview booked: {{name}} — {{role}}',

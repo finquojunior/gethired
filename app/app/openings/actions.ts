@@ -16,7 +16,9 @@ const DEFAULT_STAGES: Array<[string, string]> = [
   ['Applied', 'screen'],
   ['Shortlist', 'screen'],
   ['Task', 'task'],
+  ['Task review', 'task_review'],
   ['Interview', 'interview'],
+  ['Interview review', 'interview_review'],
   ['Offer', 'offer'],
 ];
 

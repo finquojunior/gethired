@@ -10,11 +10,13 @@ import { addStage, deleteStage, shiftStage, updateStage } from '../../actions';
 
 export const dynamic = 'force-dynamic';
 
-const KINDS = ['screen', 'task', 'interview', 'offer'];
+const KINDS = ['screen', 'task', 'task_review', 'interview', 'interview_review', 'offer'];
 const KIND_HELP: Record<string, string> = {
   screen: 'plain review step — moving a candidate here forward sends a short progress email',
   task: 'unlocks the Task tab; moving a candidate here emails the brief and opens submissions in their portal',
+  task_review: 'where candidates land automatically once their task is scored; emails "your task is under review"',
   interview: 'enables Interview slots; moving a candidate here emails an invite to pick a slot',
+  interview_review: 'where candidates land automatically once the interview is marked completed and rated; emails "thanks for interviewing"',
   offer: 'feeds the "At offer stage" dashboard count',
 };
 const ERRORS: Record<string, string> = {
