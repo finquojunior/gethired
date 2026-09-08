@@ -12,6 +12,22 @@ import SubmitButton from '@/components/SubmitButton';
 import DirectUploadForm from '@/components/DirectUploadForm';
 import OpeningTabs from '@/components/OpeningTabs';
 import { updateTaskMaterials } from '../../actions';
+import { bulkPipeline } from '@/app/app/candidates/actions';
+import { pipelineFlash } from '@/app/app/candidates/flash';
+import SelectAll, { SelectedCount } from '@/components/SelectAll';
+import BulkProgress from '@/components/BulkProgress';
+import Flash from '@/components/Flash';
+import { AlertTriangle } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Alert, AlertTitle } from '@/components/ui/alert';
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Field, FieldDescription } from '@/components/ui/field';
+import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,10 +44,11 @@ export default async function TaskPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ e?: string }>;
+  searchParams: Promise<{ ok?: string; e?: string }>;
 }) {
   const { id } = await params;
-  const { e: errorCode } = await searchParams;
+  const { ok, e: errorCode } = await searchParams;
+  const flash = pipelineFlash(ok, errorCode);
   const openingId = Number(id);
   const {
     rows: [opening],
@@ -71,6 +88,8 @@ export default async function TaskPage({
     submitted_at: Date | null;
     submission_count: number;
     response: string | null;
+    latest_rating: number | null;
+    rating_count: number;
   }>(
     `select s.id as stage_id, a.id, a.name, a.status, cs.name as current_stage,
             case when s.task_days > 0 then
@@ -84,7 +103,12 @@ export default async function TaskPage({
             (select max(su.created_at) from public.submissions su
               where su.application_id = a.id and su.stage_id = s.id) as submitted_at,
             (select count(*)::int from public.submissions su
-              where su.application_id = a.id and su.stage_id = s.id) as submission_count
+              where su.application_id = a.id and su.stage_id = s.id) as submission_count,
+            (select f.rating from public.feedback f
+              where f.application_id = a.id and f.stage_id = s.id and f.rating is not null
+              order by f.updated_at desc limit 1) as latest_rating,
+            (select count(*)::int from public.feedback f
+              where f.application_id = a.id and f.stage_id = s.id and f.rating is not null) as rating_count
      from public.stages s
      join public.applications a on a.opening_id = s.opening_id and (
        a.current_stage_id = s.id or exists (
@@ -102,36 +126,44 @@ export default async function TaskPage({
     candidatesByStage.get(c.stage_id)!.push(c);
   }
 
+  const { rows: allStages } = await q<{ id: number; name: string }>(
+    `select id, name from public.stages where opening_id = $1 order by position`,
+    [openingId]
+  );
+
   return (
     <div>
+      <Flash kind={flash?.kind ?? 'success'} message={flash?.message} />
       <BackButton fallback={`/app/openings/${openingId}`} />
       <h1 className="track font-display text-3xl font-bold">
-        <Link href={`/app/openings/${openingId}`} className="text-ink-soft hover:underline">
+        <Link href={`/app/openings/${openingId}`} className="text-muted-foreground hover:underline">
           {opening.title}
         </Link>{' '}
         · Task
       </h1>
       <OpeningTabs openingId={openingId} current="task" />
-      <p className="mt-4 text-sm text-ink-soft">
+      <p className="mt-4 text-sm text-muted-foreground">
         The brief, reference links, and document below are shown on the candidate&apos;s status page.
         Moving a candidate into the task stage emails them the brief and links; the document is
         downloadable from their portal.
       </p>
 
       {errorCode === 'file' && (
-        <p className="mt-4 rounded-md bg-rust/10 px-4 py-3 text-sm text-rust">
-          Document upload failed. {TASK_TYPE_HELP}
-        </p>
+        <Alert variant="destructive" className="mt-4">
+          <AlertTriangle />
+          <AlertTitle>Document upload failed. {TASK_TYPE_HELP}</AlertTitle>
+        </Alert>
       )}
 
       {tasks.length === 0 && (
-        <p className="mt-8 rounded-lg border border-line bg-card p-5 text-sm text-ink-soft">
-          This opening has no task stage.{' '}
-          <Link href={`/app/openings/${openingId}/stages`} className="text-pine underline">
-            Add one on the Stages page
-          </Link>{' '}
-          (kind: task), then define the brief here.
-        </p>
+        <Empty className="mt-8 border bg-card">
+          <EmptyHeader>
+            <EmptyTitle>This opening has no task stage.</EmptyTitle>
+            <EmptyDescription>
+              <Link href={`/app/openings/${openingId}/stages`}>Add one on the Stages page</Link> (kind: task), then define the brief here.
+            </EmptyDescription>
+          </EmptyHeader>
+        </Empty>
       )}
 
       <div className="mt-8 space-y-6">
@@ -144,102 +176,98 @@ export default async function TaskPage({
             maxBytes={TASK_MAX_BYTES}
             action={updateTaskMaterials}
             encType="multipart/form-data"
-            className="rounded-lg border border-line bg-card p-5"
+            className="rounded-xl bg-card p-4 ring-1 ring-foreground/10"
           >
             <input type="hidden" name="openingId" value={openingId} />
             <input type="hidden" name="stageId" value={t.id} />
             <input type="hidden" name="documentPath" defaultValue="" />
             <div className="flex flex-wrap items-center gap-3">
               <h2 className="font-display text-lg font-semibold">{t.name}</h2>
-              <span className="text-sm text-ink-soft">{t.active} active in this stage</span>
+              <span className="text-sm text-muted-foreground">{t.active} active in this stage</span>
               <Link
                 href={`/app/openings/${openingId}/applications?stage=${t.id}`}
-                className="text-sm text-pine underline"
+                className="text-sm text-primary underline"
               >
                 {t.submitted} submitted
               </Link>
             </div>
 
             <div className="mt-4 space-y-4">
-              <div>
-                <label className="field-label" htmlFor={`brief-${t.id}`}>Brief</label>
-                <textarea
+              <Field>
+                <Label htmlFor={`brief-${t.id}`}>Brief</Label>
+                <Textarea
                   id={`brief-${t.id}`}
                   name="brief"
                   rows={5}
                   defaultValue={t.brief}
-                  placeholder="Task instructions sent to the candidate…"
-                  className="input"
-                />
-              </div>
+                  placeholder="Task instructions sent to the candidate…" />
+              </Field>
 
-              <div>
-                <label className="field-label" htmlFor={`days-${t.id}`}>Days to complete</label>
-                <p className="mb-2 text-xs text-ink-soft">
+              <Field>
+                <Label htmlFor={`days-${t.id}`}>Days to complete</Label>
+                <FieldDescription>
                   Each candidate&apos;s deadline is counted from the day they were moved into this
                   stage. Leave 0 for no deadline.
-                </p>
-                <input
+                </FieldDescription>
+                <Input
                   id={`days-${t.id}`}
                   type="number"
                   name="taskDays"
                   min={0}
                   max={365}
                   defaultValue={t.task_days}
-                  className="input w-32"
+                  className="w-32!"
                 />
-              </div>
+              </Field>
 
-              <div>
-                <label className="field-label" htmlFor={`links-${t.id}`}>Links (one per line, must start with http)</label>
-                <textarea
+              <Field>
+                <Label htmlFor={`links-${t.id}`}>Links (one per line, must start with http)</Label>
+                <Textarea
                   id={`links-${t.id}`}
                   name="links"
                   rows={3}
                   defaultValue={t.brief_links}
-                  placeholder={'https://github.com/…\nhttps://docs.google.com/…'}
-                  className="input font-mono text-sm"
-                />
-              </div>
+                  placeholder={'https://github.com/…\nhttps://docs.google.com/…'} className="font-mono text-sm" />
+              </Field>
 
-              <div>
-                <label className="field-label" htmlFor={`doc-${t.id}`}>Brief document (PDF, Word, or ZIP up to 16 MB)</label>
+              <Field>
+                <Label htmlFor={`doc-${t.id}`}>Brief document (PDF, Word, or ZIP up to 16 MB)</Label>
                 {t.brief_file_path && (
                   <p className="mb-2 flex items-center gap-3 text-sm">
                     <a
                       href={`/api/files/${t.brief_file_path}`}
                       target="_blank"
                       rel="noopener"
-                      className="text-pine underline"
+                      className="text-primary underline"
                     >
                       View current document
                     </a>
-                    <label className="flex items-center gap-1.5 text-ink-soft">
+                    <label className="flex items-center gap-1.5 text-muted-foreground">
                       <input type="checkbox" name="removeDocument" value="1" />
                       Remove on save
                     </label>
                   </p>
                 )}
-                <input id={`doc-${t.id}`} type="file" name="document" className="input" />
-              </div>
+                <Input id={`doc-${t.id}`} type="file" name="document" />
+              </Field>
 
-              <div>
-                <label className="field-label">What candidates must submit</label>
-                <p className="mb-2 text-xs text-ink-soft">
+              <Field>
+                <Label>What candidates must submit</Label>
+                <FieldDescription>
                   Each requirement appears as its own titled submission slot in the candidate
                   portal. Optional ones are marked as such; candidates can always add extra
                   free-form submissions too.
-                </p>
+                </FieldDescription>
                 <SubmissionFieldsEditor
                   name="submissionFields"
                   initial={parseSubmissionFields(t.submission_fields)}
                 />
-              </div>
+              </Field>
 
               <div className="flex items-center gap-3">
-                <SubmitButton className="btn-primary" pendingLabel="Saving…" doneMessage="Task saved">Save task</SubmitButton>
+                <SubmitButton pendingLabel="Saving…" doneMessage="Task saved">Save task</SubmitButton>
                 {!t.brief && !t.brief_file_path && briefLinks(t.brief_links).length === 0 && (
-                  <span className="text-sm text-rust">
+                  <span className="text-sm text-destructive">
                     Nothing set yet — candidates moved here would get &quot;Task details will follow.&quot;
                   </span>
                 )}
@@ -247,71 +275,110 @@ export default async function TaskPage({
             </div>
           </DirectUploadForm>
 
-          <section className="rounded-lg border border-line bg-card p-5">
-            <h3 className="font-display text-lg font-semibold">Candidates in this task stage</h3>
-            <p className="mt-1 text-xs text-ink-soft">
-              Everyone who reached {t.name}, including candidates who have since moved on.
-            </p>
-            <div className="mt-3 overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-left text-xs uppercase tracking-wide text-ink-soft">
-                    <th className="py-1 pr-4">Candidate</th>
-                    <th className="py-1 pr-4">Now at</th>
-                    <th className="py-1 pr-4">Response</th>
-                    <th className="py-1 pr-4">Deadline</th>
-                    <th className="py-1">Task</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-line">
-                  {(candidatesByStage.get(t.id) ?? []).map((c) => (
-                    <tr key={c.id}>
-                      <td className="py-2 pr-4">
-                        <Link href={`/app/candidates/${c.id}`} className="font-medium hover:underline">
-                          {c.name}
-                        </Link>
-                      </td>
-                      <td className="py-2 pr-4 text-ink-soft">
-                        {c.status === 'active' ? c.current_stage ?? '—' : c.status}
-                      </td>
-                      <td className="py-2 pr-4">
-                        {c.response === 'yes' ? (
-                          <span className="font-medium text-pine-deep">Yes</span>
-                        ) : c.response === 'no' ? (
-                          <span className="font-medium text-rust">No</span>
-                        ) : (
-                          <span className="text-amber">Pending</span>
-                        )}
-                      </td>
-                      <td className="py-2 pr-4 whitespace-nowrap">
-                        {c.deadline ? (
-                          <span className={fmtDate(c.deadline) < today ? 'text-rust' : 'text-pine-deep'}>
-                            {fmtDay(c.deadline)}
-                            {fmtDate(c.deadline) < today && ' (overdue)'}
-                          </span>
-                        ) : (
-                          <span className="text-ink-soft">—</span>
-                        )}
-                      </td>
-                      <td className="py-2">
-                        {c.submitted_at ? (
-                          <span className="text-pine-deep">
-                            {c.submission_count > 1 ? `${c.submission_count} submissions` : 'Submitted'} ·
-                            latest {fmtDateTime(c.submitted_at)}
-                          </span>
-                        ) : (
-                          <span className="text-amber">Pending</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              {(candidatesByStage.get(t.id) ?? []).length === 0 && (
-                <p className="mt-2 text-sm text-ink-soft">No candidates have reached this stage yet.</p>
-              )}
-            </div>
-          </section>
+          <Card>
+            <CardHeader>
+              <CardTitle className="font-display text-lg font-semibold">Candidates in this task stage</CardTitle>
+              <CardDescription>Everyone who reached {t.name}, including candidates who have since moved on.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form action={bulkPipeline}>
+                <input type="hidden" name="openingId" value={openingId} />
+                <input type="hidden" name="back" value={`/app/openings/${openingId}/task`} />
+                <Table>
+                  <TableHeader>
+                    <TableRow className="text-xs uppercase tracking-wide text-muted-foreground hover:bg-transparent">
+                      <TableHead className="w-10 px-0"><SelectAll name="appId" /></TableHead>
+                      <TableHead>Candidate</TableHead>
+                      <TableHead>Now at</TableHead>
+                      <TableHead>Response</TableHead>
+                      <TableHead>Deadline</TableHead>
+                      <TableHead>Task</TableHead>
+                      <TableHead>Score</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {(candidatesByStage.get(t.id) ?? []).map((c) => (
+                      <TableRow key={c.id}>
+                        <TableCell className="px-0">
+                          <input type="checkbox" name="appId" value={c.id} aria-label={`Select ${c.name}`} />
+                        </TableCell>
+                        <TableCell className="px-0">
+                          <Link href={`/app/candidates/${c.id}`} className="font-medium hover:underline">
+                            {c.name}
+                          </Link>
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {c.status === 'active' ? c.current_stage ?? '—' : c.status}
+                        </TableCell>
+                        <TableCell>
+                          {c.response === 'yes' ? (
+                            <Badge variant="secondary">Yes</Badge>
+                          ) : c.response === 'no' ? (
+                            <Badge variant="destructive">No</Badge>
+                          ) : (
+                            <Badge className="bg-amber/15 text-amber">Pending</Badge>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {c.deadline ? (
+                            <span className={fmtDate(c.deadline) < today ? 'text-destructive' : 'text-primary'}>
+                              {fmtDay(c.deadline)}
+                              {fmtDate(c.deadline) < today && ' (overdue)'}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {c.submitted_at ? (
+                            <span className="text-primary">
+                              {c.submission_count > 1 ? `${c.submission_count} submissions` : 'Submitted'} ·
+                              latest {fmtDateTime(c.submitted_at)}
+                            </span>
+                          ) : (
+                            <Badge className="bg-amber/15 text-amber">Pending</Badge>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {c.latest_rating ? (
+                            <>
+                              <span className="text-amber">{'★'.repeat(c.latest_rating)}</span>
+                              {c.rating_count > 1 && <span className="ml-1 text-xs text-muted-foreground">({c.rating_count})</span>}
+                            </>
+                          ) : (
+                            <Link href={`/app/candidates/${c.id}#feedback`} className="text-xs text-primary underline">Score</Link>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+                {(candidatesByStage.get(t.id) ?? []).length === 0 && (
+                  <p className="mt-2 text-sm text-muted-foreground">No candidates have reached this stage yet.</p>
+                )}
+                {(candidatesByStage.get(t.id) ?? []).length > 0 && (
+                  <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border pt-3 text-sm">
+                    <BulkProgress />
+                    <SelectedCount name="appId" />
+                    <span className="text-muted-foreground">·</span>
+                    <NativeSelect name="stageId" size="sm" className="w-44" aria-label="Stage to move to">
+                      {allStages.map((s) => (
+                        <NativeSelectOption key={s.id} value={s.id}>{s.name}</NativeSelectOption>
+                      ))}
+                    </NativeSelect>
+                    <SubmitButton name="intent" value="move" variant="outline" size="sm" pendingLabel="Moving…"
+                      confirmText="Move {n} candidate(s) to {stage}?" confirmMin={2}>
+                      Move to stage
+                    </SubmitButton>
+                    <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <input type="checkbox" name="notify" value="1" defaultChecked />
+                      Email the candidate about this move
+                    </label>
+                  </div>
+                )}
+              </form>
+            </CardContent>
+          </Card>
           </div>
         ))}
       </div>
