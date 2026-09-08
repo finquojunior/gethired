@@ -20,5 +20,5 @@ test('pipelineParams matches the list defaults', () => {
 
 test('every sort key is a fixed fragment', () => {
   for (const v of Object.values(PIPELINE_SORTS)) assert.match(v, /^[a-z_.,() ]+$/);
-  assert.ok(PIPELINE_SORTS.feedback.includes('fb.avg_rating'));
+  assert.ok(PIPELINE_SORTS.feedback.includes('fb.rating'));
 });

@@ -13,6 +13,7 @@ import OpeningTabs from '@/components/OpeningTabs';
 import { bulkPipeline } from '@/app/app/candidates/actions';
 import { pipelineFlash } from '@/app/app/candidates/flash';
 import BoardView from './BoardView';
+import { AlertTriangle, CheckCircle2, Plus } from 'lucide-react';
 import {
   FEEDBACK_JOIN,
   PIPELINE_SORTS as SORTS,
@@ -20,6 +21,17 @@ import {
   pipelineCtxParams,
   pipelineWhereParams,
 } from '@/lib/pipeline';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select';
+import { Button, buttonVariants } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from '@/components/ui/empty';
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
+import { Field } from '@/components/ui/field';
+import { Separator } from '@/components/ui/separator';
+import { cn } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -89,12 +101,14 @@ export default async function ApplicationsPage({
     stage_id: number | null;
     status: string;
     created_at: Date;
-    avg_rating: string | null;
-    rating_count: number | null;
+    fb_rating: number | null;
+    fb_stage: string | null;
+    fb_author: string | null;
+    fb_comment: string | null;
   }>(
     `select a.id, a.name, a.email, a.score, a.max_score, f.version, s.name as stage,
             a.current_stage_id as stage_id, a.status, a.created_at,
-            fb.avg_rating, fb.rating_count
+            fb.rating as fb_rating, fb.stage as fb_stage, fb.author as fb_author, fb.comment as fb_comment
      from public.applications a
      join public.forms f on f.id = a.form_id
      left join public.stages s on s.id = a.current_stage_id
@@ -132,14 +146,17 @@ export default async function ApplicationsPage({
     <Link
       key={href}
       href={href}
-      className={`rounded-full px-3 py-1 text-sm ${
-        active ? 'bg-ink text-white' : 'bg-card text-ink-soft border border-line hover:border-pine'
-      }`}
+      aria-current={active ? 'page' : undefined}
+      className={cn(
+        'inline-flex h-7 items-center rounded-md px-3 text-sm whitespace-nowrap transition-colors',
+        active ? 'bg-card font-medium text-foreground shadow-xs' : 'text-muted-foreground hover:text-foreground'
+      )}
     >
       {label}
-      {count !== undefined && <span className="ml-1 opacity-70">{count}</span>}
+      {count !== undefined && <span className="ml-1 opacity-70 tabular-nums">{count}</span>}
     </Link>
   );
+  const segment = 'inline-flex h-9 items-center gap-0.5 rounded-lg bg-muted p-1';
 
   return (
     <div>
@@ -147,76 +164,89 @@ export default async function ApplicationsPage({
       <BackButton fallback={`/app/openings/${openingId}`} />
       <div className="track flex flex-wrap items-end justify-between gap-3">
         <h1 className="font-display text-3xl font-bold">
-          <Link href={`/app/openings/${openingId}`} className="text-ink-soft hover:underline">
+          <Link href={`/app/openings/${openingId}`} className="text-muted-foreground hover:underline">
             {opening.title}
           </Link>{' '}
           · Pipeline
         </h1>
         <div className="mb-1 flex gap-2">
-          <Link href={`${base}/new`} className="btn-primary">Add candidate</Link>
+          <Link href={`${base}/new`} className={buttonVariants()}>
+            <Plus data-icon="inline-start" />
+            Add candidate
+          </Link>
           <DownloadLink href={`${base}/export`} preparingLabel="Preparing CSV…">Download CSV</DownloadLink>
         </div>
       </div>
       <OpeningTabs openingId={openingId} current="pipeline" />
 
       {imported != null && (
-        <p className="mt-4 rounded-md bg-pine-wash px-4 py-3 text-sm text-pine-deep">
-          Imported {imported} candidate{imported === '1' ? '' : 's'}
-          {Number(skipped) > 0 && ` · skipped ${skipped} row${skipped === '1' ? '' : 's'} with a missing name, bad email, or an email already in this pipeline`}
-          .
-        </p>
+        <Alert className="mt-4">
+          <CheckCircle2 className="text-primary" />
+          <AlertTitle>
+            Imported {imported} candidate{imported === '1' ? '' : 's'}
+            {Number(skipped) > 0 && ` · skipped ${skipped} row${skipped === '1' ? '' : 's'} with a missing name, bad email, or an email already in this pipeline`}
+            .
+          </AlertTitle>
+        </Alert>
       )}
 
       {dryStages.length > 0 && (
-        <p className="mt-4 rounded-md bg-amber/15 px-4 py-3 text-sm text-amber">
-          {dryStages.map((s) => s.name).join(', ')} has no open interview slots — candidates moved
-          there will be invited to book but find nothing.{' '}
-          <Link href={`/app/openings/${openingId}/slots`} className="underline">Create slots</Link>
-        </p>
+        <Alert className="mt-4 border-amber/40 bg-amber/10 text-amber">
+          <AlertTriangle />
+          <AlertTitle>{dryStages.map((s) => s.name).join(', ')} has no open interview slots</AlertTitle>
+          <AlertDescription className="text-amber/90">
+            Candidates moved there will be invited to book but find nothing.{' '}
+            <Link href={`/app/openings/${openingId}/slots`}>Create slots</Link>
+          </AlertDescription>
+        </Alert>
       )}
 
       <div className="mt-6 flex flex-wrap items-center gap-2">
-        {tab(withView(board ? undefined : 'board'), board ? 'List view' : 'Board view', false)}
-        <span className="mx-1 text-line">|</span>
-        {tab(base, 'All active', !board && !stageId && status === 'active')}
-        {stages.map((s) =>
-          tab(`${base}?stage=${s.id}`, s.name, stageId === s.id && status === 'active', s.count)
-        )}
-        <span className="mx-2 text-line">|</span>
-        {tab(`${base}?status=rejected`, 'Rejected', status === 'rejected')}
-        {tab(`${base}?status=hired`, 'Hired', status === 'hired')}
-        {tab(`${base}?status=withdrawn`, 'Withdrawn', status === 'withdrawn')}
+        <div className={segment}>
+          {tab(withView(board ? undefined : 'board'), board ? 'List view' : 'Board view', false)}
+        </div>
+        <div className={cn(segment, 'max-w-full overflow-x-auto')}>
+          {tab(base, 'All active', !board && !stageId && status === 'active')}
+          {stages.map((s) =>
+            tab(`${base}?stage=${s.id}`, s.name, stageId === s.id && status === 'active', s.count)
+          )}
+        </div>
+        <div className={segment}>
+          {tab(`${base}?status=rejected`, 'Rejected', status === 'rejected')}
+          {tab(`${base}?status=hired`, 'Hired', status === 'hired')}
+          {tab(`${base}?status=withdrawn`, 'Withdrawn', status === 'withdrawn')}
+        </div>
       </div>
 
       <form method="get" className="mt-4 flex flex-wrap items-end gap-2 text-sm">
         {stage && <input type="hidden" name="stage" value={stage} />}
         {status !== 'active' && <input type="hidden" name="status" value={status} />}
         {board && <input type="hidden" name="view" value="board" />}
-        <div className="min-w-48 flex-1">
-          <label className="field-label" htmlFor="q">Name or email</label>
-          <input id="q" type="search" name="q" defaultValue={term} placeholder="Search this pipeline…" className="input py-1.5" />
-        </div>
-        <div>
-          <label className="field-label" htmlFor="from">Applied from</label>
-          <input id="from" type="date" name="from" defaultValue={from} className="input w-40 py-1.5" />
-        </div>
-        <div>
-          <label className="field-label" htmlFor="to">to</label>
-          <input id="to" type="date" name="to" defaultValue={to} className="input w-40 py-1.5" />
-        </div>
-        <div>
-          <label className="field-label" htmlFor="sort">Sort by</label>
-          <select id="sort" name="sort" defaultValue={sort} className="input w-36 py-1.5">
-            <option value="score">Form score</option>
-            <option value="feedback">Feedback</option>
-            <option value="newest">Newest</option>
-            <option value="oldest">Oldest</option>
-            <option value="name">Name</option>
-          </select>
-        </div>
-        <button className="btn-quiet">Apply</button>
+        <Field className="min-w-48 flex-1">
+          <Label htmlFor="q">Name or email</Label>
+          <Input id="q" type="search" name="q" defaultValue={term} placeholder="Search this pipeline…" />
+        </Field>
+        <Field className="w-40">
+          <Label htmlFor="from">Applied from</Label>
+          <Input id="from" type="date" name="from" defaultValue={from} />
+        </Field>
+        <Field className="w-40">
+          <Label htmlFor="to">to</Label>
+          <Input id="to" type="date" name="to" defaultValue={to} />
+        </Field>
+        <Field className="w-36">
+          <Label htmlFor="sort">Sort by</Label>
+          <NativeSelect id="sort" name="sort" defaultValue={sort}>
+            <NativeSelectOption value="score">Form score</NativeSelectOption>
+            <NativeSelectOption value="feedback">Latest feedback</NativeSelectOption>
+            <NativeSelectOption value="newest">Newest</NativeSelectOption>
+            <NativeSelectOption value="oldest">Oldest</NativeSelectOption>
+            <NativeSelectOption value="name">Name</NativeSelectOption>
+          </NativeSelect>
+        </Field>
+        <Button type="submit" variant="outline">Apply</Button>
         {(from || to || term || sort !== 'score') && (
-          <Link href={base} className="pb-2 text-ink-soft underline">clear</Link>
+          <Link href={base} className="pb-2 text-muted-foreground underline">clear</Link>
         )}
       </form>
 
@@ -233,137 +263,152 @@ export default async function ApplicationsPage({
             score: a.score,
             max_score: a.max_score,
             stageId: a.stage_id,
+            rating: a.fb_rating,
+            ratingStage: a.fb_stage,
           }))}
         />
       ) : (
       <form action={bulkPipeline} className="mt-6">
         <input type="hidden" name="openingId" value={openingId} />
         <input type="hidden" name="back" value={backHref} />
-        <div className="overflow-x-auto rounded-lg border border-line bg-card"><table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-line text-left text-xs uppercase tracking-wide text-ink-soft">
-              <th className="w-10 px-4 py-3"><SelectAll name="appId" /></th>
-              <th className="px-4 py-3">Candidate</th>
-              <th className="px-4 py-3">Form score</th>
-              <th className="px-4 py-3">Feedback</th>
-              <th className="px-4 py-3">Stage</th>
-              <th className="px-4 py-3">Applied</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-line">
+        <Card className="py-0">
+        <Table>
+          <TableHeader>
+            <TableRow className="text-xs uppercase tracking-wide text-muted-foreground hover:bg-transparent">
+              <TableHead className="w-10 px-4"><SelectAll name="appId" /></TableHead>
+              <TableHead className="px-4">Candidate</TableHead>
+              <TableHead className="px-4">Form score</TableHead>
+              <TableHead className="px-4">Feedback</TableHead>
+              <TableHead className="px-4">Stage</TableHead>
+              <TableHead className="px-4">Applied</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {apps.map((a) => (
-              <tr key={a.id} className="hover:bg-paper">
-                <td className="px-4 py-3">
-                  <input type="checkbox" name="appId" value={a.id} className="accent-pine" />
-                </td>
-                <td className="p-0">
+              <TableRow key={a.id}>
+                <TableCell className="px-4 py-3">
+                  <input type="checkbox" name="appId" value={a.id} />
+                </TableCell>
+                <TableCell className="p-0">
                   <Link
                     href={`/app/candidates/${a.id}?${ctxQs}`}
                     className="block px-4 py-3"
                     title="Open candidate profile"
                   >
-                    <span className="font-medium text-pine hover:underline">{a.name} →</span>
-                    <span className="block text-ink-soft">{a.email}</span>
+                    <span className="font-medium text-primary hover:underline">{a.name} →</span>
+                    <span className="block text-muted-foreground">{a.email}</span>
                   </Link>
-                </td>
-                <td className="px-4 py-3">
+                </TableCell>
+                <TableCell className="px-4 py-3">
                   {a.score != null && Number(a.max_score) > 0
                     ? `${a.score} / ${a.max_score}`
                     : (a.score ?? '—')}
-                  <span className="ml-1.5 text-xs text-ink-soft">v{a.version}</span>
-                </td>
-                <td className="px-4 py-3">
-                  {a.avg_rating != null ? (
-                    <>
-                      <span className="text-amber">{'★'.repeat(Math.round(Number(a.avg_rating)))}</span>
-                      <span className="ml-1.5 text-xs text-ink-soft">
-                        {Number(a.avg_rating).toFixed(1)} ({a.rating_count})
-                      </span>
-                    </>
+                  <span className="ml-1.5 text-xs text-muted-foreground">v{a.version}</span>
+                </TableCell>
+                <TableCell className="px-4 py-3">
+                  {a.fb_rating != null ? (
+                    <span title={`${a.fb_author}${a.fb_comment ? `: ${a.fb_comment}` : ''}`}>
+                      <span className="text-amber">{'★'.repeat(a.fb_rating)}</span>
+                      <span className="ml-1.5 text-xs text-muted-foreground">{a.fb_stage ?? 'General'}</span>
+                    </span>
                   ) : (
                     '—'
                   )}
-                </td>
-                <td className="px-4 py-3">{a.stage ?? '—'}</td>
-                <td className="px-4 py-3 text-ink-soft">{fmtDate(a.created_at)}</td>
-              </tr>
+                </TableCell>
+                <TableCell className="px-4 py-3">{a.stage ?? '—'}</TableCell>
+                <TableCell className="px-4 py-3 text-muted-foreground">{fmtDate(a.created_at)}</TableCell>
+              </TableRow>
             ))}
             {apps.length === 0 && (
-              <tr>
-                <td colSpan={6} className="px-4 py-10 text-center text-ink-soft">
-                  {term || from || to || stageId || status !== 'active' ? (
-                    <>
-                      No candidates match these filters.{' '}
-                      <Link href={base} className="text-pine underline">Show all active</Link>
-                    </>
-                  ) : opening.status !== 'open' ? (
-                    <>
-                      No candidates yet — this opening is <strong>{opening.status}</strong>, so nobody can apply.{' '}
-                      {!opening.published && (
-                        <>
-                          <Link href={`/app/openings/${openingId}/form`} className="text-pine underline">Publish the form</Link>, then{' '}
-                        </>
-                      )}
-                      <Link href={`/app/openings/${openingId}`} className="text-pine underline">set the status to open</Link>, or{' '}
-                      <Link href={`${base}/new`} className="text-pine underline">add a candidate by hand</Link>.
-                    </>
-                  ) : (
-                    <>
-                      No applications yet. Share{' '}
-                      <a href={`/careers/${opening.slug}`} target="_blank" rel="noopener" className="text-pine underline">
-                        /careers/{opening.slug}
-                      </a>{' '}
-                      or <Link href={`${base}/new`} className="text-pine underline">add a candidate by hand</Link>.
-                    </>
-                  )}
-                </td>
-              </tr>
+              <TableRow className="hover:bg-transparent">
+                <TableCell colSpan={6} className="whitespace-normal p-0">
+                  <Empty>
+                    <EmptyHeader>
+                      <EmptyTitle>
+                        {term || from || to || stageId || status !== 'active'
+                          ? 'No candidates match these filters.'
+                          : opening.status !== 'open'
+                            ? 'No candidates yet.'
+                            : 'No applications yet.'}
+                      </EmptyTitle>
+                      <EmptyDescription>
+                        {term || from || to || stageId || status !== 'active' ? (
+                          <Link href={base}>Show all active</Link>
+                        ) : opening.status !== 'open' ? (
+                          <>
+                            This opening is <strong>{opening.status}</strong>, so nobody can apply.{' '}
+                            {!opening.published && (
+                              <>
+                                <Link href={`/app/openings/${openingId}/form`}>Publish the form</Link>, then{' '}
+                              </>
+                            )}
+                            <Link href={`/app/openings/${openingId}`}>set the status to open</Link>, or{' '}
+                            <Link href={`${base}/new`}>add a candidate by hand</Link>.
+                          </>
+                        ) : (
+                          <>
+                            Share{' '}
+                            <a href={`/careers/${opening.slug}`} target="_blank" rel="noopener">
+                              /careers/{opening.slug}
+                            </a>{' '}
+                            or <Link href={`${base}/new`}>add a candidate by hand</Link>.
+                          </>
+                        )}
+                      </EmptyDescription>
+                    </EmptyHeader>
+                  </Empty>
+                </TableCell>
+              </TableRow>
             )}
-          </tbody>
-        </table></div>
+          </TableBody>
+        </Table>
+        </Card>
 
         {apps.length > 0 && (
-          <div className="mt-4 flex flex-wrap items-center gap-2 rounded-lg border border-line bg-card px-4 py-3 text-sm">
+          <Card size="sm" className="mt-4">
+            <CardContent className="flex flex-wrap items-center gap-2 text-sm">
             <BulkProgress />
             <SelectedCount name="appId" />
-            <span className="text-ink-soft">·</span>
-            <label className="sr-only" htmlFor="bulkStage">Stage to move to</label>
-            <select id="bulkStage" name="stageId" className="input w-44 py-1.5">
+            <span className="text-muted-foreground">·</span>
+            <Label className="sr-only" htmlFor="bulkStage">Stage to move to</Label>
+            <NativeSelect id="bulkStage" name="stageId" size="sm" className="w-44">
               {stages.map((s) => (
-                <option key={s.id} value={s.id}>
+                <NativeSelectOption key={s.id} value={s.id}>
                   {s.name}{dryStages.some((d) => d.name === s.name) ? ' (no open slots!)' : ''}
-                </option>
+                </NativeSelectOption>
               ))}
-            </select>
+            </NativeSelect>
             <SubmitButton
               name="intent"
               value="move"
-              className="btn-quiet"
+              variant="outline"
+              size="sm"
               pendingLabel="Moving…"
               confirmText="Move {n} candidate(s) to {stage}?"
               confirmMin={dryStages.length > 0 ? 1 : 2}
             >
               Move to stage
             </SubmitButton>
-            <label className="flex items-center gap-1.5 text-xs text-ink-soft">
-              <input type="checkbox" name="notify" value="1" defaultChecked className="accent-pine" />
+            <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <input type="checkbox" name="notify" value="1" defaultChecked />
               Email the candidate about this move
             </label>
-            <div className="mx-2 h-5 w-px bg-line" />
+            <Separator orientation="vertical" className="mx-2 h-5!" />
             {status === 'active' ? (
               <>
-                <SubmitButton name="intent" value="hire" className="btn-quiet text-pine-deep" pendingLabel="Hiring…" confirmText="Mark {n} candidate(s) as hired? They will each get the congratulations email.">Mark hired</SubmitButton>
-                <SubmitButton name="intent" value="reject_send" className="btn-danger" pendingLabel="Rejecting…" confirmText="Reject {n} candidate(s) and email them now? This cannot be undone quietly — the email goes out immediately.">Reject + email now</SubmitButton>
-                <SubmitButton name="intent" value="reject_draft" className="btn-danger" pendingLabel="Rejecting…" confirmText="Reject {n} candidate(s)? The rejection email is drafted in Emails for you to send later." title="Rejects and drafts the email — send it manually from the Emails tab">Reject + draft email</SubmitButton>
-                <SubmitButton name="intent" value="withdraw" className="btn-quiet" pendingLabel="Updating…" confirmText="Mark {n} candidate(s) as withdrawn? No email is sent." title="For candidates who told you they are no longer interested">Mark withdrawn</SubmitButton>
+                <SubmitButton name="intent" value="hire" variant="outline" size="sm" className="text-primary" pendingLabel="Hiring…" confirmText="Mark {n} candidate(s) as hired? They will each get the congratulations email.">Mark hired</SubmitButton>
+                <SubmitButton name="intent" value="reject_send" variant="destructive" size="sm" pendingLabel="Rejecting…" confirmText="Reject {n} candidate(s) and email them now? This cannot be undone quietly — the email goes out immediately.">Reject + email now</SubmitButton>
+                <SubmitButton name="intent" value="reject_draft" variant="destructive" size="sm" pendingLabel="Rejecting…" confirmText="Reject {n} candidate(s)? The rejection email is drafted in Emails for you to send later." title="Rejects and drafts the email — send it manually from the Emails tab">Reject + draft email</SubmitButton>
+                <SubmitButton name="intent" value="withdraw" variant="outline" size="sm" pendingLabel="Updating…" confirmText="Mark {n} candidate(s) as withdrawn? No email is sent." title="For candidates who told you they are no longer interested">Mark withdrawn</SubmitButton>
               </>
             ) : (
-              <SubmitButton name="intent" value="restore" className="btn-quiet" pendingLabel="Restoring…">Restore to active</SubmitButton>
+              <SubmitButton name="intent" value="restore" variant="outline" size="sm" pendingLabel="Restoring…">Restore to active</SubmitButton>
             )}
-          </div>
+            </CardContent>
+          </Card>
         )}
         {apps.length > 0 && (
-          <p className="mt-2 text-xs text-ink-soft">
+          <p className="mt-2 text-xs text-muted-foreground">
             With the email box ticked, a move into a task or interview stage sends the candidate
             their instructions and portal link, and a move forward into any other stage sends a
             short progress update. Moves backwards or sideways never email. Untick the box to move

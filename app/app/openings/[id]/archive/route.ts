@@ -47,8 +47,9 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
   const [{ rows: feedback }, { rows: notes }, { rows: history }, { rows: emails }, { rows: submissions }] =
     await Promise.all([
       q(
-        `select f.application_id, p.full_name as author, f.rating, f.comment, f.created_at
+        `select f.application_id, p.full_name as author, s.name as stage, f.rating, f.comment, f.created_at
          from public.feedback f join public.profiles p on p.id = f.author_id
+         left join public.stages s on s.id = f.stage_id
          where f.application_id = any($1)`,
         [appIds]
       ),

@@ -4,7 +4,7 @@
 // fixed order-by fragments only — never user input
 export const PIPELINE_SORTS: Record<string, string> = {
   score: 'a.score desc nulls last, a.created_at desc',
-  feedback: 'fb.avg_rating desc nulls last, a.created_at desc',
+  feedback: 'fb.rating desc nulls last, a.created_at desc',
   newest: 'a.created_at desc',
   oldest: 'a.created_at asc',
   name: 'a.name asc',
@@ -18,10 +18,15 @@ export const PIPELINE_WHERE = `a.opening_id = $1
   and ($5::date is null or a.created_at < $5::date + 1)
   and ($6::text is null or a.name ilike $6 or a.email ilike $6)`;
 
-export const FEEDBACK_JOIN = `left join (
-  select application_id, avg(rating) as avg_rating, count(*)::int as rating_count
-  from public.feedback where rating is not null group by application_id
-) fb on fb.application_id = a.id`;
+// newest rated feedback per application, with its stage and author
+export const FEEDBACK_JOIN = `left join lateral (
+  select f.rating, f.comment, s.name as stage, p.full_name as author, f.updated_at
+  from public.feedback f
+  left join public.stages s on s.id = f.stage_id
+  join public.profiles p on p.id = f.author_id
+  where f.application_id = a.id and f.rating is not null
+  order by f.updated_at desc limit 1
+) fb on true`;
 
 export const isDate = (s: string) => /^\d{4}-\d{2}-\d{2}$/.test(s);
 
