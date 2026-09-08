@@ -11,6 +11,7 @@ const OK_TEXT: Record<string, (n: number) => string> = {
   saved: () => 'Saved',
   booked: () => 'Interview booked — candidate and interviewer emailed',
   cancelled: () => 'Interview cancelled — candidate and interviewer emailed',
+  auto_review: () => 'Scored — moved to the review stage and the candidate has been emailed.',
 };
 const ERR_TEXT: Record<string, string> = {
   nothing: 'Nothing changed — no candidates were selected or they were already in that state.',

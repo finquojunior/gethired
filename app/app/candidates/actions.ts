@@ -4,7 +4,7 @@ import path from 'node:path';
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { q, tx } from '@/lib/db';
-import { requireApplicationAccess, requireOpeningAccess, verifyUploadPath } from '@/lib/auth';
+import { forbidden, requireApplicationAccess, requireOpeningAccess, verifyUploadPath } from '@/lib/auth';
 import { appUrl, attemptSend, icsEvent, portalUrl, sendCustomEmail, sendEmail } from '@/lib/email';
 import { fmtDateTimeFull, fmtDay } from '@/lib/tz';
 import { audit } from '@/lib/audit';
@@ -543,21 +543,28 @@ export async function addFeedback(formData: FormData) {
   const { user } = await requireApplicationAccess(applicationId);
   const rating = Number(formData.get('rating')) || null;
   const comment = String(formData.get('comment') ?? '').trim();
+  const requested = Number(formData.get('stageId')) || null;
+  // stageId must be one of this application's opening's stages; older forms send none → current stage
   const {
     rows: [app],
-  } = await q<{ current_stage_id: number | null }>(
-    `select current_stage_id from public.applications where id = $1`,
-    [applicationId]
+  } = await q<{ stage_id: number | null }>(
+    `select case when $2::bigint is null then a.current_stage_id
+                 else (select s.id from public.stages s where s.id = $2 and s.opening_id = a.opening_id) end as stage_id
+     from public.applications a where a.id = $1`,
+    [applicationId, requested]
   );
+  if (requested && !app?.stage_id) forbidden();
   await q(
     `insert into public.feedback (application_id, stage_id, author_id, rating, comment)
      values ($1, $2, $3, $4, $5)
      on conflict (application_id, stage_id, author_id)
-     do update set rating = excluded.rating, comment = excluded.comment`,
-    [applicationId, app?.current_stage_id ?? null, user.id, rating, comment]
+     do update set rating = excluded.rating, comment = excluded.comment, updated_at = now()`,
+    [applicationId, app?.stage_id ?? null, user.id, rating, comment]
   );
-  await audit(user.id, 'feedback', 'application', applicationId, { rating });
+  await audit(user.id, 'feedback', 'application', applicationId, { rating, stageId: app?.stage_id ?? null });
+  const moved = app?.stage_id ? await maybeAutoAdvance(user.id, applicationId, Number(app.stage_id)) : false;
   revalidatePath(`/app/candidates/${applicationId}`);
+  if (moved) redirect(`/app/candidates/${applicationId}?ok=auto_review`);
 }
 
 export async function addNote(formData: FormData) {
