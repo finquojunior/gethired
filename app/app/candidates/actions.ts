@@ -12,6 +12,7 @@ import { composeBriefEmail } from '@/lib/brief';
 import { freeFutureSlots, staffEmails } from '@/lib/slots';
 import { RESUME_EXTS, RESUME_MAX_BYTES, saveUpload } from '@/lib/storage';
 import { uploadedPathRe } from '@/lib/uploads';
+import { nextReviewStage } from '@/lib/advance';
 
 /** Only paths starting with /app/ may be used as a post-action redirect target. */
 function safeBack(raw: unknown, fallback: string): string {
@@ -40,12 +41,13 @@ async function notifyStage(moved: { id: number; from_stage_id: number | null }[]
     [stageId]
   );
   if (!stage) return;
-  const template =
-    stage.kind === 'interview'
-      ? 'interview_invite'
-      : stage.kind === 'task'
-        ? 'task_assigned'
-        : 'stage_update';
+  const KIND_TEMPLATE: Record<string, string> = {
+    interview: 'interview_invite',
+    task: 'task_assigned',
+    task_review: 'task_review',
+    interview_review: 'interview_review',
+  };
+  const template = KIND_TEMPLATE[stage.kind] ?? 'stage_update';
 
   const { rows: positions } = await q<{ id: number; position: number }>(
     `select id, position from public.stages where id = any($1)`,
@@ -122,6 +124,39 @@ async function moveApplications(
     await audit(userId, 'move_stage', 'application', movedIds.join(','), { stageId, email });
   }
   return moved.length;
+}
+
+/**
+ * Auto-advance into the review stage once the scoring for `stageId` is done:
+ * task → any rating for that stage; interview → a completed slot AND any rating.
+ * Only fires while the candidate is still in that stage and active. Emails via
+ * the normal move path (review templates).
+ */
+async function maybeAutoAdvance(userId: string, applicationId: number, stageId: number): Promise<boolean> {
+  const {
+    rows: [row],
+  } = await q<{ opening_id: number; rated: boolean; done: boolean; kind: string }>(
+    `select a.opening_id, s.kind,
+            exists (select 1 from public.feedback f
+                    where f.application_id = a.id and f.stage_id = s.id and f.rating is not null) as rated,
+            exists (select 1 from public.slots sl
+                    where sl.application_id = a.id and sl.stage_id = s.id and sl.completed_at is not null) as done
+     from public.applications a
+     join public.stages s on s.id = $2 and s.opening_id = a.opening_id
+     where a.id = $1 and a.status = 'active' and a.current_stage_id = $2`,
+    [applicationId, stageId]
+  );
+  if (!row || !row.rated) return false;
+  if (row.kind === 'interview' && !row.done) return false;
+  if (row.kind !== 'task' && row.kind !== 'interview') return false;
+  const { rows: stages } = await q<{ id: number; kind: string; position: number }>(
+    `select id, kind, position from public.stages where opening_id = $1 order by position`,
+    [row.opening_id]
+  );
+  const target = nextReviewStage(stages.map((s) => ({ ...s, id: Number(s.id) })), stageId);
+  if (!target) return false;
+  const n = await moveApplications(userId, Number(row.opening_id), [applicationId], target, true);
+  return n > 0;
 }
 
 /** Single-candidate move for the board view's drag-drop (always emails; the board confirms first). */
