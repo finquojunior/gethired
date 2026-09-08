@@ -128,7 +128,7 @@ export default async function CandidatePage({
          from public.feedback f
          join public.profiles p on p.id = f.author_id
          left join public.stages s on s.id = f.stage_id
-         where f.application_id = $1 order by f.created_at desc`,
+         where f.application_id = $1 order by f.updated_at desc, f.created_at desc`,
         [appId]
       ),
       q<{ author: string; body: string; created_at: Date }>(
@@ -724,6 +724,11 @@ export default async function CandidatePage({
               {scoreForms.map((sf) => {
                 const my = mine(sf.id);
                 const rows = feedback.filter((f) => Number(f.stage_id) === sf.id);
+                const willAutoMove =
+                  Number(a.current_stage_id) === sf.id &&
+                  a.status === 'active' &&
+                  (sf.kind === 'task' ||
+                    (sf.kind === 'interview' && slots.some((s) => Number(s.stage_id) === sf.id && s.completed_at)));
                 return (
                   <form key={sf.id} action={addFeedback} className="rounded-xl bg-card p-4 text-sm ring-1 ring-foreground/10">
                     <input type="hidden" name="applicationId" value={a.id} />
@@ -738,7 +743,16 @@ export default async function CandidatePage({
                         defaultValue={my?.comment ?? ''}
                         className="min-w-48 flex-1"
                       />
-                      <SubmitButton pendingLabel="Saving…" doneMessage={my ? 'Feedback updated' : 'Feedback saved'}>
+                      <SubmitButton
+                        pendingLabel="Saving…"
+                        doneMessage={my ? 'Feedback updated' : 'Feedback saved'}
+                        {...(willAutoMove
+                          ? {
+                              confirmText: `Saving a rating moves ${a.name} to the ${sf.kind === 'task' ? 'Task review' : 'Interview review'} stage and emails them. Continue?`,
+                              confirmTitle: 'Move to review?',
+                            }
+                          : {})}
+                      >
                         {my ? 'Update' : 'Save'}
                       </SubmitButton>
                     </div>

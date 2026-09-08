@@ -117,7 +117,7 @@ export async function runCronWork() {
        and a.status = 'active'
        and not exists (
          select 1 from public.feedback f
-         where f.application_id = a.id and f.author_id = sl.interviewer_id
+         where f.application_id = a.id and f.author_id = sl.interviewer_id and f.stage_id = sl.stage_id
        )
        and not exists (
          select 1 from public.email_log e

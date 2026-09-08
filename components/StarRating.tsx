@@ -1,6 +1,6 @@
 'use client';
 
-import { useId, useState } from 'react';
+import { useState } from 'react';
 import { Star } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -14,7 +14,6 @@ export default function StarRating({
   defaultValue?: number | null;
   label: string;
 }) {
-  const id = useId();
   const [value, setValue] = useState<number>(defaultValue ?? 0);
   const [hover, setHover] = useState(0);
   const shown = hover || value;
@@ -37,7 +36,7 @@ export default function StarRating({
           />
         </label>
       ))}
-      <span className="ml-1 w-8 text-xs tabular-nums text-muted-foreground" id={id}>{value ? `${value}/5` : '—'}</span>
+      <span className="ml-1 w-8 text-xs tabular-nums text-muted-foreground">{value ? `${value}/5` : '—'}</span>
       {value > 0 && (
         <button type="button" onClick={() => setValue(0)} className="text-xs text-muted-foreground underline">
           clear

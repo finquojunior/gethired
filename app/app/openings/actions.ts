@@ -11,6 +11,7 @@ import { EMPTY_SCHEMA, type FormSchema } from '@/lib/form-schema';
 import { parseSubmissionFields } from '@/lib/brief';
 import { deleteFile, saveUpload } from '@/lib/storage';
 import { POSTER_EXTS, POSTER_MAX_BYTES, TASK_MAX_BYTES, taskExt, uploadedPathRe } from '@/lib/uploads';
+import { STAGE_KINDS } from '@/lib/stages';
 
 const DEFAULT_STAGES: Array<[string, string]> = [
   ['Applied', 'screen'],
@@ -320,12 +321,10 @@ export async function cloneOpening(formData: FormData) {
 
 // --- stages ---
 
-const STAGE_KINDS = ['screen', 'task', 'interview', 'offer'];
-
 export async function addStage(formData: FormData) {
   const openingId = Number(formData.get('openingId'));
   const user = await requireOpeningAccess(openingId);
-  if (!STAGE_KINDS.includes(String(formData.get('kind')))) return;
+  if (!(STAGE_KINDS as readonly string[]).includes(String(formData.get('kind')))) return;
   await audit(user.id, 'add_stage', 'opening', openingId, {
     name: String(formData.get('name') ?? ''),
   });
@@ -340,7 +339,7 @@ export async function addStage(formData: FormData) {
 export async function updateStage(formData: FormData) {
   const openingId = Number(formData.get('openingId'));
   const user = await requireOpeningAccess(openingId);
-  if (!STAGE_KINDS.includes(String(formData.get('kind')))) return;
+  if (!(STAGE_KINDS as readonly string[]).includes(String(formData.get('kind')))) return;
   await audit(user.id, 'update_stage', 'stage', Number(formData.get('stageId')));
   // brief is only written when the form carried it — task stages edit it on the Task tab
   await q(

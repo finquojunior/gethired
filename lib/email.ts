@@ -1,12 +1,11 @@
 import { q } from '@/lib/db';
 import { sendPlan, type MailService } from '@/lib/mailplan';
-import { DEFAULT_TEMPLATES } from '@/lib/email-templates';
-export { DEFAULT_TEMPLATES };
+import { DEFAULT_TEMPLATES as RAW_TEMPLATES } from '@/lib/email-templates';
 
 // Outbox email: every send is a row in email_log first (status pending),
 // then delivered — immediately for normal sends, or by the cron for delayed
 // ones. Subject/body come from email_templates (staff-editable) with the
-// defaults below as fallback. {{var}} placeholders are substituted.
+// defaults in lib/email-templates.ts as fallback. {{var}} placeholders are substituted.
 
 if (process.env.NODE_ENV === 'production') {
   if (!process.env.APP_URL) throw new Error('APP_URL is required in production');
@@ -24,7 +23,11 @@ export const SUPPORT_EMAIL =
   /[^\s<>"]+@[^\s<>"]+/.exec(process.env.EMAIL_FROM ?? '')?.[0] ??
   'hiring@finquojunior.com';
 
-for (const t of Object.values(DEFAULT_TEMPLATES)) t.vars.push('org', 'support_email');
+// non-mutating: build a copy with the always-available vars added, rather than
+// pushing into the shared RAW_TEMPLATES objects (which tests import directly).
+export const DEFAULT_TEMPLATES: typeof RAW_TEMPLATES = Object.fromEntries(
+  Object.entries(RAW_TEMPLATES).map(([key, t]) => [key, { ...t, vars: [...t.vars, 'org', 'support_email'] }])
+);
 
 function render(text: string, vars: Record<string, string>): string {
   const all: Record<string, string> = { org: ORG_NAME, support_email: SUPPORT_EMAIL, careers_link: appUrl('/careers'), ...vars };

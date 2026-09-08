@@ -104,6 +104,7 @@ async function moveApplications(
       `update public.applications a set current_stage_id = $2
        from public.applications old
        where old.id = a.id and a.id = any($1) and a.opening_id = $3
+         and a.status = 'active'
          and old.current_stage_id is distinct from $2
        returning a.id, old.current_stage_id as from_stage_id`,
       [ids, stageId, openingId]
