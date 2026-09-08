@@ -215,8 +215,6 @@ export async function bulkPipeline(formData: FormData) {
   } else {
     redirect(withParam(back, 'e', 'nothing'));
   }
-  revalidatePath(`/app/openings/${openingId}/applications`);
-  for (const id of ids) revalidatePath(`/app/candidates/${id}`);
   redirect(n === 0 ? withParam(back, 'e', 'nothing') : withParam(back, 'ok', `${intent}:${n}`));
 }
 
@@ -241,7 +239,6 @@ export async function updateCandidate(formData: FormData) {
     throw e;
   }
   await audit(user.id, 'update_candidate', 'application', applicationId);
-  revalidatePath(back);
   redirect(`${back}?ok=saved`);
 }
 
@@ -470,7 +467,6 @@ export async function staffBookSlot(formData: FormData) {
     });
   }
   await audit(user.id, 'book_slot', 'application', applicationId, { slotId });
-  revalidatePath(`/app/candidates/${applicationId}`);
   redirect(`/app/candidates/${applicationId}?ok=booked`);
 }
 
@@ -481,7 +477,6 @@ export async function staffCancelSlot(formData: FormData) {
   const slotId = Number(formData.get('slotId')) || null;
   const n = await freeFutureSlots([applicationId], null, { slotId, notifyCandidate: true });
   await audit(user.id, 'cancel_slot', 'application', applicationId, { slotId });
-  revalidatePath(`/app/candidates/${applicationId}`);
   redirect(`/app/candidates/${applicationId}?${n ? 'ok=cancelled' : 'e=nothing'}`);
 }
 

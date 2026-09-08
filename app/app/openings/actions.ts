@@ -135,7 +135,6 @@ export async function updateOpening(formData: FormData) {
     ]
   );
   await audit(user.id, 'update', 'opening', id, { status });
-  revalidatePath(`/app/openings/${id}`);
   revalidatePath('/careers');
 
   // poster: a new file replaces it, the checkbox removes it, otherwise unchanged
@@ -257,7 +256,6 @@ export async function deleteOpeningData(formData: FormData) {
     candidates,
     files: files.length,
   });
-  revalidatePath('/app/openings');
   revalidatePath('/careers');
   redirect('/app/openings');
 }
@@ -315,7 +313,6 @@ export async function cloneOpening(formData: FormData) {
     return opening.id as number;
   });
   await audit(user.id, 'clone', 'opening', id, { from: sourceId });
-  revalidatePath('/app/openings');
   redirect(`/app/openings/${id}`);
 }
 
@@ -423,8 +420,6 @@ export async function updateTaskMaterials(formData: FormData) {
   if (docPath !== null && stage.brief_file_path) await deleteFile(stage.brief_file_path);
 
   await audit(user.id, 'update_task_materials', 'stage', stageId);
-  revalidatePath(`/app/openings/${openingId}/task`);
-  revalidatePath('/app/tasks');
 }
 
 // bound with (openingId, stageId, dir) — submitter name/value is not
@@ -484,7 +479,6 @@ export async function deleteStage(formData: FormData) {
   });
   if (old?.brief_file_path) await deleteFile(old.brief_file_path);
   await audit(user.id, 'delete', 'stage', stageId);
-  revalidatePath(`/app/openings/${openingId}/stages`);
 }
 
 // --- team ---

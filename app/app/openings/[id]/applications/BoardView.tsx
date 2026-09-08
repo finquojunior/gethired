@@ -18,12 +18,15 @@ export default function BoardView({
   openingId,
   ctxQs,
   stages,
+  dryStages = [],
   cards,
 }: {
   openingId: number;
   /** pipeline filter context, carried onto card links so Prev/Next work */
   ctxQs: string;
   stages: { id: number; name: string }[];
+  /** interview stages with no open future slots — moving here invites people to book nothing */
+  dryStages?: string[];
   cards: BoardCard[];
 }) {
   // optimistic column assignment while the server action lands
@@ -41,7 +44,8 @@ export default function BoardView({
     const card = cards.find((c) => c.id === appId);
     if (!card || columnOf(card) === stageId) return;
     const stage = stages.find((s) => s.id === stageId)?.name ?? 'that stage';
-    if (!window.confirm(`Move ${card.name} to ${stage}? They will be emailed.`)) return;
+    const dry = dryStages.includes(stage) ? `\n\nWARNING: ${stage} has NO open interview slots. ${card.name} will be invited to book but find nothing. Create slots first.` : '';
+    if (!window.confirm(`Move ${card.name} to ${stage}? They will be emailed.${dry}`)) return;
     const before = columnOf(card);
     setPlacement((p) => ({ ...p, [appId]: stageId }));
     startTransition(async () => {

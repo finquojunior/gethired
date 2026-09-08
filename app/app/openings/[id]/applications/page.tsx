@@ -225,6 +225,7 @@ export default async function ApplicationsPage({
           openingId={openingId}
           ctxQs={ctxQs}
           stages={stages}
+          dryStages={dryStages.map((s) => s.name)}
           cards={apps.map((a) => ({
             id: a.id,
             name: a.name,
@@ -329,7 +330,9 @@ export default async function ApplicationsPage({
             <label className="sr-only" htmlFor="bulkStage">Stage to move to</label>
             <select id="bulkStage" name="stageId" className="input w-44 py-1.5">
               {stages.map((s) => (
-                <option key={s.id} value={s.id}>{s.name}</option>
+                <option key={s.id} value={s.id}>
+                  {s.name}{dryStages.some((d) => d.name === s.name) ? ' (no open slots!)' : ''}
+                </option>
               ))}
             </select>
             <SubmitButton
@@ -337,8 +340,8 @@ export default async function ApplicationsPage({
               value="move"
               className="btn-quiet"
               pendingLabel="Moving…"
-              confirmText="Move {n} candidates to {stage}?"
-              confirmMin={2}
+              confirmText="Move {n} candidate(s) to {stage}?"
+              confirmMin={dryStages.length > 0 ? 1 : 2}
             >
               Move to stage
             </SubmitButton>

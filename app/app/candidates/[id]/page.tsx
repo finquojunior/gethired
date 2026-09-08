@@ -161,8 +161,8 @@ export default async function CandidatePage({
 
   const {
     rows: [stageInfo],
-  } = await q<{ kind: string } | never>(
-    `select kind from public.stages where id = $1`,
+  } = await q<{ kind: string; name: string } | never>(
+    `select kind, name from public.stages where id = $1`,
     [a.current_stage_id]
   );
   const openSlots =
@@ -179,6 +179,9 @@ export default async function CandidatePage({
       : [];
   const moreSlots = openSlots.length > 30;
   if (moreSlots) openSlots.pop();
+  // invited to interview but nothing to book — the invite email already went out
+  const noOpenSlots =
+    a.status === 'active' && stageInfo?.kind === 'interview' && slots.length === 0 && openSlots.length === 0;
 
   // the current author's feedback for the current stage, if any — the form
   // updates it rather than silently overwriting
@@ -565,6 +568,13 @@ export default async function CandidatePage({
                 Interview slots →
               </Link>
             </div>
+            {noOpenSlots && (
+              <p className="mt-3 rounded-md bg-rust/10 px-4 py-3 text-sm text-rust">
+                No open slots for {stageInfo?.name ?? 'this stage'}. {a.name} has the interview invite but
+                nothing to book.{' '}
+                <Link href={`/app/openings/${a.opening_id}/slots`} className="underline">Create slots</Link>
+              </p>
+            )}
             <ul className="mt-3 space-y-2 text-sm">
               {slots.map((s) => (
                 <li key={s.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-line bg-card p-3">

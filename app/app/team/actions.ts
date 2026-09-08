@@ -1,7 +1,6 @@
 'use server';
 
 import { redirect } from 'next/navigation';
-import { revalidatePath } from 'next/cache';
 import { q, tx } from '@/lib/db';
 import { hashPassword, requireAdmin, requireStaff } from '@/lib/auth';
 import { audit } from '@/lib/audit';
@@ -72,7 +71,6 @@ export async function addUser(formData: FormData) {
   if (departmentIds.length) await setDepartments(u.id, departmentIds);
   await addOpenings(u.id, openingIds);
   await audit(admin.id, existed ? 'update_user' : 'add_user', 'profile', u.id, { email, role, departmentIds, openingIds });
-  revalidatePath('/app/team');
   back(existed ? 'updated' : 'added');
 }
 
@@ -83,7 +81,6 @@ export async function setUserRole(formData: FormData) {
   if (!ROLES.includes(role) || userId === admin.id) back(undefined, 'invalid');
   await q(`update public.profiles set role = $2 where id = $1`, [userId, role]);
   await audit(admin.id, 'set_role', 'profile', userId, { role });
-  revalidatePath('/app/team');
   back('role');
 }
 
@@ -93,7 +90,6 @@ export async function removeUser(formData: FormData) {
   if (userId === admin.id) back(undefined, 'invalid');
   await q(`delete from auth.users where id = $1`, [userId]); // cascades to profile, memberships
   await audit(admin.id, 'remove_user', 'profile', userId);
-  revalidatePath('/app/team');
   back('removed');
 }
 
@@ -104,7 +100,6 @@ export async function setUserDepartments(formData: FormData) {
   const departmentIds = ids(formData, 'departmentIds');
   await setDepartments(userId, departmentIds);
   await audit(staff.id, 'set_departments', 'profile', userId, { departmentIds });
-  revalidatePath('/app/team');
   back('departments');
 }
 
@@ -115,8 +110,6 @@ export async function addUserOpening(formData: FormData) {
   if (!Number.isInteger(openingId)) back(undefined, 'invalid');
   await addOpenings(userId, [openingId]);
   await audit(staff.id, 'add_member', 'opening', openingId, { memberId: userId });
-  revalidatePath('/app/team');
-  revalidatePath(`/app/openings/${openingId}/team`);
   back('opening');
 }
 
@@ -126,8 +119,6 @@ export async function removeUserOpening(formData: FormData) {
   const openingId = Number(formData.get('openingId'));
   await q(`delete from public.opening_members where opening_id = $1 and user_id = $2`, [openingId, userId]);
   await audit(staff.id, 'remove_member', 'opening', openingId, { memberId: userId });
-  revalidatePath('/app/team');
-  revalidatePath(`/app/openings/${openingId}/team`);
   back('opening_removed');
 }
 
@@ -139,7 +130,6 @@ export async function addDepartment(formData: FormData) {
   if (!name) back(undefined, 'invalid');
   await q(`insert into public.departments (name) values ($1) on conflict (name) do nothing`, [name]);
   await audit(staff.id, 'add_department', 'department', name);
-  revalidatePath('/app/team');
   back('department_added');
 }
 
@@ -163,8 +153,6 @@ export async function renameDepartment(formData: FormData) {
     throw e;
   }
   await audit(staff.id, 'rename_department', 'department', id, { name });
-  revalidatePath('/app/team');
-  revalidatePath('/app/openings');
   back('department_renamed');
 }
 
@@ -174,6 +162,5 @@ export async function deleteDepartment(formData: FormData) {
   const id = Number(formData.get('departmentId'));
   await q(`delete from public.departments where id = $1`, [id]);
   await audit(staff.id, 'delete_department', 'department', id);
-  revalidatePath('/app/team');
   back('department_removed');
 }

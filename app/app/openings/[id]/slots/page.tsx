@@ -43,10 +43,18 @@ export default async function SlotsPage({
   if (!opening) notFound();
   if (!(await canAccessOpening(await currentUser(), openingId))) notFound();
 
-  const { rows: interviewStages } = await q<{ id: number; name: string }>(
-    `select id, name from public.stages where opening_id = $1 and kind = 'interview' order by position`,
+  // per interview stage: candidates invited but not yet booked, and open future slots
+  const { rows: interviewStages } = await q<{ id: number; name: string; waiting: number; open: number }>(
+    `select s.id, s.name,
+            (select count(*)::int from public.applications a
+              where a.current_stage_id = s.id and a.status = 'active'
+                and not exists (select 1 from public.slots sl where sl.application_id = a.id and sl.stage_id = s.id)) as waiting,
+            (select count(*)::int from public.slots sl
+              where sl.stage_id = s.id and sl.application_id is null and sl.starts_at > now()) as open
+     from public.stages s where s.opening_id = $1 and s.kind = 'interview' order by s.position`,
     [openingId]
   );
+  const starved = interviewStages.filter((s) => s.waiting > 0 && s.open === 0);
   const { rows: people } = await q<{ id: string; full_name: string }>(
     `select id, full_name from public.profiles order by full_name`
   );
@@ -111,13 +119,24 @@ export default async function SlotsPage({
           first.
         </p>
       ) : (
+        <>
+        {starved.length > 0 && (
+          <p className="mt-6 rounded-md bg-rust/10 px-4 py-3 text-sm text-rust">
+            {starved
+              .map((s) => `${s.waiting} candidate${s.waiting === 1 ? '' : 's'} in ${s.name} ${s.waiting === 1 ? 'has' : 'have'} the interview invite but there are no open slots to book`)
+              .join('; ')}
+            . Create slots below for this opening.
+          </p>
+        )}
         <form action={createSlots} className="mt-8 flex flex-wrap items-end gap-2 rounded-lg border border-line bg-card p-4">
           <input type="hidden" name="openingId" value={openingId} />
           <div>
             <label className="field-label" htmlFor="slot-stage">Stage</label>
             <select id="slot-stage" name="stageId" className="input w-40">
               {interviewStages.map((s) => (
-                <option key={s.id} value={s.id}>{s.name}</option>
+                <option key={s.id} value={s.id}>
+                  {s.name}{s.waiting > 0 ? ` — ${s.waiting} waiting to book` : ''}
+                </option>
               ))}
             </select>
           </div>
@@ -166,6 +185,7 @@ export default async function SlotsPage({
             emailed when a candidate books.
           </p>
         </form>
+        </>
       )}
 
       <div className="mt-8 flex items-center justify-between text-sm">
