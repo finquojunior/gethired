@@ -2,7 +2,7 @@ import Link from 'next/link';
 import BackButton from '@/components/BackButton';
 import { notFound } from 'next/navigation';
 import { q } from '@/lib/db';
-import { canAccessOpening, currentUser, isStaff } from '@/lib/auth';
+import { canAccessOpening, currentUser } from '@/lib/auth';
 import SubmitButton from '@/components/SubmitButton';
 import OpeningTabs from '@/components/OpeningTabs';
 import { addMember, removeMember } from '../../actions';
@@ -26,7 +26,7 @@ export default async function TeamPage({ params }: { params: Promise<{ id: strin
   if (!opening) notFound();
   const user = await currentUser();
   if (!(await canAccessOpening(user, openingId))) notFound();
-  const staff = isStaff(user);
+  const staff = true; // anyone who can work in the opening may manage its team
 
   const { rows: members } = await q<{
     user_id: string;
@@ -56,7 +56,7 @@ export default async function TeamPage({ params }: { params: Promise<{ id: strin
       <p className="mt-4 text-sm text-ink-soft">
         Everyone added here can do everything in this opening: review candidates, move stages,
         book interviews, email, and edit the setup. Admins and HR have access to every opening
-        without being added.{!staff && ' Only admins and HR can change who is on the team.'}
+        without being added, and department members have access to every opening in their departments.
       </p>
 
       <ul className="mt-8 divide-y divide-line rounded-lg border border-line bg-card">

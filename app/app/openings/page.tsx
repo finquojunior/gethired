@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { q } from '@/lib/db';
-import { currentUser, isStaff, openingScope, scopeSql } from '@/lib/auth';
+import { currentUser, departmentScope, isStaff, openingScope, scopeSql } from '@/lib/auth';
+import Flash from '@/components/Flash';
 import SubmitButton from '@/components/SubmitButton';
 import { createOpening } from './actions';
 
@@ -17,12 +18,20 @@ export const metadata = { title: 'Openings' };
 export default async function OpeningsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ show?: string }>;
+  searchParams: Promise<{ show?: string; e?: string }>;
 }) {
-  const { show } = await searchParams;
+  const { show, e } = await searchParams;
   const closed = show === 'closed';
   const user = await currentUser();
   const scope = await openingScope(user);
+  const myDepartments = await departmentScope(user); // null = any
+  const { rows: departments } = await q<{ name: string }>(`select name from public.departments order by name`);
+  const creatable = myDepartments === null ? departments.map((d) => d.name) : myDepartments;
+  const canCreate = isStaff(user) || creatable.length > 0;
+  const ERR: Record<string, string> = {
+    department: 'Pick a department from the list — you can only create openings in your own departments.',
+    title: 'Give the opening a title.',
+  };
   const { rows: openings } = await q<{
     id: number;
     title: string;
@@ -60,20 +69,27 @@ export default async function OpeningsPage({
         </div>
       </div>
 
-      {isStaff(user) && (
-
+      {e && ERR[e] && <Flash kind="error" message={ERR[e]} cleanParams={['e']} />}
+      {canCreate && (
       <form action={createOpening} className="mt-8 flex flex-wrap items-end gap-3">
-        <div className="flex-1">
+        <div className="min-w-56 flex-1">
           <label className="field-label" htmlFor="title">New opening *</label>
           <input id="title" name="title" required placeholder="e.g. Performance Marketer" className="input" />
         </div>
-        <div className="w-48">
-          <label className="field-label" htmlFor="department">Department</label>
-          <input id="department" name="department" placeholder="Marketing" className="input" />
+        <div className="w-52">
+          <label className="field-label" htmlFor="department">Department{isStaff(user) ? '' : ' *'}</label>
+          <select id="department" name="department" className="input" required={!isStaff(user)} defaultValue={creatable.length === 1 ? creatable[0] : ''}>
+            {isStaff(user) && <option value="">— none —</option>}
+            {creatable.map((d) => (
+              <option key={d} value={d}>{d}</option>
+            ))}
+          </select>
         </div>
         <SubmitButton className="btn-primary" pendingLabel="Creating…">Create opening</SubmitButton>
+        {isStaff(user) && departments.length === 0 && (
+          <p className="w-full text-xs text-ink-soft">No departments yet — add them on the <Link href="/app/team" className="text-pine underline">Team</Link> page.</p>
+        )}
       </form>
-
       )}
 
       <ul className="mt-8 divide-y divide-line rounded-lg border border-line bg-card">

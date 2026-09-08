@@ -4,7 +4,7 @@ import path from 'node:path';
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { q, tx } from '@/lib/db';
-import { requireAdmin, requireOpeningAccess, requireStaff } from '@/lib/auth';
+import { canUseDepartment, currentUser, forbidden, requireAdmin, requireOpeningAccess, requireStaff } from '@/lib/auth';
 import { audit } from '@/lib/audit';
 import { orgTimeToUtc } from '@/lib/tz';
 import { EMPTY_SCHEMA, type FormSchema } from '@/lib/form-schema';
@@ -30,11 +30,21 @@ function slugify(title: string): string {
   );
 }
 
+/** Is `name` one of the managed departments? Empty means "no department" (staff only). */
+async function departmentListed(name: string): Promise<boolean> {
+  if (!name) return true;
+  const { rows } = await q(`select 1 from public.departments where name = $1`, [name]);
+  return rows.length > 0;
+}
+
 export async function createOpening(formData: FormData) {
-  const user = await requireStaff();
-  const title = String(formData.get('title') ?? '').trim();
-  const department = String(formData.get('department') ?? '').trim();
-  if (!title) return;
+  const user = await currentUser();
+  const title = String(formData.get('title') ?? '').trim().slice(0, 200);
+  const department = String(formData.get('department') ?? '').trim().slice(0, 80);
+  // global staff create anywhere; department members only inside their departments
+  if (!(await canUseDepartment(user, department)) || (!department && user.role !== 'admin' && user.role !== 'hr')) forbidden();
+  if (!(await departmentListed(department))) redirect('/app/openings?e=department');
+  if (!title) redirect('/app/openings?e=title');
 
   const base = slugify(title);
   const id = await tx(async (c) => {
@@ -78,6 +88,17 @@ export async function createOpening(formData: FormData) {
 export async function updateOpening(formData: FormData) {
   const id = Number(formData.get('id'));
   const user = await requireOpeningAccess(id);
+  const department = String(formData.get('department') ?? '').trim().slice(0, 80);
+  const {
+    rows: [cur],
+  } = await q<{ department: string }>(`select department from public.openings where id = $1`, [id]);
+  if (!cur) return;
+  if (department !== cur.department) {
+    // moving an opening between departments needs rights in the target department
+    if (!(await canUseDepartment(user, department)) || !(await departmentListed(department))) {
+      redirect(`/app/openings/${id}?e=department`);
+    }
+  }
   const status = String(formData.get('status') ?? 'draft');
   if (!['draft', 'open', 'paused', 'closed'].includes(status)) return;
   const newSlug = slugify(String(formData.get('slug') ?? ''));
@@ -102,7 +123,7 @@ export async function updateOpening(formData: FormData) {
     [
       id,
       String(formData.get('title') ?? '').trim(),
-      String(formData.get('department') ?? '').trim(),
+      department,
       String(formData.get('description') ?? '').trim(),
       status,
       String(formData.get('location') ?? '').trim(),
@@ -469,8 +490,8 @@ export async function deleteStage(formData: FormData) {
 // --- team ---
 
 export async function addMember(formData: FormData) {
-  const user = await requireStaff();
   const openingId = Number(formData.get('openingId'));
+  const user = await requireOpeningAccess(openingId);
   const memberId = String(formData.get('userId'));
   // member_role is a label now (every member can do everything in the
   // opening); derive it from the person's global role for the archive/team lists
@@ -490,8 +511,8 @@ export async function addMember(formData: FormData) {
 }
 
 export async function removeMember(formData: FormData) {
-  const user = await requireStaff();
   const openingId = Number(formData.get('openingId'));
+  const user = await requireOpeningAccess(openingId);
   const memberId = String(formData.get('userId'));
   await q(`delete from public.opening_members where opening_id = $1 and user_id = $2`, [
     openingId,

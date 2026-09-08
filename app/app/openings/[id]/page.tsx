@@ -4,7 +4,7 @@ import { notFound } from 'next/navigation';
 import { q } from '@/lib/db';
 import SubmitButton from '@/components/SubmitButton';
 import RichTextArea from '@/components/RichTextArea';
-import { canAccessOpening, currentUser, isStaff } from '@/lib/auth';
+import { canAccessOpening, currentUser, departmentScope, isStaff } from '@/lib/auth';
 import { POSTER_ACCEPT } from '@/lib/uploads';
 import { fmtDate } from '@/lib/tz';
 import Flash from '@/components/Flash';
@@ -72,6 +72,10 @@ export default async function OpeningPage({
     [Number(id)]
   );
   if (!o || !(await canAccessOpening(user, Number(id)))) notFound();
+  const myDepartments = await departmentScope(user);
+  const { rows: allDepartments } = await q<{ name: string }>(`select name from public.departments order by name`);
+  // staff pick any department; members pick among theirs (the current one always stays selectable)
+  const deptOptions = [...new Set([o.department, ...(myDepartments ?? allDepartments.map((d) => d.name))].filter(Boolean))];
 
   const href = (tab: string) => `/app/openings/${o.id}/${tab}`;
   const setup: Array<{ ok: boolean; text: string; href: string; warn?: boolean }> = [
@@ -96,7 +100,7 @@ export default async function OpeningPage({
     <div>
       <Flash
         kind={ok ? 'success' : 'error'}
-        message={ok === 'saved' ? 'Opening saved' : e === 'poster' ? 'Saved — but the poster was not accepted (JPG, PNG, or WebP up to 3 MB).' : e === 'slug' ? 'Not saved — that public link is empty or already used.' : null}
+        message={ok === 'saved' ? 'Opening saved' : e === 'poster' ? 'Saved — but the poster was not accepted (JPG, PNG, or WebP up to 3 MB).' : e === 'slug' ? 'Not saved — that public link is empty or already used.' : e === 'department' ? 'Not saved — pick a department you belong to from the list.' : null}
       />
       <BackButton fallback="/app/openings" />
       <div className="track flex flex-wrap items-end justify-between gap-3">
@@ -177,7 +181,12 @@ export default async function OpeningPage({
         <div className="flex flex-col gap-4 sm:flex-row">
           <div className="flex-1">
             <label className="field-label" htmlFor="department">Department</label>
-            <input id="department" name="department" defaultValue={o.department} className="input" />
+            <select id="department" name="department" defaultValue={o.department} className="input">
+              {(isStaff(user) || !o.department) && <option value="">— none —</option>}
+              {deptOptions.map((d) => (
+                <option key={d} value={d}>{d}</option>
+              ))}
+            </select>
           </div>
           <div className="w-44">
             <label className="field-label" htmlFor="status">Status</label>

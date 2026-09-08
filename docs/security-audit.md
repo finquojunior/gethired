@@ -55,6 +55,9 @@ original audit record; where they differ from this section, this section wins.
    per-device session list.
 2. **Authorization is enforced in app code, scoped per opening.** `admin` and
    `hr` are global. `dept_head` and `interviewer` may only act inside openings
+   they belong to — directly (`opening_members`), through an assigned department
+   (`user_departments`, covering every opening whose `department` matches), or
+   because they hold an interview slot on it
    they are a member of (`opening_members`) or hold an interview slot in
    (`slots.interviewer_id` / `panel`); `requireOpeningAccess`,
    `requireApplicationAccess`, and `openingIdForFile` gate actions, pages, and

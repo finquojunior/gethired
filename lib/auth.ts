@@ -123,13 +123,21 @@ export function forbidden(): never {
   redirect('/app?e=forbidden');
 }
 
-/** Opening ids this user may work in; null means all (global staff). */
+/**
+ * Opening ids this user may work in; null means all (global staff). Membership
+ * of an opening, an interview slot on it, or an assigned department (which
+ * covers every current and future opening in that department).
+ */
 export async function openingScope(u: SessionUser): Promise<number[] | null> {
   if (isStaff(u)) return null;
   const { rows } = await q<{ id: number }>(
     `select opening_id as id from public.opening_members where user_id = $1
      union
-     select opening_id from public.slots where interviewer_id = $1 or $1 = any(panel)`,
+     select opening_id from public.slots where interviewer_id = $1 or $1 = any(panel)
+     union
+     select o.id from public.openings o
+       join public.departments d on d.name = o.department
+       join public.user_departments ud on ud.department_id = d.id and ud.user_id = $1`,
     [u.id]
   );
   return rows.map((r) => Number(r.id));
@@ -145,10 +153,33 @@ export async function canAccessOpening(u: SessionUser, openingId: number): Promi
     `select 1 from public.opening_members where opening_id = $1 and user_id = $2
      union all
      select 1 from public.slots where opening_id = $1 and (interviewer_id = $2 or $2 = any(panel))
+     union all
+     select 1 from public.openings o
+       join public.departments d on d.name = o.department
+       join public.user_departments ud on ud.department_id = d.id
+       where o.id = $1 and ud.user_id = $2
      limit 1`,
     [openingId, u.id]
   );
   return rows.length > 0;
+}
+
+/** Department names this user may create openings in; null means any (global staff). */
+export async function departmentScope(u: SessionUser): Promise<string[] | null> {
+  if (isStaff(u)) return null;
+  const { rows } = await q<{ name: string }>(
+    `select d.name from public.user_departments ud join public.departments d on d.id = ud.department_id
+     where ud.user_id = $1 order by d.name`,
+    [u.id]
+  );
+  return rows.map((r) => r.name);
+}
+
+/** May this user create or move an opening into `department`? Staff: any listed department. */
+export async function canUseDepartment(u: SessionUser, department: string): Promise<boolean> {
+  if (isStaff(u)) return true;
+  const mine = await departmentScope(u);
+  return mine !== null && mine.includes(department);
 }
 
 /** Action gate for one opening. */
