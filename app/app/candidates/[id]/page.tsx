@@ -16,7 +16,9 @@ import {
   addFeedback,
   addNote,
   bulkPipeline,
+  completeInterview,
   composeEmail,
+  reopenInterview,
   resendEmail,
   staffBookSlot,
   staffCancelSlot,
@@ -633,21 +635,34 @@ export default async function CandidatePage({
                   <span>
                     <span className="font-medium">{fmt(s.starts_at)}</span>
                     <span className="text-muted-foreground"> · {s.duration_mins}m · {s.stage} · with {s.interviewer}</span>
+                    {s.completed_at && <Badge variant="secondary" className="ml-2">Completed</Badge>}
                   </span>
-                  {s.starts_at > new Date() && (
-                    <form action={staffCancelSlot}>
-                      <input type="hidden" name="applicationId" value={a.id} />
-                      <input type="hidden" name="slotId" value={s.id} />
-                      <SubmitButton
-                        variant="destructive"
-                        size="sm"
-                        pendingLabel="Cancelling…"
-                        confirmText={`Cancel the ${fmt(s.starts_at)} interview? ${a.name} and ${s.interviewer} will be emailed.`}
-                      >
-                        Cancel interview
-                      </SubmitButton>
-                    </form>
-                  )}
+                  <span className="flex items-center gap-2">
+                    {!s.completed_at && s.starts_at <= new Date() && (
+                      <form action={completeInterview}>
+                        <input type="hidden" name="applicationId" value={a.id} />
+                        <input type="hidden" name="slotId" value={s.id} />
+                        <SubmitButton size="sm" pendingLabel="Saving…">Mark completed</SubmitButton>
+                      </form>
+                    )}
+                    {s.completed_at && (
+                      <form action={reopenInterview}>
+                        <input type="hidden" name="applicationId" value={a.id} />
+                        <input type="hidden" name="slotId" value={s.id} />
+                        <SubmitButton variant="ghost" size="sm" pendingLabel="Saving…">Reopen</SubmitButton>
+                      </form>
+                    )}
+                    {!s.completed_at && s.starts_at > new Date() && (
+                      <form action={staffCancelSlot}>
+                        <input type="hidden" name="applicationId" value={a.id} />
+                        <input type="hidden" name="slotId" value={s.id} />
+                        <SubmitButton variant="destructive" size="sm" pendingLabel="Cancelling…"
+                          confirmText={`Cancel the ${fmt(s.starts_at)} interview? ${a.name} and ${s.interviewer} will be emailed.`}>
+                          Cancel interview
+                        </SubmitButton>
+                      </form>
+                    )}
+                  </span>
                 </li>
               ))}
               {slots.length === 0 && <li className="text-muted-foreground">No interview booked.</li>}
@@ -703,7 +718,7 @@ export default async function CandidatePage({
         </div>
 
         <div className="space-y-8">
-          <section>
+          <section id="feedback">
             <h2 className="font-display text-lg font-semibold">Feedback</h2>
             <div className="mt-3 space-y-4">
               {scoreForms.map((sf) => {

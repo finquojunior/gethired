@@ -4,6 +4,8 @@ import { currentUser, openingScope, scopeSql } from '@/lib/auth';
 import Toaster from '@/components/Toaster';
 import { fmtDay, fmtSlot } from '@/lib/tz';
 import ContinueChip from '@/components/ContinueChip';
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Dashboard' };
@@ -21,6 +23,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     { rows: [stats] },
     { rows: taskRound },
     { rows: stale },
+    { rows: [{ n: toCloseCount }] },
   ] = await Promise.all([
       q<{ id: number; name: string; title: string; starts_at: Date; interviewer: string }>(
         `select a.id, a.name, o.title, sl.starts_at, p.full_name as interviewer
@@ -113,6 +116,13 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
          order by last_move limit 10`,
         [scope]
       ),
+      q<{ n: number }>(
+        `select count(*)::int as n from public.slots sl
+         join public.applications a on a.id = sl.application_id and a.status = 'active' and a.current_stage_id = sl.stage_id
+         join public.openings o on o.id = a.opening_id
+         where sl.completed_at is null and sl.starts_at <= now() and sl.starts_at > now() - interval '30 days' and ${scopeSql('o.id', 1)}`,
+        [scope]
+      ),
     ]);
 
   const funnelByOpening = new Map<number, { title: string; stages: { stage: string; count: number }[] }>();
@@ -121,7 +131,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     funnelByOpening.get(f.opening_id)!.stages.push({ stage: f.stage, count: f.count });
   }
 
-  const card = 'rounded-lg border border-line bg-card p-5';
+  const sectionTitle = 'font-display text-lg font-semibold';
   return (
     <div>
       <Toaster
@@ -138,138 +148,177 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
           { label: 'At offer stage', value: stats.offers },
           { label: 'Hired (30 days)', value: stats.hired30 },
         ].map((s) => (
-          <div key={s.label} className={card}>
-            <div className="font-display text-3xl font-bold text-pine-deep">{s.value}</div>
-            <div className="mt-1 text-xs text-ink-soft">{s.label}</div>
-          </div>
+          <Card key={s.label}>
+            <CardContent>
+              <div className="font-display text-3xl font-semibold text-primary tabular-nums">{s.value}</div>
+              <CardDescription className="mt-1 text-xs">{s.label}</CardDescription>
+            </CardContent>
+          </Card>
         ))}
       </div>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
-        <section className={card}>
-          <h2 className="font-display text-lg font-semibold">Interviews in the next 24h</h2>
-          <ul className="mt-3 space-y-2 text-sm">
-            {interviews.map((i) => (
-              <li key={`${i.id}-${i.starts_at.getTime()}`} className="flex items-baseline justify-between gap-4">
-                <div className="min-w-0">
-                  <Link href={`/app/candidates/${i.id}`} className="block truncate font-medium hover:underline">
-                    {i.name}
-                  </Link>
-                  <p className="truncate text-xs text-ink-soft">
-                    {i.title} · with {i.interviewer}
-                  </p>
-                </div>
-                <span className="shrink-0 whitespace-nowrap text-ink-soft tabular-nums">{fmtSlot(i.starts_at)}</span>
-              </li>
-            ))}
-            {interviews.length === 0 && <li className="text-ink-soft">No interviews scheduled.</li>}
-          </ul>
-        </section>
-
-        <section className={card}>
-          <h2 className="font-display text-lg font-semibold">New applications (7 days)</h2>
-          <ul className="mt-3 space-y-2 text-sm">
-            {newApps.map((n) => (
-              <li key={n.opening_id} className="flex justify-between">
-                <Link href={`/app/openings/${n.opening_id}/applications`} className="hover:underline">
-                  {n.title}
-                </Link>
-                <span className="font-medium">{n.count}</span>
-              </li>
-            ))}
-            {newApps.length === 0 && <li className="text-ink-soft">No new applications this week.</li>}
-          </ul>
-        </section>
-
-        <section className={card}>
-          <h2 className="font-display text-lg font-semibold">Waiting on feedback</h2>
-          <ul className="mt-3 space-y-2 text-sm">
-            {pendingFeedback.map((f) => (
-              <li key={f.id} className="flex justify-between">
-                <Link href={`/app/candidates/${f.id}`} className="font-medium hover:underline">
-                  {f.name}
-                </Link>
-                <span className="text-ink-soft">
-                  {f.title} · interviewed {fmtSlot(f.starts_at)} · {f.interviewer}
-                </span>
-              </li>
-            ))}
-            {pendingFeedback.length === 0 && <li className="text-ink-soft">All caught up.</li>}
-          </ul>
-        </section>
-
-        <section className={card}>
-          <h2 className="font-display text-lg font-semibold">Task stage</h2>
-          <ul className="mt-3 space-y-2 text-sm">
-            {taskRound.map((t) => (
-              <li key={t.opening_id} className="flex justify-between">
-                <Link href={`/app/openings/${t.opening_id}/task`} className="hover:underline">
-                  {t.title}
-                </Link>
-                <span>
-                  <span className="font-medium text-pine-deep">{t.submitted} submitted</span>
-                  <span className="text-ink-soft"> · {t.in_stage - t.submitted} awaiting</span>
-                </span>
-              </li>
-            ))}
-            {taskRound.length === 0 && <li className="text-ink-soft">Nobody in a task stage.</li>}
-          </ul>
-        </section>
-
-        <section className={card}>
-          <h2 className="font-display text-lg font-semibold">Stuck for 14+ days</h2>
-          <p className="mt-1 text-xs text-ink-soft">Active candidates with no stage movement.</p>
-          <ul className="mt-3 space-y-2 text-sm">
-            {stale.map((s) => (
-              <li key={s.id} className="flex justify-between">
-                <Link href={`/app/candidates/${s.id}`} className="font-medium hover:underline">
-                  {s.name}
-                </Link>
-                <span className="text-ink-soft">
-                  {s.title} · {s.stage ?? '—'} · since {fmtDay(s.last_move)}
-                </span>
-              </li>
-            ))}
-            {stale.length === 0 && <li className="text-ink-soft">Nobody stuck — pipeline is moving.</li>}
-          </ul>
-        </section>
-
-        <section className={card}>
-          <div className="flex items-center justify-between">
-            <h2 className="font-display text-lg font-semibold">Email outbox</h2>
-            <Link href="/app/emails" className="text-sm text-pine underline">View outbox</Link>
-          </div>
-          <p className="mt-3 text-sm">
-            {outbox.pending > 0 ? (
-              <span className="font-medium text-amber">{outbox.pending} email(s) waiting or failed</span>
-            ) : (
-              <span className="text-ink-soft">Nothing queued.</span>
+        <Card>
+          <CardHeader>
+            <CardTitle className={sectionTitle}>Interviews in the next 24h</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ul className="space-y-2 text-sm">
+              {interviews.map((i) => (
+                <li key={`${i.id}-${i.starts_at.getTime()}`} className="flex items-baseline justify-between gap-4">
+                  <div className="min-w-0">
+                    <Link href={`/app/candidates/${i.id}`} className="block truncate font-medium hover:underline">
+                      {i.name}
+                    </Link>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {i.title} · with {i.interviewer}
+                    </p>
+                  </div>
+                  <span className="shrink-0 whitespace-nowrap text-muted-foreground tabular-nums">{fmtSlot(i.starts_at)}</span>
+                </li>
+              ))}
+              {interviews.length === 0 && <li className="text-muted-foreground">No interviews scheduled.</li>}
+            </ul>
+            {toCloseCount > 0 && (
+              <p className="mt-3 text-xs text-muted-foreground">
+                <Link href="/app/interviews" className="text-primary underline">{toCloseCount} held interview{toCloseCount === 1 ? '' : 's'} to close out</Link>
+              </p>
             )}
-          </p>
-        </section>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className={sectionTitle}>New applications (7 days)</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ul className="space-y-2 text-sm">
+              {newApps.map((n) => (
+                <li key={n.opening_id} className="flex justify-between">
+                  <Link href={`/app/openings/${n.opening_id}/applications`} className="hover:underline">
+                    {n.title}
+                  </Link>
+                  <span className="font-medium">{n.count}</span>
+                </li>
+              ))}
+              {newApps.length === 0 && <li className="text-muted-foreground">No new applications this week.</li>}
+            </ul>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className={sectionTitle}>Waiting on feedback</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ul className="space-y-2 text-sm">
+              {pendingFeedback.map((f) => (
+                <li key={f.id} className="flex justify-between">
+                  <Link href={`/app/candidates/${f.id}`} className="font-medium hover:underline">
+                    {f.name}
+                  </Link>
+                  <span className="text-muted-foreground">
+                    {f.title} · interviewed {fmtSlot(f.starts_at)} · {f.interviewer}
+                  </span>
+                </li>
+              ))}
+              {pendingFeedback.length === 0 && <li className="text-muted-foreground">All caught up.</li>}
+            </ul>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className={sectionTitle}>Task stage</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ul className="space-y-2 text-sm">
+              {taskRound.map((t) => (
+                <li key={t.opening_id} className="flex justify-between">
+                  <Link href={`/app/openings/${t.opening_id}/task`} className="hover:underline">
+                    {t.title}
+                  </Link>
+                  <span>
+                    <span className="font-medium text-primary">{t.submitted} submitted</span>
+                    <span className="text-muted-foreground"> · {t.in_stage - t.submitted} awaiting</span>
+                  </span>
+                </li>
+              ))}
+              {taskRound.length === 0 && <li className="text-muted-foreground">Nobody in a task stage.</li>}
+            </ul>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className={sectionTitle}>Stuck for 14+ days</CardTitle>
+            <CardDescription>Active candidates with no stage movement.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ul className="space-y-2 text-sm">
+              {stale.map((s) => (
+                <li key={s.id} className="flex justify-between">
+                  <Link href={`/app/candidates/${s.id}`} className="font-medium hover:underline">
+                    {s.name}
+                  </Link>
+                  <span className="text-muted-foreground">
+                    {s.title} · {s.stage ?? '—'} · since {fmtDay(s.last_move)}
+                  </span>
+                </li>
+              ))}
+              {stale.length === 0 && <li className="text-muted-foreground">Nobody stuck — pipeline is moving.</li>}
+            </ul>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className={sectionTitle}>Email outbox</CardTitle>
+            <CardAction>
+              <Link href="/app/emails" className="text-sm text-primary underline">View outbox</Link>
+            </CardAction>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm">
+              {outbox.pending > 0 ? (
+                <span className="font-medium text-amber">{outbox.pending} email(s) waiting or failed</span>
+              ) : (
+                <span className="text-muted-foreground">Nothing queued.</span>
+              )}
+            </p>
+          </CardContent>
+        </Card>
       </div>
 
       <section className="mt-8">
-        <h2 className="font-display text-lg font-semibold">Open pipelines</h2>
+        <h2 className={sectionTitle}>Open pipelines</h2>
         <div className="mt-3 grid gap-4 lg:grid-cols-2">
           {[...funnelByOpening.entries()].map(([id, f]) => (
-            <Link key={id} href={`/app/openings/${id}/applications`} className={`${card} hover:border-pine`}>
-              <div className="font-medium">{f.title}</div>
-              <div className="mt-2 flex gap-1">
-                {f.stages.map((s) => (
-                  <div key={s.stage} className="flex-1 text-center">
-                    <div className="rounded bg-pine-wash py-1 text-sm font-semibold text-pine-deep">{s.count}</div>
-                    <div className="mt-1 truncate text-xs text-ink-soft">{s.stage}</div>
+            <Link key={id} href={`/app/openings/${id}/applications`} className="rounded-xl">
+              <Card className="h-full transition-shadow hover:ring-primary/50">
+                <CardContent>
+                  <div className="font-medium">{f.title}</div>
+                  <div className="mt-2 flex gap-1">
+                    {f.stages.map((s) => (
+                      <div key={s.stage} className="flex-1 text-center">
+                        <div className="rounded bg-secondary py-1 text-sm font-semibold text-secondary-foreground tabular-nums">{s.count}</div>
+                        <div className="mt-1 truncate text-xs text-muted-foreground">{s.stage}</div>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                </CardContent>
+              </Card>
             </Link>
           ))}
           {funnelByOpening.size === 0 && (
-            <p className="text-sm text-ink-soft">
-              No open roles yet. <Link href="/app/openings" className="text-pine underline">Create an opening</Link>,
-              publish its form, then set its status to open.
-            </p>
+            <Empty className="lg:col-span-2">
+              <EmptyHeader>
+                <EmptyTitle>No open roles yet.</EmptyTitle>
+                <EmptyDescription>
+                  <Link href="/app/openings">Create an opening</Link>, publish its form, then set its status to open.
+                </EmptyDescription>
+              </EmptyHeader>
+            </Empty>
           )}
         </div>
       </section>

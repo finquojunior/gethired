@@ -8,6 +8,16 @@ import SubmitButton from '@/components/SubmitButton';
 import Flash from '@/components/Flash';
 import OpeningTabs from '@/components/OpeningTabs';
 import { createSlots, deleteSlot } from '../../actions';
+import { AlertTriangle } from 'lucide-react';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select';
+import { Field } from '@/components/ui/field';
+import { Badge } from '@/components/ui/badge';
+import { Card } from '@/components/ui/card';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from '@/components/ui/empty';
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
 
 export const dynamic = 'force-dynamic';
 
@@ -67,9 +77,10 @@ export default async function SlotsPage({
     panel_names: string | null;
     candidate_id: number | null;
     candidate: string | null;
+    completed_at: Date | null;
   }>(
     `select sl.id, sl.starts_at, sl.duration_mins, st.name as stage,
-            p.full_name as interviewer, a.id as candidate_id, a.name as candidate,
+            p.full_name as interviewer, a.id as candidate_id, a.name as candidate, sl.completed_at,
             (select string_agg(pp.full_name, ', ') from public.profiles pp where pp.id = any(sl.panel)) as panel_names
      from public.slots sl
      join public.stages st on st.id = sl.stage_id
@@ -103,7 +114,7 @@ export default async function SlotsPage({
       />
       <BackButton fallback={`/app/openings/${openingId}`} />
       <h1 className="track font-display text-3xl font-bold">
-        <Link href={`/app/openings/${openingId}`} className="text-ink-soft hover:underline">
+        <Link href={`/app/openings/${openingId}`} className="text-muted-foreground hover:underline">
           {opening.title}
         </Link>{' '}
         · Interview slots
@@ -111,9 +122,9 @@ export default async function SlotsPage({
       <OpeningTabs openingId={openingId} current="slots" />
 
       {interviewStages.length === 0 ? (
-        <p className="mt-6 text-sm text-ink-soft">
+        <p className="mt-6 text-sm text-muted-foreground">
           This opening has no interview stage.{' '}
-          <Link href={`/app/openings/${openingId}/stages`} className="text-pine underline">
+          <Link href={`/app/openings/${openingId}/stages`} className="text-primary underline">
             Add one in Stages
           </Link>{' '}
           first.
@@ -121,66 +132,70 @@ export default async function SlotsPage({
       ) : (
         <>
         {starved.length > 0 && (
-          <p className="mt-6 rounded-md bg-rust/10 px-4 py-3 text-sm text-rust">
-            {starved
-              .map((s) => `${s.waiting} candidate${s.waiting === 1 ? '' : 's'} in ${s.name} ${s.waiting === 1 ? 'has' : 'have'} the interview invite but there are no open slots to book`)
-              .join('; ')}
-            . Create slots below for this opening.
-          </p>
+          <Alert variant="destructive" className="mt-6">
+            <AlertTriangle />
+            <AlertTitle>
+              {starved
+                .map((s) => `${s.waiting} candidate${s.waiting === 1 ? '' : 's'} in ${s.name} ${s.waiting === 1 ? 'has' : 'have'} the interview invite but there are no open slots to book`)
+                .join('; ')}
+              .
+            </AlertTitle>
+            <AlertDescription>Create slots below for this opening.</AlertDescription>
+          </Alert>
         )}
-        <form action={createSlots} className="mt-8 flex flex-wrap items-end gap-2 rounded-lg border border-line bg-card p-4">
+        <form action={createSlots} className="mt-8 flex flex-wrap items-end gap-2 rounded-xl bg-card p-4 ring-1 ring-foreground/10">
           <input type="hidden" name="openingId" value={openingId} />
-          <div>
-            <label className="field-label" htmlFor="slot-stage">Stage</label>
-            <select id="slot-stage" name="stageId" className="input w-40">
+          <Field className="w-40">
+            <Label htmlFor="slot-stage">Stage</Label>
+            <NativeSelect id="slot-stage" name="stageId" >
               {interviewStages.map((s) => (
-                <option key={s.id} value={s.id}>
+                <NativeSelectOption key={s.id} value={s.id}>
                   {s.name}{s.waiting > 0 ? ` — ${s.waiting} waiting to book` : ''}
-                </option>
+                </NativeSelectOption>
               ))}
-            </select>
-          </div>
-          <div>
-            <label className="field-label" htmlFor="slot-interviewer">Primary interviewer</label>
-            <select id="slot-interviewer" name="interviewerId" required className="input w-52">
+            </NativeSelect>
+          </Field>
+          <Field className="w-52">
+            <Label htmlFor="slot-interviewer">Primary interviewer</Label>
+            <NativeSelect id="slot-interviewer" name="interviewerId" required >
               {people.map((p) => (
-                <option key={p.id} value={p.id}>{p.full_name}</option>
+                <NativeSelectOption key={p.id} value={p.id}>{p.full_name}</NativeSelectOption>
               ))}
-            </select>
-          </div>
+            </NativeSelect>
+          </Field>
           <fieldset className="min-w-48">
-            <legend className="field-label">Panel (optional)</legend>
+            <legend className="mb-1.5 text-sm leading-none font-medium">Panel (optional)</legend>
             <div className="flex max-h-24 flex-wrap gap-x-3 gap-y-1 overflow-y-auto text-sm">
               {people.map((p) => (
                 <label key={p.id} className="flex items-center gap-1">
-                  <input type="checkbox" name="panelIds" value={p.id} className="accent-pine" />
+                  <input type="checkbox" name="panelIds" value={p.id}  />
                   {p.full_name}
                 </label>
               ))}
             </div>
           </fieldset>
-          <div>
-            <label className="field-label" htmlFor="slot-date">Date</label>
-            <input id="slot-date" type="date" name="date" required min={today} className="input w-40" />
-          </div>
-          <div>
-            <label className="field-label" htmlFor="slot-from">From ({TZ_LABEL})</label>
-            <input id="slot-from" type="time" name="from" required defaultValue="10:00" className="input w-28" />
-          </div>
-          <div>
-            <label className="field-label" htmlFor="slot-to">To ({TZ_LABEL})</label>
-            <input id="slot-to" type="time" name="to" required defaultValue="16:00" className="input w-28" />
-          </div>
-          <div>
-            <label className="field-label" htmlFor="slot-duration">Minutes each</label>
-            <input id="slot-duration" type="number" name="duration" defaultValue={30} min={5} className="input w-24" />
-          </div>
-          <div className="min-w-64 flex-1">
-            <label className="field-label" htmlFor="slot-link">Meeting link / location (sent to the candidate)</label>
-            <input id="slot-link" name="meetingLink" placeholder="https://meet.google.com/… or office address" className="input" />
-          </div>
-          <SubmitButton className="btn-primary" pendingLabel="Creating…">Create slots</SubmitButton>
-          <p className="basis-full text-xs text-ink-soft">
+          <Field className="w-40">
+            <Label htmlFor="slot-date">Date</Label>
+            <Input id="slot-date" type="date" name="date" required min={today}  />
+          </Field>
+          <Field className="w-28">
+            <Label htmlFor="slot-from">From ({TZ_LABEL})</Label>
+            <Input id="slot-from" type="time" name="from" required defaultValue="10:00"  />
+          </Field>
+          <Field className="w-28">
+            <Label htmlFor="slot-to">To ({TZ_LABEL})</Label>
+            <Input id="slot-to" type="time" name="to" required defaultValue="16:00"  />
+          </Field>
+          <Field className="w-24">
+            <Label htmlFor="slot-duration">Minutes each</Label>
+            <Input id="slot-duration" type="number" name="duration" defaultValue={30} min={5}  />
+          </Field>
+          <Field className="min-w-64 flex-1">
+            <Label htmlFor="slot-link">Meeting link / location (sent to the candidate)</Label>
+            <Input id="slot-link" name="meetingLink" placeholder="https://meet.google.com/… or office address" />
+          </Field>
+          <SubmitButton pendingLabel="Creating…">Create slots</SubmitButton>
+          <p className="basis-full text-xs text-muted-foreground">
             One slot every &quot;minutes each&quot; between From and To. The primary interviewer and panel are
             emailed when a candidate books.
           </p>
@@ -189,60 +204,67 @@ export default async function SlotsPage({
       )}
 
       <div className="mt-8 flex items-center justify-between text-sm">
-        <span className="text-ink-soft">{showPast ? 'All slots' : 'Upcoming slots'}</span>
+        <span className="text-muted-foreground">{showPast ? 'All slots' : 'Upcoming slots'}</span>
         {showPast ? (
-          <Link href={`/app/openings/${openingId}/slots`} className="text-pine underline">Hide past</Link>
+          <Link href={`/app/openings/${openingId}/slots`} className="text-primary underline">Hide past</Link>
         ) : pastCount > 0 ? (
-          <Link href={`/app/openings/${openingId}/slots?past=1`} className="text-pine underline">
+          <Link href={`/app/openings/${openingId}/slots?past=1`} className="text-primary underline">
             Show past ({pastCount})
           </Link>
         ) : null}
       </div>
 
-      <div className="mt-2 overflow-x-auto rounded-lg border border-line bg-card"><table className="w-full text-sm">
-        <thead>
-          <tr className="border-b border-line text-left text-xs uppercase tracking-wide text-ink-soft">
-            <th className="px-4 py-3">When</th>
-            <th className="px-4 py-3">Stage</th>
-            <th className="px-4 py-3">Interviewer</th>
-            <th className="px-4 py-3">Booked by</th>
-            <th className="px-4 py-3" />
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-line">
+      <Card className="mt-2 py-0">
+      <Table>
+        <TableHeader>
+          <TableRow className="text-xs uppercase tracking-wide text-muted-foreground hover:bg-transparent">
+            <TableHead className="px-4">When</TableHead>
+            <TableHead className="px-4">Stage</TableHead>
+            <TableHead className="px-4">Interviewer</TableHead>
+            <TableHead className="px-4">Booked by</TableHead>
+            <TableHead className="px-4" />
+          </TableRow>
+        </TableHeader>
+        <TableBody>
           {[...byDay.entries()].flatMap(([day, rows]) => [
-            <tr key={`day-${day}`} className="bg-paper">
-              <th colSpan={5} scope="rowgroup" className="px-4 py-1.5 text-left text-xs font-medium uppercase tracking-wide text-ink-soft">
+            <TableRow key={`day-${day}`} className="bg-muted/50 hover:bg-muted/50">
+              <TableHead colSpan={5} scope="rowgroup" className="h-8 px-4 text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 {day} · {rows.length} slot{rows.length === 1 ? '' : 's'} · {rows.filter((r) => !r.candidate_id).length} open
-              </th>
-            </tr>,
+              </TableHead>
+            </TableRow>,
             ...rows.map((s) => (
-            <tr key={s.id}>
-              <td className="px-4 py-2.5">
+            <TableRow key={s.id}>
+              <TableCell className="px-4">
                 {fmtDateTime(s.starts_at)}
-                <span className="text-ink-soft"> · {s.duration_mins}m</span>
-              </td>
-              <td className="px-4 py-2.5">{s.stage}</td>
-              <td className="px-4 py-2.5">
+                <span className="text-muted-foreground"> · {s.duration_mins}m</span>
+              </TableCell>
+              <TableCell className="px-4">{s.stage}</TableCell>
+              <TableCell className="px-4">
                 {s.interviewer}
-                {s.panel_names && <span className="text-ink-soft"> + {s.panel_names}</span>}
-              </td>
-              <td className="px-4 py-2.5">
+                {s.panel_names && <span className="text-muted-foreground"> + {s.panel_names}</span>}
+              </TableCell>
+              <TableCell className="px-4">
                 {s.candidate_id ? (
-                  <Link href={`/app/candidates/${s.candidate_id}`} className="text-pine underline">
-                    {s.candidate}
-                  </Link>
+                  <>
+                    <Link href={`/app/candidates/${s.candidate_id}`} className="text-primary underline">
+                      {s.candidate}
+                    </Link>
+                    {s.completed_at
+                      ? <Badge variant="secondary" className="ml-2">Completed</Badge>
+                      : s.starts_at <= new Date() && <Badge className="ml-2 bg-amber/15 text-amber">Awaiting completion</Badge>}
+                  </>
                 ) : (
-                  <span className="text-ink-soft">open</span>
+                  <Badge variant="outline">open</Badge>
                 )}
-              </td>
-              <td className="px-4 py-2.5 text-right">
+              </TableCell>
+              <TableCell className="px-4 text-right">
                 {!s.candidate_id && (
                   <form action={deleteSlot}>
                     <input type="hidden" name="openingId" value={openingId} />
                     <input type="hidden" name="slotId" value={s.id} />
                     <SubmitButton
-                      className="btn-danger !py-1"
+                      variant="destructive"
+                      size="sm"
                       pendingLabel="Deleting…"
                       confirmText={`Delete the ${fmtDateTime(s.starts_at)} slot?`}
                     >
@@ -250,21 +272,25 @@ export default async function SlotsPage({
                     </SubmitButton>
                   </form>
                 )}
-              </td>
-            </tr>
+              </TableCell>
+            </TableRow>
             )),
           ])}
           {slots.length === 0 && (
-            <tr>
-              <td colSpan={5} className="px-4 py-8 text-center text-ink-soft">
-                {showPast || pastCount === 0
-                  ? 'No slots yet. Create a batch above — candidates pick from open slots.'
-                  : 'No upcoming slots. Create a batch above — candidates pick from open slots.'}
-              </td>
-            </tr>
+            <TableRow className="hover:bg-transparent">
+              <TableCell colSpan={5} className="whitespace-normal p-0">
+                <Empty>
+                  <EmptyHeader>
+                    <EmptyTitle>{showPast || pastCount === 0 ? 'No slots yet.' : 'No upcoming slots.'}</EmptyTitle>
+                    <EmptyDescription>Create a batch above — candidates pick from open slots.</EmptyDescription>
+                  </EmptyHeader>
+                </Empty>
+              </TableCell>
+            </TableRow>
           )}
-        </tbody>
-      </table></div>
+        </TableBody>
+      </Table>
+      </Card>
     </div>
   );
 }

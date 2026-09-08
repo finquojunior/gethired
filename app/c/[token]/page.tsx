@@ -14,6 +14,10 @@ import CandidateStepper from '@/components/CandidateStepper';
 import CandidateFooter from '@/components/CandidateFooter';
 import { directUploads } from '@/lib/storage';
 import { briefLinks, FALLBACK_REQUIREMENT, parseSubmissionFields } from '@/lib/brief';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { Button, buttonVariants } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 export const dynamic = 'force-dynamic';
 
@@ -113,8 +117,8 @@ export default async function PortalPage({
 
   const booking = showInterview
     ? (
-        await q<{ id: number; starts_at: Date; duration_mins: number; meeting_link: string }>(
-          `select id, starts_at, duration_mins, meeting_link from public.slots
+        await q<{ id: number; starts_at: Date; duration_mins: number; meeting_link: string; completed_at: Date | null }>(
+          `select id, starts_at, duration_mins, meeting_link, completed_at from public.slots
            where application_id = $1 and stage_id = $2`,
           [a.id, a.stage_id]
         )
@@ -173,7 +177,7 @@ export default async function PortalPage({
   }
   const fmt = fmtSlot;
   const canCancel = booking && booking.starts_at.getTime() - Date.now() > 24 * 3600_000;
-  const interviewPast = booking && booking.starts_at.getTime() + booking.duration_mins * 60_000 < Date.now();
+  const interviewPast = booking && (booking.completed_at != null || booking.starts_at.getTime() + booking.duration_mins * 60_000 < Date.now());
   const daysLeft = a.deadline ? daysUntil(a.deadline) : null;
   const overdue = daysLeft !== null && daysLeft < 0;
   const slotsByDay = new Map<string, typeof openSlots>();
@@ -189,15 +193,11 @@ export default async function PortalPage({
       details: link ? `Join: ${link}` : undefined,
       location: link || undefined,
     });
-  const otherRoles = (
-    <p className="mt-2 text-sm">
-      <Link href="/careers" className="text-pine underline">See other open roles →</Link>
-    </p>
-  );
+  const outcome = STATUS_TEXT[shownStatus];
 
   return (
     <main className="mx-auto max-w-xl px-6 py-16">
-      <p className="text-sm font-medium uppercase tracking-widest text-pine">{ORG_NAME} · {a.title}</p>
+      <p className="text-sm font-medium uppercase tracking-widest text-primary">{ORG_NAME} · {a.title}</p>
       <h1 className="track mt-2 font-display text-3xl font-bold">Hi {a.name.split(' ')[0]}</h1>
 
       <CandidateStepper
@@ -207,11 +207,21 @@ export default async function PortalPage({
         hideOutcome={a.rejection_pending}
       />
 
-      <p className="mt-6 text-lg">
-        {STATUS_TEXT[shownStatus] ?? KIND_TEXT[a.stage_kind ?? 'screen'] ?? 'Your application is in review.'}
-      </p>
-      {(shownStatus === 'rejected' || shownStatus === 'withdrawn') && otherRoles}
-      <p className="mt-1 text-sm text-ink-soft">Applied {fmtDay(a.created_at)}</p>
+      {outcome ? (
+        <Alert className={`mt-6 ${shownStatus === 'hired' ? 'border-primary bg-secondary' : ''}`}>
+          <AlertTitle className="text-base">{outcome}</AlertTitle>
+          {(shownStatus === 'rejected' || shownStatus === 'withdrawn') && (
+            <AlertDescription>
+              <Link href="/careers">See other open roles →</Link>
+            </AlertDescription>
+          )}
+        </Alert>
+      ) : (
+        <p className="mt-6 text-lg">
+          {KIND_TEXT[a.stage_kind ?? 'screen'] ?? 'Your application is in review.'}
+        </p>
+      )}
+      <p className="mt-1 text-sm text-muted-foreground">Applied {fmtDay(a.created_at)}</p>
 
       <Toaster
         initial={
@@ -233,207 +243,242 @@ export default async function PortalPage({
       />
 
       {showInterview && booking && interviewPast && (
-        <div className="mt-8 rounded-lg border border-line bg-card p-5">
-          <h2 className="font-display text-lg font-semibold">Your interview</h2>
-          <p className="mt-2 text-sm">
-            Your interview took place on {fmt(booking.starts_at)} — thanks for your time. We&apos;ll be in touch
-            with the outcome.
-          </p>
-        </div>
+        <Card className="mt-8">
+          <CardHeader>
+            <CardTitle className="font-display text-lg font-semibold">
+              <h2>Your interview</h2>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {booking.completed_at
+              ? <>Your interview on {fmt(booking.starts_at)} is complete — thanks for your time. The team is reviewing the round and will be in touch with the outcome.</>
+              : <>Your interview took place on {fmt(booking.starts_at)} — thanks for your time. We&apos;ll be in touch with the outcome.</>}
+          </CardContent>
+        </Card>
       )}
 
       {showInterview && booking && !interviewPast && (
-        <div className="mt-8 rounded-lg border border-line bg-card p-5">
-          <h2 className="font-display text-lg font-semibold">Your interview</h2>
-          <p className="mt-2 text-lg font-medium text-pine-deep">
-            {fmt(booking.starts_at)} · {booking.duration_mins} min
-          </p>
-          {booking.meeting_link && (
-            <p className="mt-2 text-sm">
-              {/^https?:\/\//.test(booking.meeting_link) ? (
-                <a href={booking.meeting_link} className="text-pine underline" target="_blank" rel="noopener">
-                  Join the meeting
-                </a>
-              ) : (
-                <span>Location: {booking.meeting_link}</span>
-              )}
-            </p>
-          )}
-          <p className="mt-2 text-sm">
-            <a
-              href={gcal(booking.starts_at, booking.duration_mins, booking.meeting_link)}
-              target="_blank"
-              rel="noopener"
-              className="text-pine underline"
-            >
-              Add to Google Calendar
-            </a>
-          </p>
-          {a.stage_brief && (
-            <p className="mt-2 whitespace-pre-line text-sm text-ink-soft"><LinkifyText value={a.stage_brief} /></p>
-          )}
-          {canCancel ? (
-            <PostForm
-              pendingText="Cancelling…"
-              confirmText="Cancel this interview booking? Your slot will be released and you'll need to pick another one."
-              method="post"
-              action={`/c/${token}/cancel`}
-              className="mt-4"
-            >
-              <button className="btn-quiet min-h-11 text-rust">Cancel booking</button>
-              <span className="ml-2 text-xs text-ink-soft">You can pick another slot after cancelling, if any are open.</span>
-            </PostForm>
-          ) : (
-            <p className="mt-3 text-xs text-ink-soft">
-              Bookings can be changed up to 24 hours before the interview.
-            </p>
-          )}
-        </div>
+        <Card className="mt-8">
+          <CardHeader>
+            <h2 className="text-sm font-medium text-muted-foreground">Your interview</h2>
+            <CardTitle className="font-display text-lg font-semibold text-primary">
+              {fmt(booking.starts_at)} · {booking.duration_mins} min
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap items-center gap-2">
+              {booking.meeting_link &&
+                (/^https?:\/\//.test(booking.meeting_link) ? (
+                  <a href={booking.meeting_link} className={buttonVariants({ size: 'lg' })} target="_blank" rel="noopener">
+                    Join the meeting
+                  </a>
+                ) : (
+                  <span className="text-sm">Location: {booking.meeting_link}</span>
+                ))}
+              <a
+                href={gcal(booking.starts_at, booking.duration_mins, booking.meeting_link)}
+                target="_blank"
+                rel="noopener"
+                className={buttonVariants({ variant: 'outline', size: 'lg' })}
+              >
+                Add to Google Calendar
+              </a>
+            </div>
+            {a.stage_brief && (
+              <p className="mt-3 whitespace-pre-line text-sm text-muted-foreground"><LinkifyText value={a.stage_brief} /></p>
+            )}
+            {canCancel ? (
+              <PostForm
+                pendingText="Cancelling…"
+                confirmText="Cancel this interview booking? Your slot will be released and you'll need to pick another one."
+                method="post"
+                action={`/c/${token}/cancel`}
+                className="mt-4 flex flex-wrap items-center gap-2"
+              >
+                <Button type="submit" variant="destructive" size="lg">Cancel booking</Button>
+                <span className="text-xs text-muted-foreground">You can pick another slot after cancelling, if any are open.</span>
+              </PostForm>
+            ) : (
+              <p className="mt-3 text-xs text-muted-foreground">
+                Bookings can be changed up to 24 hours before the interview.
+              </p>
+            )}
+          </CardContent>
+        </Card>
       )}
 
       {showInterview && !booking && (
-        <div className="mt-8 rounded-lg border border-line bg-card p-5">
-          <h2 className="font-display text-lg font-semibold">Pick an interview slot</h2>
-          {a.stage_brief && (
-            <p className="mt-2 whitespace-pre-line text-sm text-ink-soft"><LinkifyText value={a.stage_brief} /></p>
-          )}
-          {openSlots.length === 0 ? (
-            <p className="mt-3 text-sm text-ink-soft">
-              No open slots right now. New times appear here as soon as the team adds them — check back
-              in a day or two, or reply to any of our emails if nothing shows up.
-            </p>
-          ) : (
-            <PostForm
-              pendingText="Booking…"
-              submitToast="Booking your slot…"
-              method="post"
-              action={`/c/${token}/book`}
-              className="mt-4"
-            >
-              {[...slotsByDay].map(([day, slots]) => (
-                <fieldset key={day} className="mt-3 first:mt-0">
-                  <legend className="mb-1.5 text-sm font-medium">{day}</legend>
-                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                    {slots.map((s) => (
-                      <label
-                        key={s.id}
-                        className="flex min-h-11 cursor-pointer items-center gap-2 rounded-md border border-line px-3 py-2 text-sm transition-colors hover:bg-pine-wash has-[:checked]:border-pine has-[:checked]:bg-pine-wash has-[:checked]:font-medium"
-                      >
-                        <input type="radio" name="slotId" value={s.id} required className="accent-pine" />
-                        {fmtTime(s.starts_at)} · {s.duration_mins} min
-                      </label>
-                    ))}
-                  </div>
-                </fieldset>
-              ))}
-              <p className="mt-3 text-xs text-ink-soft">
-                Pick a time, then confirm. You&apos;ll get a confirmation email with a calendar invite.
+        <Card className="mt-8">
+          <CardHeader>
+            <CardTitle className="font-display text-lg font-semibold">
+              <h2>Pick an interview slot</h2>
+            </CardTitle>
+            {a.stage_brief && (
+              <CardDescription className="whitespace-pre-line"><LinkifyText value={a.stage_brief} /></CardDescription>
+            )}
+          </CardHeader>
+          <CardContent>
+            {openSlots.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No open slots right now. New times appear here as soon as the team adds them — check back
+                in a day or two, or reply to any of our emails if nothing shows up.
               </p>
-              <button className="btn-primary mt-3 min-h-11">Confirm this slot</button>
-            </PostForm>
-          )}
-        </div>
+            ) : (
+              <PostForm
+                pendingText="Booking…"
+                submitToast="Booking your slot…"
+                method="post"
+                action={`/c/${token}/book`}
+              >
+                {[...slotsByDay].map(([day, slots]) => (
+                  <fieldset key={day} className="mt-3 first:mt-0">
+                    <legend className="mb-1.5 text-sm font-medium">{day}</legend>
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                      {slots.map((s) => (
+                        <label
+                          key={s.id}
+                          className="flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border p-3 text-sm transition-colors hover:bg-muted has-[:checked]:border-primary has-[:checked]:bg-secondary has-[:checked]:font-medium"
+                        >
+                          <input type="radio" name="slotId" value={s.id} required />
+                          {fmtTime(s.starts_at)} · {s.duration_mins} min
+                        </label>
+                      ))}
+                    </div>
+                  </fieldset>
+                ))}
+                <p className="mt-3 text-xs text-muted-foreground">
+                  Pick a time, then confirm. You&apos;ll get a confirmation email with a calendar invite.
+                </p>
+                <Button type="submit" size="lg" className="mt-3">Confirm this slot</Button>
+              </PostForm>
+            )}
+          </CardContent>
+        </Card>
       )}
 
       {showTask && (
-        <div className="mt-8 rounded-lg border border-line bg-card p-5">
-          <h2 className="font-display text-lg font-semibold">Your task</h2>
-          {a.deadline && daysLeft !== null && (
-            <p className={`mt-2 text-sm font-medium ${overdue ? 'text-rust' : 'text-pine-deep'}`}>
-              {overdue
-                ? `Overdue since ${fmtDay(a.deadline)}`
-                : `Deadline: ${fmtDay(a.deadline)} (${daysLeft === 0 ? 'due today' : `${daysLeft} day${daysLeft === 1 ? '' : 's'} left`})`}
-              <span className="ml-1 font-normal text-ink-soft">
-                — {overdue ? 'you can still submit, but late work may not be reviewed.' : 'late work may not be reviewed.'}
-              </span>
-            </p>
-          )}
-          <p className="mt-2 whitespace-pre-line text-sm">
-            <LinkifyText value={a.stage_brief || 'Task details will be shared with you by email.'} />
-          </p>
-          {taskLinks.length > 0 && (
-            <ul className="mt-3 space-y-1 text-sm">
-              {taskLinks.map((l) => (
-                <li key={l}>
-                  <a href={l} target="_blank" rel="noopener" className="break-all text-pine underline">
-                    {l}
-                  </a>
-                </li>
-              ))}
-            </ul>
-          )}
-          {a.stage_brief_file && (
-            <p className="mt-3">
-              <a href={`/c/${token}/brief`} className="btn-quiet inline-flex min-h-11">
-                Download task brief document
-              </a>
-            </p>
-          )}
-
-          <div className="mt-5 rounded-md border-2 border-pine bg-pine-wash p-4">
-            <h3 className="font-display font-semibold">Are you doing this task?</h3>
-            {taskResponse === null ? (
-              <PostForm
-                pendingText="Saving…"
-                method="post"
-                action={`/c/${token}/task-response`}
-                className="mt-3 flex flex-wrap gap-3"
-              >
-                <button name="response" value="yes" className="btn-primary min-h-11">Yes, I&apos;m on it</button>
-                <button name="response" value="no" className="btn-quiet min-h-11 text-rust">No, I&apos;m not</button>
-              </PostForm>
-            ) : (
-              <>
-                <p className="mt-2 text-sm">
-                  {taskResponse === 'yes' ? (
-                    <>You answered <strong className="text-pine-deep">✓ Yes</strong> — great, we&apos;ll look out for your submission.</>
-                  ) : (
-                    <>You answered <strong className="text-rust">✕ No</strong>. Thanks for letting us know.</>
-                  )}
-                </p>
-                <details className="mt-2 text-sm">
-                  <summary className="cursor-pointer text-pine underline">Change response</summary>
-                  <PostForm
-                    pendingText="Saving…"
-                    method="post"
-                    action={`/c/${token}/task-response`}
-                    className="mt-3 flex flex-wrap gap-3"
-                  >
-                    <button name="response" value="yes" className="btn-primary min-h-11">Yes, I&apos;m on it</button>
-                    <button name="response" value="no" className="btn-quiet min-h-11 text-rust">No, I&apos;m not</button>
-                  </PostForm>
-                </details>
-              </>
+        <Card className="mt-8">
+          <CardHeader>
+            <CardTitle className="font-display text-lg font-semibold">
+              <h2>Your task</h2>
+            </CardTitle>
+            {a.deadline && daysLeft !== null && (
+              <CardDescription className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                <Badge variant={overdue ? 'destructive' : 'secondary'}>
+                  {overdue
+                    ? `Overdue since ${fmtDay(a.deadline)}`
+                    : `Deadline: ${fmtDay(a.deadline)} (${daysLeft === 0 ? 'due today' : `${daysLeft} day${daysLeft === 1 ? '' : 's'} left`})`}
+                </Badge>
+                <span>{overdue ? 'You can still submit, but late work may not be reviewed.' : 'Late work may not be reviewed.'}</span>
+              </CardDescription>
             )}
-          </div>
-
-          {submissions.length > 0 && (
-            <div className="mt-4 rounded-md bg-pine-wash px-3 py-2 text-sm text-pine-deep">
-              <p className="font-medium">Your submissions</p>
-              <ul className="mt-1 space-y-1.5">
-                {submissions.map((s) => (
-                  <li key={s.id}>
-                    <span className="font-medium">{s.title || 'Submission'}</span>
-                    <span className="opacity-70"> · {fmt(s.created_at)}</span>
-                    <div className="break-all text-xs">
-                      {s.file_path && <span>File: {s.file_name || 'uploaded file'}</span>}
-                      {s.file_path && s.link_url && ' · '}
-                      {s.link_url && (
-                        <a href={s.link_url} target="_blank" rel="noopener noreferrer" className="underline">
-                          {s.link_url}
-                        </a>
-                      )}
-                    </div>
-                    {s.note && <div className="text-xs opacity-80">Note: {s.note}</div>}
+          </CardHeader>
+          <CardContent>
+            <p className="whitespace-pre-line text-sm">
+              <LinkifyText value={a.stage_brief || 'Task details will be shared with you by email.'} />
+            </p>
+            {taskLinks.length > 0 && (
+              <ul className="mt-3 space-y-1 text-sm">
+                {taskLinks.map((l) => (
+                  <li key={l}>
+                    <a href={l} target="_blank" rel="noopener" className="break-all text-primary underline">
+                      {l}
+                    </a>
                   </li>
                 ))}
               </ul>
-            </div>
-          )}
+            )}
+            {a.stage_brief_file && (
+              <p className="mt-3">
+                <a href={`/c/${token}/brief`} className={buttonVariants({ variant: 'outline', size: 'lg' })}>
+                  Download task brief document
+                </a>
+              </p>
+            )}
 
-          {taskResponse === 'no' ? (
-            <details className="mt-4 text-sm">
-              <summary className="cursor-pointer text-pine underline">Changed your mind? Submit your work anyway</summary>
+            <div className="mt-5 rounded-lg border-2 border-primary bg-secondary p-4">
+              <h3 className="font-display font-semibold">Are you doing this task?</h3>
+              {taskResponse === null ? (
+                <PostForm
+                  pendingText="Saving…"
+                  method="post"
+                  action={`/c/${token}/task-response`}
+                  className="mt-3 flex flex-wrap gap-3"
+                >
+                  <Button type="submit" name="response" value="yes" size="lg">Yes, I&apos;m on it</Button>
+                  <Button type="submit" name="response" value="no" variant="outline" size="lg">No, I&apos;m not</Button>
+                </PostForm>
+              ) : (
+                <>
+                  <p className="mt-2 text-sm">
+                    {taskResponse === 'yes' ? (
+                      <>You answered <strong className="text-primary">✓ Yes</strong> — great, we&apos;ll look out for your submission.</>
+                    ) : (
+                      <>You answered <strong className="text-destructive">✕ No</strong>. Thanks for letting us know.</>
+                    )}
+                  </p>
+                  <details className="mt-2 text-sm">
+                    <summary className="cursor-pointer text-primary underline">Change response</summary>
+                    <PostForm
+                      pendingText="Saving…"
+                      method="post"
+                      action={`/c/${token}/task-response`}
+                      className="mt-3 flex flex-wrap gap-3"
+                    >
+                      <Button type="submit" name="response" value="yes" size="lg">Yes, I&apos;m on it</Button>
+                      <Button type="submit" name="response" value="no" variant="outline" size="lg">No, I&apos;m not</Button>
+                    </PostForm>
+                  </details>
+                </>
+              )}
+            </div>
+
+            {submissions.length > 0 && (
+              <div className="mt-4 text-sm">
+                <p className="font-medium">Your submissions</p>
+                <ul className="mt-1 space-y-2">
+                  {submissions.map((s) => (
+                    <li key={s.id}>
+                      <span className="font-medium">{s.title || 'Submission'}</span>
+                      <span className="text-muted-foreground"> · {fmt(s.created_at)}</span>
+                      <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 break-all text-xs">
+                        {s.file_path && (
+                          <span className="inline-flex items-center gap-1">
+                            <Badge variant="outline">File</Badge>
+                            {s.file_name || 'uploaded file'}
+                          </span>
+                        )}
+                        {s.link_url && (
+                          <span className="inline-flex items-center gap-1">
+                            <Badge variant="outline">Link</Badge>
+                            <a href={s.link_url} target="_blank" rel="noopener noreferrer" className="text-primary underline">
+                              {s.link_url}
+                            </a>
+                          </span>
+                        )}
+                      </div>
+                      {s.note && <div className="text-xs text-muted-foreground">Note: {s.note}</div>}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {taskResponse === 'no' ? (
+              <details className="mt-4 text-sm">
+                <summary className="cursor-pointer text-primary underline">Changed your mind? Submit your work anyway</summary>
+                <TaskSubmitForm
+                  action={`/c/${token}/task`}
+                  signUrl={`/c/${token}/upload-url`}
+                  direct={directUploads}
+                  maxBytes={TASK_MAX_BYTES}
+                  requirements={requirements.map((r) => {
+                    const done = doneByField.get(r.id);
+                    return { ...r, done: done ? fmt(done) : null };
+                  })}
+                />
+              </details>
+            ) : (
               <TaskSubmitForm
                 action={`/c/${token}/task`}
                 signUrl={`/c/${token}/upload-url`}
@@ -444,57 +489,56 @@ export default async function PortalPage({
                   return { ...r, done: done ? fmt(done) : null };
                 })}
               />
-            </details>
-          ) : (
-            <TaskSubmitForm
-              action={`/c/${token}/task`}
-              signUrl={`/c/${token}/upload-url`}
-              direct={directUploads}
-              maxBytes={TASK_MAX_BYTES}
-              requirements={requirements.map((r) => {
-                const done = doneByField.get(r.id);
-                return { ...r, done: done ? fmt(done) : null };
-              })}
-            />
-          )}
-        </div>
+            )}
+          </CardContent>
+        </Card>
       )}
 
       {Object.keys(a.answers).length > 0 && (
-        <details className="mt-8 rounded-lg border border-line bg-card p-5">
-          <summary className="cursor-pointer font-display text-lg font-semibold">
-            Your application
-          </summary>
-          <dl className="mt-3 space-y-3 text-sm">
-            {Object.entries(a.answers).map(([k, v]) => (
-              <div key={k}>
-                <dt className="text-ink-soft">{labels.get(k) ?? k}</dt>
-                <dd className="mt-0.5 whitespace-pre-line font-medium">
-                  <LinkifyText value={v} />
-                </dd>
-              </div>
-            ))}
-          </dl>
-        </details>
+        <Card className="mt-8">
+          <details>
+            <summary className="cursor-pointer px-(--card-spacing) font-display text-lg font-semibold">
+              <h2 className="inline">Your application</h2>
+            </summary>
+            <CardContent>
+              <dl className="mt-3 space-y-3 text-sm">
+                {Object.entries(a.answers).map(([k, v]) => (
+                  <div key={k}>
+                    <dt className="text-muted-foreground">{labels.get(k) ?? k}</dt>
+                    <dd className="mt-0.5 whitespace-pre-line font-medium">
+                      <LinkifyText value={v} />
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+            </CardContent>
+          </details>
+        </Card>
       )}
 
       {a.status === 'active' && (
-        <details className="mt-10 text-sm text-ink-soft">
-          <summary className="cursor-pointer">No longer interested?</summary>
-          <PostForm
-            pendingText="Withdrawing…"
-            confirmText={`Withdraw your application for ${a.title}? This cancels any booked interview and cannot be undone from this page.`}
-            method="post"
-            action={`/c/${token}/withdraw`}
-            className="mt-3"
-          >
-            <p className="mb-2">
-              This withdraws your application for {a.title} and cancels any booked interview.
-              It cannot be undone from this page — we&apos;ll email you a confirmation.
-            </p>
-            <button className="btn-quiet min-h-11 text-rust">Withdraw my application</button>
-          </PostForm>
-        </details>
+        <Card className="mt-10">
+          <details>
+            <summary className="cursor-pointer px-(--card-spacing) text-sm text-muted-foreground">
+              <h2 className="inline font-medium">No longer interested?</h2>
+            </summary>
+            <CardContent>
+              <PostForm
+                pendingText="Withdrawing…"
+                confirmText={`Withdraw your application for ${a.title}? This cancels any booked interview and cannot be undone from this page.`}
+                method="post"
+                action={`/c/${token}/withdraw`}
+                className="mt-3 text-sm text-muted-foreground"
+              >
+                <p className="mb-3">
+                  This withdraws your application for {a.title} and cancels any booked interview.
+                  It cannot be undone from this page — we&apos;ll email you a confirmation.
+                </p>
+                <Button type="submit" variant="destructive" size="lg">Withdraw my application</Button>
+              </PostForm>
+            </CardContent>
+          </details>
+        </Card>
       )}
       <CandidateFooter />
     </main>

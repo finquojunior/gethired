@@ -515,6 +515,41 @@ export async function staffCancelSlot(formData: FormData) {
   redirect(`/app/candidates/${applicationId}?${n ? 'ok=cancelled' : 'e=nothing'}`);
 }
 
+/** Staff marks a booked interview as held. Hides slot picking for the candidate and unlocks auto-advance. */
+export async function completeInterview(formData: FormData) {
+  const applicationId = Number(formData.get('applicationId'));
+  const slotId = Number(formData.get('slotId'));
+  const { user } = await requireApplicationAccess(applicationId);
+  const back = safeBack(formData.get('back'), `/app/candidates/${applicationId}`);
+  const {
+    rows: [slot],
+  } = await q<{ stage_id: number }>(
+    `update public.slots set completed_at = now()
+     where id = $1 and application_id = $2 and starts_at <= now() and completed_at is null
+     returning stage_id`,
+    [slotId, applicationId]
+  );
+  if (!slot) redirect(withParam(back, 'e', 'nothing'));
+  await audit(user.id, 'interview_completed', 'application', applicationId, { slotId });
+  const moved = await maybeAutoAdvance(user.id, applicationId, Number(slot.stage_id));
+  redirect(withParam(back, 'ok', moved ? 'auto_review' : 'interview_done'));
+}
+
+/** Undo for a mis-click; does not move the candidate back. */
+export async function reopenInterview(formData: FormData) {
+  const applicationId = Number(formData.get('applicationId'));
+  const slotId = Number(formData.get('slotId'));
+  const { user } = await requireApplicationAccess(applicationId);
+  const back = safeBack(formData.get('back'), `/app/candidates/${applicationId}`);
+  const { rowCount } = await q(
+    `update public.slots set completed_at = null where id = $1 and application_id = $2 and completed_at is not null`,
+    [slotId, applicationId]
+  );
+  if (!rowCount) redirect(withParam(back, 'e', 'nothing'));
+  await audit(user.id, 'interview_reopened', 'application', applicationId, { slotId });
+  redirect(withParam(back, 'ok', 'interview_reopened'));
+}
+
 /** Add / remove a tag on a candidate. */
 export async function updateTags(formData: FormData) {
   const applicationId = Number(formData.get('applicationId'));
