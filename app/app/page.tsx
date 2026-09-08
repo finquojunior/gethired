@@ -150,13 +150,16 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
           <h2 className="font-display text-lg font-semibold">Interviews in the next 24h</h2>
           <ul className="mt-3 space-y-2 text-sm">
             {interviews.map((i) => (
-              <li key={`${i.id}-${i.starts_at.getTime()}`} className="flex justify-between">
-                <Link href={`/app/candidates/${i.id}`} className="font-medium hover:underline">
-                  {i.name}
-                </Link>
-                <span className="text-ink-soft">
-                  {i.title} · {fmtSlot(i.starts_at)} · {i.interviewer}
-                </span>
+              <li key={`${i.id}-${i.starts_at.getTime()}`} className="flex items-baseline justify-between gap-4">
+                <div className="min-w-0">
+                  <Link href={`/app/candidates/${i.id}`} className="block truncate font-medium hover:underline">
+                    {i.name}
+                  </Link>
+                  <p className="truncate text-xs text-ink-soft">
+                    {i.title} · with {i.interviewer}
+                  </p>
+                </div>
+                <span className="shrink-0 whitespace-nowrap text-ink-soft tabular-nums">{fmtSlot(i.starts_at)}</span>
               </li>
             ))}
             {interviews.length === 0 && <li className="text-ink-soft">No interviews scheduled.</li>}
