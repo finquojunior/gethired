@@ -98,3 +98,21 @@ test('score sums option points on visible fields only', () => {
   assert.equal(computeScore(schema, { exp: 'No', stack: ['JS', 'Go'] }), 0);
   assert.equal(computeScore(schema, {}), 0);
 });
+
+test('single-answer checkboxes accept one value, reject two, and score like a radio', () => {
+  const s: FormSchema = {
+    pages: [
+      {
+        title: 'Q',
+        fields: [
+          { id: 'lvl', type: 'checkboxes', single: true, label: 'Level', options: ['Junior', 'Mid', 'Senior'], points: { Mid: 2, Senior: 5 } },
+        ],
+      },
+    ],
+  };
+  assert.deepEqual(validateAnswers(s, { lvl: ['Mid'] }), { errors: {}, clean: { lvl: ['Mid'] } });
+  assert.equal(validateAnswers(s, { lvl: ['Mid', 'Senior'] }).errors.lvl, 'Pick only one option');
+  assert.equal(validateAnswers(s, { lvl: ['Nope'] }).errors.lvl, 'Pick from the listed options');
+  assert.equal(computeScore(s, { lvl: ['Senior'] }), 5);
+  assert.equal(computeMaxScore(s), 5); // not 7: only one option can be picked
+});

@@ -27,8 +27,8 @@ const FIELD_TYPES: Array<[FieldType, string]> = [
   ['short_text', 'Short text'],
   ['long_text', 'Long text'],
   ['dropdown', 'Dropdown'],
-  ['multiple_choice', 'Multiple choice'],
-  ['checkboxes', 'Checkboxes'],
+  ['multiple_choice', 'Single choice (pick one)'],
+  ['checkboxes', 'Checkboxes (pick many)'],
   ['number', 'Number'],
   ['yes_no', 'Yes / No'],
   ['date', 'Date'],
@@ -203,6 +203,7 @@ export default function FormBuilder({
                           type,
                           options: CHOICE_TYPES.includes(type) && type !== 'yes_no' ? (f.options ?? ['Option 1']) : undefined,
                           points: undefined,
+                          single: undefined,
                         });
                       }}
                     >
@@ -211,6 +212,16 @@ export default function FormBuilder({
                       ))}
                     </NativeSelect>
                     <div className="flex-1" />
+                    {f.type === 'checkboxes' && (
+                      <label className="flex items-center gap-1 text-xs text-muted-foreground" title="Candidates can tick only one of the options">
+                        <input
+                          type="checkbox"
+                          checked={!!f.single}
+                          onChange={(e) => updateField(pi, fi, { single: e.target.checked || undefined })}
+                        />
+                        only one answer
+                      </label>
+                    )}
                     <label className="flex items-center gap-1 text-xs text-muted-foreground">
                       <input
                         type="checkbox"

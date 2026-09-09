@@ -29,6 +29,8 @@ export interface Field {
   help?: string;
   required?: boolean;
   options?: string[];
+  /** checkboxes only: the candidate may tick just one option (answers stay arrays) */
+  single?: boolean;
   /** points per option value; scoring only applies to choice-type fields */
   points?: Record<string, number>;
   showIf?: Condition;
@@ -175,6 +177,7 @@ export function validateAnswers(
         const arr = Array.isArray(raw) ? raw.map(String) : [String(raw)];
         const opts = fieldOptions(f);
         if (arr.some((v) => !opts.includes(v))) errors[f.id] = 'Pick from the listed options';
+        else if (f.single && arr.length > 1) errors[f.id] = 'Pick only one option';
         else clean[f.id] = arr;
         break;
       }
@@ -199,7 +202,7 @@ export function computeMaxScore(schema: FormSchema): number {
   for (const f of allFields(schema)) {
     if (!f.points || !CHOICE_TYPES.includes(f.type)) continue;
     const vals = Object.values(f.points);
-    if (f.type === 'checkboxes') {
+    if (f.type === 'checkboxes' && !f.single) {
       max += vals.filter((v) => v > 0).reduce((a, b) => a + b, 0);
     } else {
       max += Math.max(0, ...vals);

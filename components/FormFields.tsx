@@ -138,6 +138,19 @@ function FieldInput({
       );
     case 'checkboxes': {
       const selected = Array.isArray(value) ? value : [];
+      if (f.single) {
+        // one answer allowed: radios, but the answer stays an array like other checkbox fields
+        return (
+          <div className="space-y-1.5">
+            {fieldOptions(f).map((o) => (
+              <label key={o} className="flex items-center gap-2 text-sm">
+                <input type="radio" name={f.id} checked={selected[0] === o} onChange={() => onChange([o])} />
+                {o}
+              </label>
+            ))}
+          </div>
+        );
+      }
       return (
         <div className="space-y-1.5">
           {fieldOptions(f).map((o) => (
