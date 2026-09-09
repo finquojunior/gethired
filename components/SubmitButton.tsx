@@ -17,6 +17,8 @@ const LEGACY: Record<string, Variant> = {
   'btn-quiet': 'outline',
   'btn-danger': 'destructive',
 };
+const STALL_MS = 15_000;
+
 function splitLegacy(className = ''): { variant?: Variant; rest: string } {
   let variant: Variant | undefined;
   const rest = className
@@ -84,6 +86,18 @@ export default function SubmitButton({
     wasMine.current = pending && isMine;
     if (!pending) clicked.current = false;
   }, [pending, isMine, doneMessage]);
+  // Watchdog: the server finishes these actions in a second or two, but the
+  // response occasionally never reaches the browser and the button would sit on
+  // its pending label forever. After STALL_MS reload so the page shows what the
+  // server actually did.
+  useEffect(() => {
+    if (!pending) return;
+    const t = setTimeout(() => {
+      toast('error', 'The save is taking too long to come back — reloading to show the current state.');
+      setTimeout(() => window.location.reload(), 1500);
+    }, STALL_MS);
+    return () => clearTimeout(t);
+  }, [pending]);
 
   const [confirm, setConfirm] = useState<{ text: string; el: HTMLButtonElement } | null>(null);
 

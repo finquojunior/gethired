@@ -97,7 +97,6 @@ export default async function InterviewsPage({
                   action={completeInterview}
                   applicationId={u.id}
                   slotId={u.slot_id}
-                  back="/app/interviews"
                   candidateName={u.candidate}
                   when={fmtDateTime(u.starts_at)}
                 />

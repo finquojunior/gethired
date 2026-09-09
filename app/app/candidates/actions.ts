@@ -516,16 +516,17 @@ export async function staffCancelSlot(formData: FormData) {
   redirect(`/app/candidates/${applicationId}?${n ? 'ok=cancelled' : 'e=nothing'}`);
 }
 
-/** Staff marks a held interview as completed with its rating: saves the feedback, hides slot picking for the candidate, and auto-advances to Interview review. */
-export async function completeInterview(formData: FormData) {
+/** Staff marks a held interview as completed with its rating: saves the feedback, hides slot picking for the candidate, and auto-advances to Interview review. Called from CompleteInterviewButton. */
+export async function completeInterview(
+  formData: FormData
+): Promise<{ ok?: 'auto_review' | 'interview_done'; error?: 'rating_required' | 'nothing' }> {
   const applicationId = Number(formData.get('applicationId'));
   const slotId = Number(formData.get('slotId'));
   const { user } = await requireApplicationAccess(applicationId);
-  const back = safeBack(formData.get('back'), `/app/candidates/${applicationId}`);
   // completing an interview is the act of rating it: stars required, note optional
   const rating = Number(formData.get('rating')) || 0;
   const comment = String(formData.get('comment') ?? '').trim();
-  if (rating < 1 || rating > 5) redirect(withParam(back, 'e', 'rating_required'));
+  if (rating < 1 || rating > 5) return { error: 'rating_required' };
   const {
     rows: [slot],
   } = await q<{ stage_id: number }>(
@@ -534,7 +535,7 @@ export async function completeInterview(formData: FormData) {
      returning stage_id`,
     [slotId, applicationId]
   );
-  if (!slot) redirect(withParam(back, 'e', 'nothing'));
+  if (!slot) return { error: 'nothing' };
   await q(
     `insert into public.feedback (application_id, stage_id, author_id, rating, comment)
      values ($1, $2, $3, $4, $5)
@@ -544,7 +545,9 @@ export async function completeInterview(formData: FormData) {
   );
   await audit(user.id, 'interview_completed', 'application', applicationId, { slotId, rating });
   const moved = await maybeAutoAdvance(user.id, applicationId, Number(slot.stage_id));
-  redirect(withParam(back, 'ok', moved ? 'auto_review' : 'interview_done'));
+  // Returns instead of redirecting: the dialog that calls this closes itself and
+  // refreshes, which keeps the response small and never leaves the button pending.
+  return { ok: moved ? 'auto_review' : 'interview_done' };
 }
 
 /** Undo for a mis-click; does not move the candidate back. */
