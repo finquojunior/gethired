@@ -3,9 +3,9 @@ import { q } from '@/lib/db';
 import { currentUser, openingScope, scopeSql } from '@/lib/auth';
 import { fmtDateTime } from '@/lib/tz';
 import { completeInterview } from '@/app/app/candidates/actions';
+import CompleteInterviewButton from '@/components/CompleteInterviewButton';
 import { pipelineFlash } from '@/app/app/candidates/flash';
 import Flash from '@/components/Flash';
-import SubmitButton from '@/components/SubmitButton';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
@@ -58,9 +58,8 @@ export default async function InterviewsPage({
        order by o.created_at desc`,
       [scope]
     ),
-    q<{ id: number; candidate: string; title: string; stage: string; starts_at: Date; slot_id: number; interviewer: string; rated: boolean }>(
-      `select a.id, a.name as candidate, o.title, st.name as stage, sl.starts_at, sl.id as slot_id, p.full_name as interviewer,
-              exists (select 1 from public.feedback f where f.application_id = a.id and f.stage_id = sl.stage_id and f.rating is not null) as rated
+    q<{ id: number; candidate: string; title: string; stage: string; starts_at: Date; slot_id: number; interviewer: string }>(
+      `select a.id, a.name as candidate, o.title, st.name as stage, sl.starts_at, sl.id as slot_id, p.full_name as interviewer
        from public.slots sl
        join public.applications a on a.id = sl.application_id
        join public.openings o on o.id = a.opening_id
@@ -85,7 +84,7 @@ export default async function InterviewsPage({
         <section className="mt-8">
           <h2 className="font-display text-lg font-semibold">To close out</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Held interviews not yet marked completed. Completing and rating moves the candidate to Interview review.
+            Held interviews not yet closed out. Mark one completed to rate it — the candidate then moves to Interview review.
           </p>
           <ul className="mt-3 space-y-2 text-sm">
             {toClose.map((u) => (
@@ -94,17 +93,14 @@ export default async function InterviewsPage({
                   <Link href={`/app/candidates/${u.id}`} className="font-medium text-primary hover:underline">{u.candidate}</Link>
                   <span className="text-muted-foreground"> · {u.title} · {u.stage} · {fmtDateTime(u.starts_at)} · {u.interviewer}</span>
                 </span>
-                <span className="flex items-center gap-2">
-                  {u.rated ? <Badge variant="secondary">Rated</Badge> : (
-                    <Link href={`/app/candidates/${u.id}#feedback`} className="text-primary underline">Add feedback</Link>
-                  )}
-                  <form action={completeInterview}>
-                    <input type="hidden" name="applicationId" value={u.id} />
-                    <input type="hidden" name="slotId" value={u.slot_id} />
-                    <input type="hidden" name="back" value="/app/interviews" />
-                    <SubmitButton size="sm" pendingLabel="Saving…">Mark completed</SubmitButton>
-                  </form>
-                </span>
+                <CompleteInterviewButton
+                  action={completeInterview}
+                  applicationId={u.id}
+                  slotId={u.slot_id}
+                  back="/app/interviews"
+                  candidateName={u.candidate}
+                  when={fmtDateTime(u.starts_at)}
+                />
               </li>
             ))}
           </ul>

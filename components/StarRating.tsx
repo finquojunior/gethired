@@ -9,10 +9,13 @@ export default function StarRating({
   name = 'rating',
   defaultValue,
   label,
+  required = false,
 }: {
   name?: string;
   defaultValue?: number | null;
   label: string;
+  /** Blocks native form submission until a star is picked. */
+  required?: boolean;
 }) {
   const [value, setValue] = useState<number>(defaultValue ?? 0);
   const [hover, setHover] = useState(0);
@@ -27,6 +30,7 @@ export default function StarRating({
             value={n}
             checked={value === n}
             onChange={() => setValue(n)}
+            required={required}
             className="sr-only"
             aria-label={`${n} star${n === 1 ? '' : 's'}`}
           />

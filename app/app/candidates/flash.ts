@@ -12,10 +12,11 @@ const OK_TEXT: Record<string, (n: number) => string> = {
   booked: () => 'Interview booked — candidate and interviewer emailed',
   cancelled: () => 'Interview cancelled — candidate and interviewer emailed',
   auto_review: () => 'Scored — moved to the review stage and the candidate has been emailed.',
-  interview_done: () => 'Interview marked completed.',
+  interview_done: () => 'Interview marked completed and feedback saved.',
   interview_reopened: () => 'Interview reopened.',
 };
 const ERR_TEXT: Record<string, string> = {
+  rating_required: 'Pick a star rating to mark the interview completed.',
   nothing: 'Nothing changed — no candidates were selected or they were already in that state.',
   taken: 'That slot was just booked by someone else — pick another.',
   invalid: 'Enter a name and a valid email.',

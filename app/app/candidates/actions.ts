@@ -516,12 +516,16 @@ export async function staffCancelSlot(formData: FormData) {
   redirect(`/app/candidates/${applicationId}?${n ? 'ok=cancelled' : 'e=nothing'}`);
 }
 
-/** Staff marks a booked interview as held. Hides slot picking for the candidate and unlocks auto-advance. */
+/** Staff marks a held interview as completed with its rating: saves the feedback, hides slot picking for the candidate, and auto-advances to Interview review. */
 export async function completeInterview(formData: FormData) {
   const applicationId = Number(formData.get('applicationId'));
   const slotId = Number(formData.get('slotId'));
   const { user } = await requireApplicationAccess(applicationId);
   const back = safeBack(formData.get('back'), `/app/candidates/${applicationId}`);
+  // completing an interview is the act of rating it: stars required, note optional
+  const rating = Number(formData.get('rating')) || 0;
+  const comment = String(formData.get('comment') ?? '').trim();
+  if (rating < 1 || rating > 5) redirect(withParam(back, 'e', 'rating_required'));
   const {
     rows: [slot],
   } = await q<{ stage_id: number }>(
@@ -531,7 +535,14 @@ export async function completeInterview(formData: FormData) {
     [slotId, applicationId]
   );
   if (!slot) redirect(withParam(back, 'e', 'nothing'));
-  await audit(user.id, 'interview_completed', 'application', applicationId, { slotId });
+  await q(
+    `insert into public.feedback (application_id, stage_id, author_id, rating, comment)
+     values ($1, $2, $3, $4, $5)
+     on conflict (application_id, stage_id, author_id)
+     do update set rating = excluded.rating, comment = excluded.comment, updated_at = now()`,
+    [applicationId, slot.stage_id, user.id, rating, comment]
+  );
+  await audit(user.id, 'interview_completed', 'application', applicationId, { slotId, rating });
   const moved = await maybeAutoAdvance(user.id, applicationId, Number(slot.stage_id));
   redirect(withParam(back, 'ok', moved ? 'auto_review' : 'interview_done'));
 }

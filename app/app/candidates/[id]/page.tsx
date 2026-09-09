@@ -10,6 +10,7 @@ import { parseSubmissionFields } from '@/lib/brief';
 import SubmitButton from '@/components/SubmitButton';
 import LinkifyText from '@/components/LinkifyText';
 import StarRating from '@/components/StarRating';
+import CompleteInterviewButton from '@/components/CompleteInterviewButton';
 import Flash from '@/components/Flash';
 import { FEEDBACK_JOIN, PIPELINE_SORTS, PIPELINE_WHERE, pipelineWhereParams, type PipelineCtx } from '@/lib/pipeline';
 import {
@@ -206,14 +207,16 @@ export default async function CandidatePage({
     a.status === 'active' && stageInfo?.kind === 'interview' && slots.length === 0 && openSlots.length === 0;
 
   // one feedback form per stage that can be scored: task stages reached, interview
-  // stages with a booking, plus the current stage if it is neither
+  // stages with a completed slot (the "Mark completed" prompt takes the first rating;
+  // this form is for edits and other panel members), plus the current stage if it is neither
   const reachedIds = new Set([...reached.map((r) => Number(r.stage_id)), ...(a.current_stage_id ? [Number(a.current_stage_id)] : [])]);
-  const bookedStageIds = new Set(slots.map((s) => Number(s.stage_id)));
+  const completedStageIds = new Set(slots.filter((s) => s.completed_at).map((s) => Number(s.stage_id)));
   const scoreForms = stages
-    .filter((s) => (s.kind === 'task' && reachedIds.has(Number(s.id))) || (s.kind === 'interview' && bookedStageIds.has(Number(s.id))))
+    .filter((s) => (s.kind === 'task' && reachedIds.has(Number(s.id))) || (s.kind === 'interview' && completedStageIds.has(Number(s.id))))
     .map((s) => ({ id: Number(s.id), name: s.name, kind: s.kind, title: s.kind === 'task' ? `Task score · ${s.name}` : `Interview feedback · ${s.name}` }));
   const cur = stages.find((s) => Number(s.id) === Number(a.current_stage_id));
-  if (cur && !scoreForms.some((f) => f.id === Number(cur.id))) {
+  // an interview stage that hasn't been completed is rated through "Mark completed", not here
+  if (cur && cur.kind !== 'interview' && !scoreForms.some((f) => f.id === Number(cur.id))) {
     scoreForms.push({ id: Number(cur.id), name: cur.name, kind: cur.kind, title: `Feedback · ${cur.name}` });
   }
   const mine = (stageId: number) => feedback.find((f) => f.author_id === user.id && Number(f.stage_id) === stageId);
@@ -639,11 +642,13 @@ export default async function CandidatePage({
                   </span>
                   <span className="flex items-center gap-2">
                     {!s.completed_at && s.starts_at <= new Date() && (
-                      <form action={completeInterview}>
-                        <input type="hidden" name="applicationId" value={a.id} />
-                        <input type="hidden" name="slotId" value={s.id} />
-                        <SubmitButton size="sm" pendingLabel="Saving…">Mark completed</SubmitButton>
-                      </form>
+                      <CompleteInterviewButton
+                        action={completeInterview}
+                        applicationId={a.id}
+                        slotId={s.id}
+                        candidateName={a.name}
+                        when={fmt(s.starts_at)}
+                      />
                     )}
                     {s.completed_at && (
                       <form action={reopenInterview}>
