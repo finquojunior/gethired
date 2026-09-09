@@ -6,6 +6,11 @@ import { canAccessOpening, currentUser } from '@/lib/auth';
 import SubmitButton from '@/components/SubmitButton';
 import OpeningTabs from '@/components/OpeningTabs';
 import { addMember, removeMember } from '../../actions';
+import { Label } from '@/components/ui/label';
+import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select';
+import { Field } from '@/components/ui/field';
+import { Badge } from '@/components/ui/badge';
+import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from '@/components/ui/empty';
 
 export const dynamic = 'force-dynamic';
 
@@ -47,42 +52,45 @@ export default async function TeamPage({ params }: { params: Promise<{ id: strin
     <div>
       <BackButton fallback={`/app/openings/${openingId}`} />
       <h1 className="track font-display text-3xl font-bold">
-        <Link href={`/app/openings/${openingId}`} className="text-ink-soft hover:underline">
+        <Link href={`/app/openings/${openingId}`} className="text-muted-foreground hover:underline">
           {opening.title}
         </Link>{' '}
         · Team
       </h1>
       <OpeningTabs openingId={openingId} current="team" />
-      <p className="mt-4 text-sm text-ink-soft">
+      <p className="mt-4 text-sm text-muted-foreground">
         Everyone added here can do everything in this opening: review candidates, move stages,
         book interviews, email, and edit the setup. Admins and HR have access to every opening
         without being added, and department members have access to every opening in their departments.
       </p>
 
-      <ul className="mt-8 divide-y divide-line rounded-lg border border-line bg-card">
+      <ul className="mt-8 divide-y divide-border rounded-lg border border-border bg-card">
         {members.map((m) => (
           <li key={m.user_id} className="flex items-center justify-between px-5 py-3">
             <div>
               <span className="font-medium">{m.full_name}</span>
-              <span className="ml-2 text-sm text-ink-soft">{m.role}</span>
+              <span className="ml-2 text-sm text-muted-foreground">{m.role}</span>
             </div>
             <div className="flex items-center gap-3">
-              <span className="rounded-full bg-pine-wash px-2.5 py-0.5 text-xs font-medium text-pine-deep">
-                {m.member_role}
-              </span>
+              <Badge variant="secondary">{m.member_role}</Badge>
               {staff && (
               <form action={removeMember}>
                 <input type="hidden" name="openingId" value={openingId} />
                 <input type="hidden" name="userId" value={m.user_id} />
-                <SubmitButton className="btn-danger !py-1 text-sm" pendingLabel="Removing…" doneMessage="Removed from opening" confirmText={`Remove ${m.full_name} from this opening? They lose access to its candidates unless they hold an interview slot.`}>Remove</SubmitButton>
+                <SubmitButton variant="destructive" size="sm" pendingLabel="Removing…" doneMessage="Removed from opening" confirmText={`Remove ${m.full_name} from this opening? They lose access to its candidates unless they hold an interview slot.`}>Remove</SubmitButton>
               </form>
               )}
             </div>
           </li>
         ))}
         {members.length === 0 && (
-          <li className="px-5 py-8 text-center text-sm text-ink-soft">
-            No one assigned yet. Add the requester and interviewers below.
+          <li>
+            <Empty>
+              <EmptyHeader>
+                <EmptyTitle>No one assigned yet.</EmptyTitle>
+                <EmptyDescription>Add the requester and interviewers below.</EmptyDescription>
+              </EmptyHeader>
+            </Empty>
           </li>
         )}
       </ul>
@@ -90,23 +98,23 @@ export default async function TeamPage({ params }: { params: Promise<{ id: strin
       {staff && (
       <form action={addMember} className="mt-6 flex flex-wrap items-end gap-2">
         <input type="hidden" name="openingId" value={openingId} />
-        <div className="min-w-56 flex-1">
-          <label className="field-label" htmlFor="member">Person *</label>
-          <select id="member" name="userId" className="input">
+        <Field className="min-w-56 flex-1">
+          <Label htmlFor="member">Person *</Label>
+          <NativeSelect className="w-full" id="member" name="userId">
             {people
               .filter((p) => !members.some((m) => m.user_id === p.id))
               .map((p) => (
-                <option key={p.id} value={p.id}>
+                <NativeSelectOption key={p.id} value={p.id}>
                   {p.full_name} ({p.role})
-                </option>
+                </NativeSelectOption>
               ))}
-          </select>
-        </div>
-        <SubmitButton className="btn-primary" pendingLabel="Adding…" doneMessage="Added to opening">Add to opening</SubmitButton>
+          </NativeSelect>
+        </Field>
+        <SubmitButton pendingLabel="Adding…" doneMessage="Added to opening">Add to opening</SubmitButton>
       </form>
       )}
       {staff && people.length === members.length && (
-        <p className="mt-2 text-xs text-ink-soft">Everyone is already on this opening. Add new people from the Team page.</p>
+        <p className="mt-2 text-xs text-muted-foreground">Everyone is already on this opening. Add new people from the Team page.</p>
       )}
     </div>
   );

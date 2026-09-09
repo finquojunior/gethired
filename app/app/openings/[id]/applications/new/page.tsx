@@ -4,10 +4,17 @@ import { notFound } from 'next/navigation';
 import { q } from '@/lib/db';
 import { canAccessOpening, currentUser } from '@/lib/auth';
 import SubmitButton from '@/components/SubmitButton';
+import { AlertTriangle } from 'lucide-react';
 import DirectUploadForm from '@/components/DirectUploadForm';
 import { RESUME_ACCEPT, RESUME_MAX_BYTES } from '@/lib/uploads';
 import { directUploads } from '@/lib/storage';
 import { addCandidate, importCsv } from '@/app/app/candidates/actions';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select';
+import { Field } from '@/components/ui/field';
+import { Alert, AlertTitle } from '@/components/ui/alert';
 
 export const dynamic = 'force-dynamic';
 
@@ -50,18 +57,21 @@ export default async function AddCandidatePage({
     <div className="max-w-xl">
       <BackButton fallback={`/app/openings/${openingId}/applications`} />
       <h1 className="track font-display text-3xl font-bold">
-        <Link href={`/app/openings/${openingId}/applications`} className="text-ink-soft hover:underline">
+        <Link href={`/app/openings/${openingId}/applications`} className="text-muted-foreground hover:underline">
           {opening.title}
         </Link>{' '}
         · Add candidate
       </h1>
-      <p className="mt-4 text-sm text-ink-soft">
+      <p className="mt-4 text-sm text-muted-foreground">
         For candidates who reached you outside the form — walk-ins, referrals, WhatsApp resumes.
         No email is sent to them.
       </p>
 
       {e && ERRORS[e] && (
-        <p className="mt-4 rounded-md bg-rust/10 px-4 py-3 text-sm text-rust">{ERRORS[e]}</p>
+        <Alert variant="destructive" className="mt-4">
+          <AlertTriangle />
+          <AlertTitle>{ERRORS[e]}</AlertTitle>
+        </Alert>
       )}
 
       <DirectUploadForm
@@ -76,53 +86,55 @@ export default async function AddCandidatePage({
         <input type="hidden" name="openingId" value={openingId} />
         <input type="hidden" name="resumePath" defaultValue="" />
         <input type="hidden" name="resumeSig" defaultValue="" />
-        <div>
-          <label className="field-label" htmlFor="name">Full name *</label>
-          <input id="name" name="name" required className="input" />
+        <Field className="w-full">
+          <Label htmlFor="name">Full name *</Label>
+          <Input id="name" name="name" required />
+        </Field>
+        <div className="flex flex-col gap-4 sm:flex-row">
+          <Field className="flex-1">
+            <Label htmlFor="email">Email *</Label>
+            <Input id="email" name="email" type="email" required />
+          </Field>
+          <Field className="flex-1">
+            <Label htmlFor="phone">Phone</Label>
+            <Input id="phone" name="phone" />
+          </Field>
         </div>
         <div className="flex flex-col gap-4 sm:flex-row">
-          <div className="flex-1">
-            <label className="field-label" htmlFor="email">Email *</label>
-            <input id="email" name="email" type="email" required className="input" />
-          </div>
-          <div className="flex-1">
-            <label className="field-label" htmlFor="phone">Phone</label>
-            <input id="phone" name="phone" className="input" />
-          </div>
-        </div>
-        <div className="flex flex-col gap-4 sm:flex-row">
-          <div className="flex-1">
-            <label className="field-label" htmlFor="resume">Resume (optional — PDF or Word, up to 5 MB)</label>
-            <input id="resume" name="resume" type="file" accept={RESUME_ACCEPT} className="input" />
-          </div>
-          <div className="w-48">
-            <label className="field-label" htmlFor="stageId">Start in stage</label>
-            <select id="stageId" name="stageId" className="input">
+          <Field className="flex-1">
+            <Label htmlFor="resume">Resume (optional — PDF or Word, up to 5 MB)</Label>
+            <Input id="resume" name="resume" type="file" accept={RESUME_ACCEPT} />
+          </Field>
+          <Field className="w-48">
+            <Label htmlFor="stageId">Start in stage</Label>
+            <NativeSelect  id="stageId" name="stageId">
               {stages.map((s) => (
-                <option key={s.id} value={s.id}>{s.name}</option>
+                <NativeSelectOption key={s.id} value={s.id}>{s.name}</NativeSelectOption>
               ))}
-            </select>
-          </div>
+            </NativeSelect>
+          </Field>
         </div>
-        <div>
-          <label className="field-label" htmlFor="note">Internal note</label>
-          <textarea id="note" name="note" rows={2} placeholder="e.g. Sent resume on WhatsApp, referred by…" className="input" />
-        </div>
-        <SubmitButton className="btn-primary" pendingLabel="Adding…">Add candidate</SubmitButton>
+        <Field>
+          <Label htmlFor="note">Internal note</Label>
+          <Textarea id="note" name="note" rows={2} placeholder="e.g. Sent resume on WhatsApp, referred by…" />
+        </Field>
+        <SubmitButton pendingLabel="Adding…">Add candidate</SubmitButton>
       </DirectUploadForm>
 
-      <details className="mt-10 rounded-lg border border-line bg-card p-4 text-sm">
-        <summary className="cursor-pointer font-medium">Bulk import from CSV (your old Excel)</summary>
-        <p className="mt-2 text-ink-soft">
+      <details className="mt-10 text-sm">
+        <summary className="cursor-pointer rounded-lg border bg-card px-4 py-3 font-medium hover:bg-muted/40">Bulk import from CSV (your old Excel)</summary>
+        <div className="rounded-b-lg border border-t-0 bg-card px-4 pb-4">
+        <p className="mt-3 text-muted-foreground">
           Save your sheet as CSV with a header row: <code>name,email,phone,status,notes</code>.
           Status can be active, hired, rejected, or withdrawn (defaults to active). Duplicate
           emails are skipped. Imported candidates are tagged with source “import”.
         </p>
         <form action={importCsv} className="mt-3 flex flex-wrap items-end gap-2">
           <input type="hidden" name="openingId" value={openingId} />
-          <input type="file" name="file" aria-label="CSV file" accept=".csv" required className="input min-w-48 flex-1" />
-          <SubmitButton className="btn-primary" pendingLabel="Importing…">Import</SubmitButton>
+          <Input type="file" name="file" aria-label="CSV file" accept=".csv" required className="min-w-48 flex-1" />
+          <SubmitButton pendingLabel="Importing…">Import</SubmitButton>
         </form>
+        </div>
       </details>
     </div>
   );

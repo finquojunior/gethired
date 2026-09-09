@@ -7,10 +7,19 @@ import RichTextArea from '@/components/RichTextArea';
 import { canAccessOpening, currentUser, departmentScope, isStaff } from '@/lib/auth';
 import { POSTER_ACCEPT } from '@/lib/uploads';
 import { fmtDate } from '@/lib/tz';
+import { AlertTriangle } from 'lucide-react';
 import Flash from '@/components/Flash';
 import DownloadLink from '@/components/DownloadLink';
 import OpeningTabs from '@/components/OpeningTabs';
 import { cloneOpening, deleteOpeningData, updateOpening } from '../actions';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select';
+import { buttonVariants } from '@/components/ui/button';
+import { Field } from '@/components/ui/field';
+import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+import { Separator } from '@/components/ui/separator';
 
 export const dynamic = 'force-dynamic';
 
@@ -106,13 +115,13 @@ export default async function OpeningPage({
       <div className="track flex flex-wrap items-end justify-between gap-3">
         <h1 className="font-display text-3xl font-bold">{o.title}</h1>
         <div className="flex flex-wrap gap-2 pb-1">
-          <Link href={`/app/openings/${o.id}/applications`} className="btn-primary">
+          <Link href={`/app/openings/${o.id}/applications`} className={buttonVariants()}>
             Pipeline ({o.applications})
           </Link>
           {isStaff(user) && (
             <form action={cloneOpening}>
               <input type="hidden" name="openingId" value={o.id} />
-              <SubmitButton className="btn-quiet" pendingLabel="Cloning…" title="New draft opening with the same stages, form, task brief, and team">
+              <SubmitButton variant="outline" pendingLabel="Cloning…" title="New draft opening with the same stages, form, task brief, and team">
                 Clone opening
               </SubmitButton>
             </form>
@@ -122,116 +131,122 @@ export default async function OpeningPage({
       <OpeningTabs openingId={o.id} current="overview" />
 
       {o.status === 'open' && (
-        <p className="mt-4 text-sm text-ink-soft">
+        <p className="mt-4 text-sm text-muted-foreground">
           Public link:{' '}
-          <a href={`/careers/${o.slug}`} target="_blank" rel="noopener" className="font-medium text-pine underline">
+          <a href={`/careers/${o.slug}`} target="_blank" rel="noopener" className="font-medium text-primary underline">
             /careers/{o.slug}
           </a>{' '}
           — use this in your Meta ads.
         </p>
       )}
 
-      <section className="mt-6 rounded-lg border border-line bg-card p-4">
-        <h2 className="font-display text-lg font-semibold">Setup</h2>
-        <ul className="mt-2 space-y-1 text-sm">
-          {setup.map((s) => (
-            <li key={s.text} className={s.warn ? 'text-rust' : ''}>
-              <span aria-hidden className={`mr-2 ${s.ok ? 'text-pine-deep' : 'text-amber'}`}>{s.ok ? '✓' : '○'}</span>
-              <Link href={s.href} className="hover:underline">{s.text}</Link>
-            </li>
-          ))}
-        </ul>
-        {o.status === 'open' && !o.published_version && (
-          <p className="mt-2 text-sm text-rust">
-            This opening is open but has no published form — the public page shows nothing to fill in.{' '}
-            <Link href={href('form')} className="underline">Publish the form</Link>.
-          </p>
-        )}
-        {o.status === 'draft' && (
-          <p className="mt-2 text-xs text-ink-soft">
-            Order of play: publish the form, check the stages, set the task brief and interview slots if you use those
-            stages, then set the status to <strong>open</strong> below. Paused hides the public page but keeps the
-            pipeline; closed ends applications for good.
-          </p>
-        )}
-      </section>
+      <Card className="mt-6">
+        <CardHeader>
+          <CardTitle className="font-display text-lg font-semibold">Setup</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ul className="space-y-1 text-sm">
+            {setup.map((s) => (
+              <li key={s.text} className={s.warn ? 'text-destructive' : ''}>
+                <span aria-hidden className={`mr-2 ${s.ok ? 'text-primary' : 'text-amber'}`}>{s.ok ? '✓' : '○'}</span>
+                <Link href={s.href} className="hover:underline">{s.text}</Link>
+              </li>
+            ))}
+          </ul>
+          {o.status === 'open' && !o.published_version && (
+            <Alert variant="destructive" className="mt-3">
+              <AlertTriangle />
+              <AlertTitle>This opening is open but has no published form</AlertTitle>
+              <AlertDescription>
+                The public page shows nothing to fill in. <Link href={href('form')}>Publish the form</Link>.
+              </AlertDescription>
+            </Alert>
+          )}
+          {o.status === 'draft' && (
+            <p className="mt-2 text-xs text-muted-foreground">
+              Order of play: publish the form, check the stages, set the task brief and interview slots if you use those
+              stages, then set the status to <strong>open</strong> below. Paused hides the public page but keeps the
+              pipeline; closed ends applications for good.
+            </p>
+          )}
+        </CardContent>
+      </Card>
 
       {e === 'slug' && (
-        <p className="mt-4 rounded-md bg-rust/10 px-4 py-3 text-sm text-rust">
-          That public link is empty or already used by another opening — pick a different one.
-        </p>
+        <Alert variant="destructive" className="mt-4">
+          <AlertTriangle />
+          <AlertTitle>That public link is empty or already used by another opening — pick a different one.</AlertTitle>
+        </Alert>
       )}
 
       <form action={updateOpening} className="mt-8 max-w-2xl space-y-4">
         <input type="hidden" name="id" value={o.id} />
-        <div>
-          <label className="field-label" htmlFor="title">Title *</label>
-          <input id="title" name="title" defaultValue={o.title} required className="input" />
-        </div>
-        <div>
-          <label className="field-label" htmlFor="slug">
+        <Field>
+          <Label htmlFor="title">Title *</Label>
+          <Input id="title" name="title" defaultValue={o.title} required />
+        </Field>
+        <Field>
+          <Label htmlFor="slug">
             Public link — /careers/…
-          </label>
-          <input id="slug" name="slug" defaultValue={o.slug} required className="input font-mono text-sm" />
-          <p className="mt-1 text-xs text-ink-soft">
+          </Label>
+          <Input id="slug" name="slug" defaultValue={o.slug} required className="font-mono" />
+          <p className="mt-1 text-xs text-muted-foreground">
             The link doesn&apos;t change automatically when the title changes. Careful editing it
             after sharing — links already posted in ads keep pointing at the old address.
           </p>
-        </div>
+        </Field>
         <div className="flex flex-col gap-4 sm:flex-row">
-          <div className="flex-1">
-            <label className="field-label" htmlFor="department">Department</label>
-            <select id="department" name="department" defaultValue={o.department} className="input">
-              {(isStaff(user) || !o.department) && <option value="">— none —</option>}
+          <Field className="flex-1">
+            <Label htmlFor="department">Department</Label>
+            <NativeSelect className="w-full" id="department" name="department" defaultValue={o.department}>
+              {(isStaff(user) || !o.department) && <NativeSelectOption value="">— none —</NativeSelectOption>}
               {deptOptions.map((d) => (
-                <option key={d} value={d}>{d}</option>
+                <NativeSelectOption key={d} value={d}>{d}</NativeSelectOption>
               ))}
-            </select>
-          </div>
-          <div className="w-44">
-            <label className="field-label" htmlFor="status">Status</label>
-            <select id="status" name="status" defaultValue={o.status} className="input">
-              <option value="draft">draft — not public yet</option>
-              <option value="open">open — accepting applications</option>
-              <option value="paused">paused — hidden, pipeline continues</option>
-              <option value="closed">closed — no more applications</option>
-            </select>
-          </div>
+            </NativeSelect>
+          </Field>
+          <Field className="w-44">
+            <Label htmlFor="status">Status</Label>
+            <NativeSelect className="w-full" id="status" name="status" defaultValue={o.status}>
+              <NativeSelectOption value="draft">draft — not public yet</NativeSelectOption>
+              <NativeSelectOption value="open">open — accepting applications</NativeSelectOption>
+              <NativeSelectOption value="paused">paused — hidden, pipeline continues</NativeSelectOption>
+              <NativeSelectOption value="closed">closed — no more applications</NativeSelectOption>
+            </NativeSelect>
+          </Field>
         </div>
         <div className="flex flex-col gap-4 sm:flex-row">
-          <div className="flex-1">
-            <label className="field-label" htmlFor="location">Location</label>
-            <input id="location" name="location" defaultValue={o.location} placeholder="e.g. Kochi / Remote" className="input" />
-          </div>
-          <div className="flex-1">
-            <label className="field-label" htmlFor="employment_type">Employment type</label>
-            <input id="employment_type" name="employment_type" defaultValue={o.employment_type} placeholder="Full-time" className="input" />
-          </div>
+          <Field className="flex-1">
+            <Label htmlFor="location">Location</Label>
+            <Input id="location" name="location" defaultValue={o.location} placeholder="e.g. Kochi / Remote" />
+          </Field>
+          <Field className="flex-1">
+            <Label htmlFor="employment_type">Employment type</Label>
+            <Input id="employment_type" name="employment_type" defaultValue={o.employment_type} placeholder="Full-time" />
+          </Field>
         </div>
         <div className="flex flex-col gap-4 sm:flex-row">
-          <div className="flex-1">
-            <label className="field-label" htmlFor="salary_range">Salary range (shown publicly if set)</label>
-            <input id="salary_range" name="salary_range" defaultValue={o.salary_range} placeholder="e.g. ₹4–6 LPA" className="input" />
-          </div>
-          <div className="w-44">
-            <label className="field-label" htmlFor="close_date">Auto-close on</label>
-            <input
+          <Field className="flex-1">
+            <Label htmlFor="salary_range">Salary range (shown publicly if set)</Label>
+            <Input id="salary_range" name="salary_range" defaultValue={o.salary_range} placeholder="e.g. ₹4–6 LPA" />
+          </Field>
+          <Field className="w-44">
+            <Label htmlFor="close_date">Auto-close on</Label>
+            <Input
               id="close_date"
               type="date"
               name="close_date"
-              defaultValue={o.close_at ? fmtDate(o.close_at) : ''}
-              className="input"
-            />
-          </div>
+              defaultValue={o.close_at ? fmtDate(o.close_at) : ''} />
+          </Field>
         </div>
-        <div>
-          <label className="field-label" htmlFor="description">Description (shown on the public page)</label>
+        <Field>
+          <Label htmlFor="description">Description (shown on the public page)</Label>
           <RichTextArea id="description" name="description" rows={6} defaultValue={o.description} />
-        </div>
-        <div>
-          <label className="field-label" htmlFor="notes">
+        </Field>
+        <Field>
+          <Label htmlFor="notes">
             Important notes (highlighted to candidates before they apply)
-          </label>
+          </Label>
           <RichTextArea
             id="notes"
             name="notes"
@@ -239,83 +254,87 @@ export default async function OpeningPage({
             defaultValue={o.notes}
             placeholder={'e.g. Work from office (Kochi). Immediate joiners preferred.\nShortlisted candidates get a task round.'}
           />
-        </div>
-        <div>
-          <label className="field-label" htmlFor="consent_text">
+        </Field>
+        <Field>
+          <Label htmlFor="consent_text">
             Consent text (candidates must tick this to apply — leave empty for the standard line)
-          </label>
-          <input
+          </Label>
+          <Input
             id="consent_text"
             name="consent_text"
             defaultValue={o.consent_text}
-            placeholder="I agree that my details and resume are stored and used for this recruitment process."
-            className="input"
-          />
-        </div>
-        <div>
-          <label className="field-label" htmlFor="poster">
+            placeholder="I agree that my details and resume are stored and used for this recruitment process." />
+        </Field>
+        <Field>
+          <Label htmlFor="poster">
             Role poster (shown on the public page — JPG/PNG/WebP, up to 3 MB)
-          </label>
+          </Label>
           {e === 'poster' && (
-            <p className="mb-2 rounded-md bg-rust/10 px-3 py-2 text-sm text-rust">
-              Poster must be a JPG, PNG, or WebP up to 3 MB.
-            </p>
+            <Alert variant="destructive">
+              <AlertTriangle />
+              <AlertTitle>Poster must be a JPG, PNG, or WebP up to 3 MB.</AlertTitle>
+            </Alert>
           )}
           {o.poster_path && (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={`/api/files/${o.poster_path}`}
               alt="Current role poster"
-              className="mb-2 max-h-48 rounded-lg border border-line"
+              className="mb-2 max-h-48 w-auto! rounded-lg border border-border"
             />
           )}
-          <input id="poster" type="file" name="poster" accept={POSTER_ACCEPT} className="input" />
+          <Input id="poster" type="file" name="poster" accept={POSTER_ACCEPT} />
           {o.poster_path && (
-            <label className="mt-1 flex items-center gap-1.5 text-sm text-ink-soft">
-              <input type="checkbox" name="removePoster" value="1" className="accent-pine" />
+            <label className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
+              <input type="checkbox" name="removePoster" value="1" />
               remove current poster
             </label>
           )}
-        </div>
-        <SubmitButton className="btn-primary" pendingLabel="Saving…">Save changes</SubmitButton>
+        </Field>
+        <SubmitButton pendingLabel="Saving…">Save changes</SubmitButton>
       </form>
 
       {user.role === 'admin' && (
-        <section className="mt-12 max-w-2xl rounded-lg border border-rust/40 bg-rust/5 p-5">
-          <h2 className="font-display text-lg font-semibold text-rust">Danger zone (admins only)</h2>
-          <p className="mt-2 text-sm text-ink-soft">
-            Download a complete archive of this opening — every candidate&apos;s data as
-            JSON/CSV plus all resumes, task submissions, and the poster — as a single zip.
-            The zip is saved to <strong>your computer only</strong>; the system keeps no copy,
-            so store it somewhere safe before deleting below.
-          </p>
-          <DownloadLink href={`/app/openings/${o.id}/archive`} className="btn-quiet mt-3" preparingLabel="Preparing archive…">
+        <Card className="mt-12 max-w-2xl bg-destructive/5 ring-destructive/40">
+          <CardHeader>
+            <CardTitle className="font-display text-lg font-semibold text-destructive">Danger zone (admins only)</CardTitle>
+            <CardDescription>
+              Download a complete archive of this opening — every candidate&apos;s data as
+              JSON/CSV plus all resumes, task submissions, and the poster — as a single zip.
+              The zip is saved to <strong>your computer only</strong>; the system keeps no copy,
+              so store it somewhere safe before deleting below.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+          <DownloadLink href={`/app/openings/${o.id}/archive`} preparingLabel="Preparing archive…">
             Download full archive (.zip)
           </DownloadLink>
-          <hr className="my-5 border-rust/20" />
-          <p className="text-sm text-ink-soft">
+          <Separator className="my-5 bg-destructive/20" />
+          <p className="text-sm text-muted-foreground">
             Permanently delete this opening and <strong>everything</strong> under it: all
             applications, resumes, submissions, feedback, notes, emails, slots, forms, and
             stages. This cannot be undone — download the archive first.
           </p>
           {e === 'confirm' && (
-            <p className="mt-2 rounded-md bg-rust/10 px-3 py-2 text-sm text-rust">
-              The confirmation didn&apos;t match — type the public link name exactly: {o.slug}
-            </p>
+            <Alert variant="destructive" className="mt-2">
+              <AlertTriangle />
+              <AlertTitle>The confirmation didn&apos;t match — type the public link name exactly: {o.slug}</AlertTitle>
+            </Alert>
           )}
           <form action={deleteOpeningData} className="mt-3 flex flex-wrap items-end gap-2">
             <input type="hidden" name="openingId" value={o.id} />
-            <div className="min-w-56 flex-1">
-              <label className="field-label" htmlFor="confirmSlug">
-                Type <code className="rounded bg-paper px-1">{o.slug}</code> to confirm
-              </label>
-              <input id="confirmSlug" name="confirmSlug" autoComplete="off" className="input" />
-            </div>
-            <SubmitButton className="btn-danger" pendingLabel="Deleting…" confirmText={`Permanently delete "${o.title}" and every candidate, file, and email under it? There is no undo.`}>
+            <Field className="min-w-56 flex-1">
+              <Label htmlFor="confirmSlug">
+                Type <code className="rounded bg-muted px-1">{o.slug}</code> to confirm
+              </Label>
+              <Input id="confirmSlug" name="confirmSlug" autoComplete="off" />
+            </Field>
+            <SubmitButton variant="destructive" pendingLabel="Deleting…" confirmText={`Permanently delete "${o.title}" and every candidate, file, and email under it? There is no undo.`}>
               Delete everything
             </SubmitButton>
           </form>
-        </section>
+          </CardContent>
+        </Card>
       )}
     </div>
   );

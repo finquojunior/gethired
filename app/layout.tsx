@@ -1,7 +1,12 @@
 import type { Metadata } from 'next';
-import { Bricolage_Grotesque } from 'next/font/google';
+import { Bricolage_Grotesque, Geist } from 'next/font/google';
 import './globals.css';
 import { ORG_NAME, SUPPORT_EMAIL } from '@/lib/email';
+import { cn } from "@/lib/utils";
+import { Toaster as SonnerToaster } from '@/components/ui/sonner';
+import { TooltipProvider } from '@/components/ui/tooltip';
+
+const geist = Geist({subsets:['latin'],variable:'--font-sans'});
 
 const bricolage = Bricolage_Grotesque({
   subsets: ['latin'],
@@ -17,8 +22,11 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={bricolage.variable}>
-      <body className="min-h-screen font-sans antialiased">{children}</body>
+    <html lang="en" className={cn("font-sans", geist.variable, bricolage.variable)}>
+      <body className="min-h-screen font-sans antialiased">
+        <TooltipProvider>{children}</TooltipProvider>
+        <SonnerToaster position="top-center" richColors />
+      </body>
     </html>
   );
 }

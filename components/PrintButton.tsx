@@ -1,9 +1,13 @@
 'use client';
 
-export default function PrintButton({ children }: { children: React.ReactNode }) {
+import { Printer } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+
+export default function PrintButton({ children = 'Print' }: { children?: React.ReactNode }) {
   return (
-    <button onClick={() => window.print()} className="btn-primary print:hidden">
+    <Button type="button" onClick={() => window.print()} className="print:hidden">
+      <Printer data-icon="inline-start" />
       {children}
-    </button>
+    </Button>
   );
 }

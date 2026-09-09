@@ -14,6 +14,12 @@ import {
   setUserDepartments,
   setUserRole,
 } from './actions';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select';
+import { Field } from '@/components/ui/field';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Team' };
@@ -86,7 +92,7 @@ export default async function TeamPage({ searchParams }: { searchParams: Promise
     <div>
       <Flash kind={e ? 'error' : 'success'} message={e ? ERR[e] : ok ? OK[ok] : null} />
       <h1 className="track font-display text-3xl font-bold">Team</h1>
-      <p className="mt-4 max-w-2xl text-sm text-ink-soft">
+      <p className="mt-4 max-w-2xl text-sm text-muted-foreground">
         Admins and HR see everything. Department heads and interviewers work only in what they are
         given here: a <strong>department</strong> grants every current and future opening in it and
         lets them create new openings there; an <strong>opening</strong> grants just that opening.
@@ -99,24 +105,23 @@ export default async function TeamPage({ searchParams }: { searchParams: Promise
         <h2 className="font-display text-lg font-semibold">Departments</h2>
         <ul className="mt-3 flex flex-wrap gap-2">
           {departments.map((d) => (
-            <li key={d.id} className="flex items-center gap-1 rounded-lg border border-line bg-card px-3 py-2 text-sm">
+            <li key={d.id} className="flex items-center gap-1 rounded-lg border border-border bg-card px-3 py-2 text-sm">
               <form action={renameDepartment} className="flex items-center gap-1">
                 <input type="hidden" name="departmentId" value={d.id} />
-                <input
+                <Input
                   name="name"
                   defaultValue={d.name}
                   aria-label={`Rename ${d.name}`}
-                  className="w-36 rounded border border-transparent bg-transparent px-1 py-0.5 font-medium hover:border-line focus:border-line"
+                  className="h-6 w-36 border-transparent px-1 font-medium hover:border-border"
                 />
-                <SubmitButton className="btn-quiet !px-2 !py-0.5 text-xs" pendingLabel="…">Rename</SubmitButton>
+                <SubmitButton variant="outline" size="xs" pendingLabel="…">Rename</SubmitButton>
               </form>
-              <span className="text-xs text-ink-soft">
+              <span className="text-xs text-muted-foreground">
                 {d.openings} opening{d.openings === 1 ? '' : 's'} · {d.people} {d.people === 1 ? 'person' : 'people'}
               </span>
               <form action={deleteDepartment}>
                 <input type="hidden" name="departmentId" value={d.id} />
-                <SubmitButton
-                  className="btn-danger !px-2 !py-0.5 text-xs"
+                <SubmitButton variant="destructive" size="xs"
                   pendingLabel="…"
                   confirmText={`Remove the ${d.name} department from the list? Its ${d.openings} opening(s) keep the label; ${d.people} people lose access through it.`}
                 >
@@ -125,14 +130,14 @@ export default async function TeamPage({ searchParams }: { searchParams: Promise
               </form>
             </li>
           ))}
-          {departments.length === 0 && <li className="text-sm text-ink-soft">No departments yet.</li>}
+          {departments.length === 0 && <li className="text-sm text-muted-foreground">No departments yet.</li>}
         </ul>
         <form action={addDepartment} className="mt-3 flex flex-wrap items-end gap-2">
-          <div className="min-w-56">
-            <label className="field-label" htmlFor="dept-name">New department</label>
-            <input id="dept-name" name="name" required maxLength={80} placeholder="e.g. Marketing" className="input" />
-          </div>
-          <SubmitButton className="btn-quiet" pendingLabel="Adding…">Add department</SubmitButton>
+          <Field className="w-56">
+            <Label htmlFor="dept-name">New department</Label>
+            <Input id="dept-name" name="name" required maxLength={80} placeholder="e.g. Marketing" />
+          </Field>
+          <SubmitButton variant="outline" pendingLabel="Adding…">Add department</SubmitButton>
         </form>
       </section>
 
@@ -144,34 +149,33 @@ export default async function TeamPage({ searchParams }: { searchParams: Promise
             const memberOf = new Set(p.openings.map((o) => o.id));
             const addable = openings.filter((o) => !memberOf.has(o.id));
             return (
-              <li key={p.id} className="rounded-lg border border-line bg-card p-4">
+              <li key={p.id} className="rounded-xl bg-card p-4 ring-1 ring-foreground/10">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <div className="font-medium">
                       {p.full_name}
-                      {p.id === me.id && <span className="ml-2 text-xs text-ink-soft">(you)</span>}
+                      {p.id === me.id && <span className="ml-2 text-xs text-muted-foreground">(you)</span>}
                     </div>
-                    <div className="text-sm text-ink-soft">{p.email ?? 'no email'}</div>
+                    <div className="text-sm text-muted-foreground">{p.email ?? 'no email'}</div>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     {admin && p.id !== me.id ? (
                       <form action={setUserRole} className="flex items-center gap-2">
                         <input type="hidden" name="userId" value={p.id} />
-                        <select name="role" defaultValue={p.role} aria-label={`Role for ${p.full_name}`} className="input w-44 py-1.5">
+                        <NativeSelect size="sm" name="role" defaultValue={p.role} aria-label={`Role for ${p.full_name}`} className="w-44">
                           {ROLES.map(([r, label]) => (
-                            <option key={r} value={r}>{label.split(' — ')[0]}</option>
+                            <NativeSelectOption key={r} value={r}>{label.split(' — ')[0]}</NativeSelectOption>
                           ))}
-                        </select>
-                        <SubmitButton className="btn-quiet !py-1.5" pendingLabel="Saving…">Set role</SubmitButton>
+                        </NativeSelect>
+                        <SubmitButton variant="outline" size="sm" pendingLabel="Saving…">Set role</SubmitButton>
                       </form>
                     ) : (
-                      <span className="rounded-full bg-pine-wash px-2.5 py-0.5 text-xs font-medium text-pine-deep">{ROLE_LABEL[p.role] ?? p.role}</span>
+                      <Badge variant="secondary">{ROLE_LABEL[p.role] ?? p.role}</Badge>
                     )}
                     {admin && p.id !== me.id && (
                       <form action={removeUser}>
                         <input type="hidden" name="userId" value={p.id} />
-                        <SubmitButton
-                          className="btn-danger !py-1.5 text-sm"
+                        <SubmitButton variant="destructive" size="sm"
                           pendingLabel="Removing…"
                           confirmText={`Remove ${p.full_name}? Their login is deleted permanently.`}
                         >
@@ -184,10 +188,10 @@ export default async function TeamPage({ searchParams }: { searchParams: Promise
 
                 {scoped(p.role) ? (
                   <div className="mt-4 grid gap-4 md:grid-cols-2">
-                    <form action={setUserDepartments} className="rounded-md border border-line p-3">
+                    <form action={setUserDepartments} className="rounded-lg border border-border p-3">
                       <input type="hidden" name="userId" value={p.id} />
-                      <p className="field-label">Departments</p>
-                      {departments.length === 0 && <p className="text-xs text-ink-soft">Add departments above first.</p>}
+                      <p className="mb-1.5 text-sm leading-none font-medium">Departments</p>
+                      {departments.length === 0 && <p className="text-xs text-muted-foreground">Add departments above first.</p>}
                       <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm">
                         {departments.map((d) => (
                           <label key={d.id} className="flex items-center gap-1.5">
@@ -197,40 +201,40 @@ export default async function TeamPage({ searchParams }: { searchParams: Promise
                         ))}
                       </div>
                       {departments.length > 0 && (
-                        <SubmitButton className="btn-quiet mt-2 !py-1 text-xs" pendingLabel="Saving…">Save departments</SubmitButton>
+                        <SubmitButton variant="outline" size="sm" className="mt-2" pendingLabel="Saving…">Save departments</SubmitButton>
                       )}
                     </form>
 
-                    <div className="rounded-md border border-line p-3">
-                      <p className="field-label">Openings (in addition to their departments)</p>
+                    <div className="rounded-lg border border-border p-3">
+                      <p className="mb-1.5 text-sm leading-none font-medium">Openings (in addition to their departments)</p>
                       <ul className="mt-1 space-y-1 text-sm">
                         {p.openings.map((o) => (
                           <li key={o.id} className="flex items-center justify-between gap-2">
-                            <Link href={`/app/openings/${o.id}`} className="text-pine underline">{o.title}</Link>
+                            <Link href={`/app/openings/${o.id}`} className="text-primary underline">{o.title}</Link>
                             <form action={removeUserOpening}>
                               <input type="hidden" name="userId" value={p.id} />
                               <input type="hidden" name="openingId" value={o.id} />
-                              <SubmitButton className="text-xs text-rust hover:underline" pendingLabel="…">remove</SubmitButton>
+                              <SubmitButton variant="link" size="xs" className="text-destructive" pendingLabel="…">remove</SubmitButton>
                             </form>
                           </li>
                         ))}
-                        {p.openings.length === 0 && <li className="text-xs text-ink-soft">None assigned directly.</li>}
+                        {p.openings.length === 0 && <li className="text-xs text-muted-foreground">None assigned directly.</li>}
                       </ul>
                       {addable.length > 0 && (
                         <form action={addUserOpening} className="mt-2 flex items-center gap-2">
                           <input type="hidden" name="userId" value={p.id} />
-                          <select name="openingId" aria-label={`Add ${p.full_name} to an opening`} className="input flex-1 py-1 text-sm">
+                          <NativeSelect size="sm" name="openingId" aria-label={`Add ${p.full_name} to an opening`} className="flex-1">
                             {addable.map((o) => (
-                              <option key={o.id} value={o.id}>{o.title}{o.department ? ` · ${o.department}` : ''}</option>
+                              <NativeSelectOption key={o.id} value={o.id}>{o.title}{o.department ? ` · ${o.department}` : ''}</NativeSelectOption>
                             ))}
-                          </select>
-                          <SubmitButton className="btn-quiet !py-1 text-xs" pendingLabel="Adding…">Add</SubmitButton>
+                          </NativeSelect>
+                          <SubmitButton variant="outline" size="sm" pendingLabel="Adding…">Add</SubmitButton>
                         </form>
                       )}
                     </div>
                   </div>
                 ) : (
-                  <p className="mt-3 text-xs text-ink-soft">Has access to every opening and department.</p>
+                  <p className="mt-3 text-xs text-muted-foreground">Has access to every opening and department.</p>
                 )}
               </li>
             );
@@ -240,37 +244,40 @@ export default async function TeamPage({ searchParams }: { searchParams: Promise
 
       {/* ---------------- add person ---------------- */}
       {admin && (
-        <section className="mt-10 rounded-lg border border-line bg-card p-5">
-          <h2 className="font-display text-lg font-semibold">Add a person</h2>
-          <p className="mt-1 text-xs text-ink-soft">
-            One step: account, role, and what they can work on. If the email already exists, that
-            person&apos;s name, role, and password are replaced and the assignments are added.
-          </p>
-          <form action={addUser} className="mt-4 space-y-4">
+        <Card className="mt-10">
+          <CardHeader>
+            <CardTitle className="font-display text-lg font-semibold">Add a person</CardTitle>
+            <CardDescription>
+              One step: account, role, and what they can work on. If the email already exists, that
+              person&apos;s name, role, and password are replaced and the assignments are added.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+          <form action={addUser} className="space-y-4">
             <div className="grid gap-3 sm:grid-cols-2">
-              <div>
-                <label className="field-label" htmlFor="name">Name *</label>
-                <input id="name" name="name" required className="input" />
-              </div>
-              <div>
-                <label className="field-label" htmlFor="email">Email *</label>
-                <input id="email" name="email" type="email" required className="input" />
-              </div>
-              <div>
-                <label className="field-label" htmlFor="role">Role *</label>
-                <select id="role" name="role" className="input" defaultValue="dept_head">
+              <Field className="w-full">
+                <Label htmlFor="name">Name *</Label>
+                <Input id="name" name="name" required />
+              </Field>
+              <Field>
+                <Label htmlFor="email">Email *</Label>
+                <Input id="email" name="email" type="email" required />
+              </Field>
+              <Field>
+                <Label htmlFor="role">Role *</Label>
+                <NativeSelect  id="role" name="role" defaultValue="dept_head">
                   {ROLES.map(([r, label]) => (
-                    <option key={r} value={r}>{label}</option>
+                    <NativeSelectOption key={r} value={r}>{label}</NativeSelectOption>
                   ))}
-                </select>
-              </div>
-              <div>
-                <label className="field-label" htmlFor="password">Password * (min 8 characters)</label>
-                <input id="password" name="password" type="password" required minLength={8} className="input" />
-              </div>
+                </NativeSelect>
+              </Field>
+              <Field>
+                <Label htmlFor="password">Password * (min 8 characters)</Label>
+                <Input id="password" name="password" type="password" required minLength={8} />
+              </Field>
             </div>
-            <fieldset className="rounded-md border border-line p-3">
-              <legend className="field-label px-1">Departments (department heads and interviewers only)</legend>
+            <fieldset className="rounded-lg border border-border p-3">
+              <legend className="px-1 text-sm font-medium">Departments (department heads and interviewers only)</legend>
               <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
                 {departments.map((d) => (
                   <label key={d.id} className="flex items-center gap-1.5">
@@ -278,24 +285,25 @@ export default async function TeamPage({ searchParams }: { searchParams: Promise
                     {d.name}
                   </label>
                 ))}
-                {departments.length === 0 && <span className="text-xs text-ink-soft">No departments yet.</span>}
+                {departments.length === 0 && <span className="text-xs text-muted-foreground">No departments yet.</span>}
               </div>
             </fieldset>
-            <fieldset className="rounded-md border border-line p-3">
-              <legend className="field-label px-1">Specific openings (optional)</legend>
+            <fieldset className="rounded-lg border border-border p-3">
+              <legend className="px-1 text-sm font-medium">Specific openings (optional)</legend>
               <div className="grid gap-x-4 gap-y-1 text-sm sm:grid-cols-2">
                 {openings.map((o) => (
                   <label key={o.id} className="flex items-center gap-1.5">
                     <input type="checkbox" name="openingIds" value={o.id} />
-                    {o.title}{o.department ? <span className="text-ink-soft"> · {o.department}</span> : null}
+                    {o.title}{o.department ? <span className="text-muted-foreground"> · {o.department}</span> : null}
                   </label>
                 ))}
-                {openings.length === 0 && <span className="text-xs text-ink-soft">No active openings.</span>}
+                {openings.length === 0 && <span className="text-xs text-muted-foreground">No active openings.</span>}
               </div>
             </fieldset>
-            <SubmitButton className="btn-primary" pendingLabel="Adding…">Add person</SubmitButton>
+            <SubmitButton pendingLabel="Adding…">Add person</SubmitButton>
           </form>
-        </section>
+          </CardContent>
+        </Card>
       )}
     </div>
   );

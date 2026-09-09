@@ -172,9 +172,9 @@ export default async function ReportPrintPage({
 
   const scope = openingId ? openings[0]?.title ?? 'Unknown role' : 'All roles';
   const outcomeStyle: Record<string, string> = {
-    hired: 'text-pine-deep',
-    rejected: 'text-rust',
-    withdrawn: 'text-ink-soft',
+    hired: 'text-primary',
+    rejected: 'text-destructive',
+    withdrawn: 'text-muted-foreground',
   };
 
   return (
@@ -184,12 +184,12 @@ export default async function ReportPrintPage({
         <PrintButton>Download PDF</PrintButton>
       </div>
 
-      <header className="mt-4 border-b border-line pb-4">
+      <header className="mt-4 border-b border-border pb-4">
         <h1 className="track font-display text-3xl font-bold">Hiring report</h1>
-        <p className="mt-2 text-sm text-ink-soft">
+        <p className="mt-2 text-sm text-muted-foreground">
           {scope} · {label}{sp.month && sp.from ? ' (month selected — From/To ignored)' : ''} · generated {fmtDateTime(new Date())}
         </p>
-        <p className="text-xs text-ink-soft">
+        <p className="text-xs text-muted-foreground">
           Contains candidate personal data — for internal use only.
         </p>
       </header>
@@ -203,7 +203,7 @@ export default async function ReportPrintPage({
         return (
           <section key={o.id} className="mt-8 break-inside-avoid-page">
             <h2 className="font-display text-xl font-semibold">
-              {o.title} <span className="text-sm font-normal text-ink-soft">({o.status})</span>
+              {o.title} <span className="text-sm font-normal text-muted-foreground">({o.status})</span>
             </h2>
 
             <div className="mt-3 grid grid-cols-4 gap-2 text-center md:grid-cols-8">
@@ -217,9 +217,9 @@ export default async function ReportPrintPage({
                 ['Rejected', c.rejected],
                 ['Withdrawn', c.withdrawn],
               ].map(([label2, n]) => (
-                <div key={label2} className="rounded border border-line p-2">
+                <div key={label2} className="rounded border border-border p-2">
                   <div className="font-display text-lg font-bold">{n}</div>
-                  <div className="text-[10px] uppercase tracking-wide text-ink-soft">{label2}</div>
+                  <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{label2}</div>
                 </div>
               ))}
             </div>
@@ -228,7 +228,7 @@ export default async function ReportPrintPage({
               <div className="mt-4 overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="text-left text-xs uppercase tracking-wide text-ink-soft">
+                    <tr className="text-left text-xs uppercase tracking-wide text-muted-foreground">
                       <th className="py-1 pr-3">Candidate</th>
                       <th className="py-1 pr-3">Applied</th>
                       <th className="py-1 pr-3">Task submitted</th>
@@ -236,7 +236,7 @@ export default async function ReportPrintPage({
                       <th className="py-1">Outcome</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-line">
+                  <tbody className="divide-y divide-border">
                     {list.map((cand) => (
                       <tr key={cand.id}>
                         <td className="py-1.5 pr-3 font-medium">{cand.name}</td>
@@ -262,7 +262,7 @@ export default async function ReportPrintPage({
         );
       })}
       {openings.length === 0 && (
-        <p className="mt-8 text-sm text-ink-soft">No hiring data for this selection.</p>
+        <p className="mt-8 text-sm text-muted-foreground">No hiring data for this selection.</p>
       )}
 
       {events.length > 0 && (
@@ -271,17 +271,17 @@ export default async function ReportPrintPage({
           <ul className="mt-3 space-y-1 text-sm">
             {events.map((e, i) => (
               <li key={i} className="flex gap-3">
-                <span className="w-36 shrink-0 text-xs text-ink-soft">{fmtDateTime(e.when)}</span>
+                <span className="w-36 shrink-0 text-xs text-muted-foreground">{fmtDateTime(e.when)}</span>
                 <span>
                   <span className="font-medium">{e.name}</span>{' '}
-                  <span className={outcomeStyle[e.kind] ?? 'text-ink-soft'}>{eventText(e)}</span>{' '}
-                  <span className="text-ink-soft">· {e.title}</span>
+                  <span className={outcomeStyle[e.kind] ?? 'text-muted-foreground'}>{eventText(e)}</span>{' '}
+                  <span className="text-muted-foreground">· {e.title}</span>
                 </span>
               </li>
             ))}
           </ul>
           {moreEvents && (
-            <p className="mt-2 text-xs text-ink-soft">
+            <p className="mt-2 text-xs text-muted-foreground">
               Showing the first {EVENT_LIMIT} events — narrow the period or pick one role for the full list.
             </p>
           )}

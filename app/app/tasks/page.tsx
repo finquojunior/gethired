@@ -2,6 +2,10 @@ import Link from 'next/link';
 import { q } from '@/lib/db';
 import { currentUser, openingScope, scopeSql } from '@/lib/auth';
 import { briefLinks } from '@/lib/brief';
+import { Badge } from '@/components/ui/badge';
+import { Card } from '@/components/ui/card';
+import { Empty, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Tasks' };
@@ -54,28 +58,32 @@ export default async function TasksPage() {
   return (
     <div>
       <h1 className="track font-display text-3xl font-bold">Tasks</h1>
-      <p className="mt-4 text-sm text-ink-soft">
+      <p className="mt-4 text-sm text-muted-foreground">
         Every opening&apos;s task stage in one place. Click an opening to edit its brief, links, and
         document.
       </p>
 
       {tasks.length === 0 ? (
-        <p className="mt-8 text-sm text-ink-soft">No task stages yet.</p>
+        <Empty className="mt-8 border bg-card">
+          <EmptyHeader>
+            <EmptyTitle>No task stages yet.</EmptyTitle>
+          </EmptyHeader>
+        </Empty>
       ) : (
-        <div className="mt-8 overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-line text-left text-ink-soft">
-                <th className="py-2 pr-4 font-medium">Opening</th>
-                <th className="py-2 pr-4 font-medium">Stage</th>
-                <th className="py-2 pr-4 font-medium">Materials</th>
-                <th className="py-2 pr-4 font-medium">Days</th>
-                <th className="py-2 pr-4 font-medium">In stage</th>
-                <th className="py-2 pr-4 font-medium">Submitted</th>
-                <th className="py-2 font-medium">Response</th>
-              </tr>
-            </thead>
-            <tbody>
+        <Card className="mt-8 py-0">
+          <Table>
+            <TableHeader>
+              <TableRow className="text-xs uppercase tracking-wide text-muted-foreground hover:bg-transparent">
+                <TableHead className="px-4">Opening</TableHead>
+                <TableHead className="px-4">Stage</TableHead>
+                <TableHead className="px-4">Materials</TableHead>
+                <TableHead className="px-4">Days</TableHead>
+                <TableHead className="px-4">In stage</TableHead>
+                <TableHead className="px-4">Submitted</TableHead>
+                <TableHead className="px-4">Response</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {tasks.map((t) => {
                 const materials = [
                   t.brief && 'brief',
@@ -83,45 +91,45 @@ export default async function TasksPage() {
                   briefLinks(t.brief_links).length > 0 && 'links',
                 ].filter(Boolean);
                 return (
-                  <tr key={t.stage_id} className="border-b border-line">
-                    <td className="py-3 pr-4">
-                      <Link href={`/app/openings/${t.opening_id}/task`} className="font-medium text-pine hover:underline">
+                  <TableRow key={t.stage_id}>
+                    <TableCell className="px-4 py-3">
+                      <Link href={`/app/openings/${t.opening_id}/task`} className="font-medium text-primary hover:underline">
                         {t.title}
                       </Link>
-                      <span className="ml-2 text-xs text-ink-soft">{t.status}</span>
-                    </td>
-                    <td className="py-3 pr-4">{t.stage_name}</td>
-                    <td className="py-3 pr-4">
+                      <Badge variant="outline" className="ml-2">{t.status}</Badge>
+                    </TableCell>
+                    <TableCell className="px-4 py-3">{t.stage_name}</TableCell>
+                    <TableCell className="px-4 py-3">
                       {materials.length > 0 ? (
                         materials.join(' · ')
                       ) : (
-                        <span className="text-rust">not set</span>
+                        <Badge variant="destructive">not set</Badge>
                       )}
-                    </td>
-                    <td className="py-3 pr-4">
-                      {t.task_days > 0 ? t.task_days : <span className="text-rust">not set</span>}
-                    </td>
-                    <td className="py-3 pr-4">{t.active}</td>
-                    <td className="py-3 pr-4">
+                    </TableCell>
+                    <TableCell className="px-4 py-3">
+                      {t.task_days > 0 ? t.task_days : <Badge variant="destructive">not set</Badge>}
+                    </TableCell>
+                    <TableCell className="px-4 py-3">{t.active}</TableCell>
+                    <TableCell className="px-4 py-3">
                       <Link
                         href={`/app/openings/${t.opening_id}/applications?stage=${t.stage_id}`}
-                        className="text-pine hover:underline"
+                        className="text-primary hover:underline"
                       >
                         {t.submitted}
                       </Link>
-                    </td>
-                    <td className="py-3 whitespace-nowrap">
-                      <span className="font-medium text-pine-deep">{t.yes} yes</span>
-                      <span className="text-ink-soft"> · </span>
-                      <span className="font-medium text-rust">{t.no} no</span>
-                      <span className="text-ink-soft"> · {t.reached - t.yes - t.no} pending</span>
-                    </td>
-                  </tr>
+                    </TableCell>
+                    <TableCell className="px-4 py-3">
+                      <span className="font-medium text-primary">{t.yes} yes</span>
+                      <span className="text-muted-foreground"> · </span>
+                      <span className="font-medium text-destructive">{t.no} no</span>
+                      <span className="text-muted-foreground"> · {t.reached - t.yes - t.no} pending</span>
+                    </TableCell>
+                  </TableRow>
                 );
               })}
-            </tbody>
-          </table>
-        </div>
+            </TableBody>
+          </Table>
+        </Card>
       )}
     </div>
   );

@@ -1,6 +1,8 @@
 'use client';
 
 import { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 
 // "Lost your link?" — posts the email; the server answers the same neutral
 // message whether or not an application exists (no account enumeration).
@@ -8,10 +10,10 @@ export default function CandidateResendForm({ slug }: { slug: string }) {
   const [email, setEmail] = useState('');
   const [state, setState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
   return (
-    <details className="mt-6 rounded-lg border border-line bg-card p-4 text-sm">
+    <details className="mt-6 rounded-xl bg-card p-4 text-sm ring-1 ring-foreground/10">
       <summary className="cursor-pointer font-medium">Already applied? Resend my status link</summary>
       {state === 'sent' ? (
-        <p className="mt-3 text-ink-soft" role="status">
+        <p className="mt-3 text-muted-foreground" role="status">
           If we have an application for this email and role, the status link is on its way — check
           your spam folder too.
         </p>
@@ -34,20 +36,20 @@ export default function CandidateResendForm({ slug }: { slug: string }) {
           }}
         >
           <label className="sr-only" htmlFor="resend-email">Email you applied with</label>
-          <input
+          <Input
             id="resend-email"
             type="email"
             required
-            className="input"
+            className="h-9"
             placeholder="Email you applied with"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
           />
-          <button className="btn-quiet min-h-11 shrink-0" disabled={state === 'sending'}>
+          <Button type="submit" variant="outline" size="lg" className="shrink-0" disabled={state === 'sending'}>
             {state === 'sending' ? 'Sending…' : 'Resend link'}
-          </button>
+          </Button>
           {state === 'error' && (
-            <p className="text-rust sm:self-center" role="alert">Too many attempts — try again in a few minutes.</p>
+            <p className="text-destructive sm:self-center" role="alert">Too many attempts — try again in a few minutes.</p>
           )}
         </form>
       )}

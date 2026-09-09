@@ -7,8 +7,20 @@ import {
   fieldOptions,
   type Answers,
   type AnswerValue,
-  type Field,
+  type Field as SchemaField,
 } from '@/lib/form-schema';
+import {
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+  FieldLegend,
+  FieldSet,
+} from '@/components/ui/field';
+import { Input } from '@/components/ui/input';
+import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select';
+import { Textarea } from '@/components/ui/textarea';
 
 export default function FormFields({
   fields,
@@ -16,46 +28,47 @@ export default function FormFields({
   errors,
   onChange,
 }: {
-  fields: Field[];
+  fields: SchemaField[];
   answers: Answers;
   errors: Record<string, string>;
   onChange: (id: string, value: AnswerValue) => void;
 }) {
   return (
-    <div className="space-y-5">
+    <FieldGroup>
       {fields.map((f) => {
         const group = f.type === 'multiple_choice' || f.type === 'yes_no' || f.type === 'checkboxes';
         const id = `f-${f.id}`;
+        const invalid = Boolean(errors[f.id]) || undefined;
         const describedBy =
           [f.help && `${id}-help`, errors[f.id] && `${id}-error`].filter(Boolean).join(' ') || undefined;
-        const a11y = { id, 'aria-invalid': Boolean(errors[f.id]) || undefined, 'aria-describedby': describedBy };
+        const a11y = { id, 'aria-invalid': invalid, 'aria-describedby': describedBy };
         const label = (
           <>
             {f.label}
-            {f.required && <span className="text-rust"> *</span>}
+            {f.required && <span className="text-destructive">*</span>}
           </>
         );
         const body = (
           <>
-            {f.help && <p id={`${id}-help`} className="-mt-0.5 mb-1 text-xs text-ink-soft">{f.help}</p>}
+            {f.help && <FieldDescription id={`${id}-help`}>{f.help}</FieldDescription>}
             <FieldInput field={f} value={answers[f.id]} onChange={(v) => onChange(f.id, v)} a11y={a11y} />
-            {errors[f.id] && <p id={`${id}-error`} className="mt-1 text-sm text-rust">{errors[f.id]}</p>}
+            {errors[f.id] && <FieldError id={`${id}-error`}>{errors[f.id]}</FieldError>}
           </>
         );
         // radios/checkboxes: the group is the control, so fieldset+legend carries the label
         return group ? (
-          <fieldset key={f.id} aria-describedby={describedBy} aria-invalid={Boolean(errors[f.id]) || undefined}>
-            <legend className="field-label">{label}</legend>
+          <FieldSet key={f.id} className="gap-2" aria-describedby={describedBy} aria-invalid={invalid} data-invalid={invalid}>
+            <FieldLegend variant="label" className="flex gap-1">{label}</FieldLegend>
             {body}
-          </fieldset>
+          </FieldSet>
         ) : (
-          <div key={f.id}>
-            <label className="field-label" htmlFor={id}>{label}</label>
+          <Field key={f.id} data-invalid={invalid}>
+            <FieldLabel htmlFor={id} className="gap-1">{label}</FieldLabel>
             {body}
-          </div>
+          </Field>
         );
       })}
-    </div>
+    </FieldGroup>
   );
 }
 
@@ -67,7 +80,7 @@ function FieldInput({
   onChange,
   a11y,
 }: {
-  field: Field;
+  field: SchemaField;
   value: AnswerValue | undefined;
   onChange: (value: AnswerValue) => void;
   a11y: A11y;
@@ -78,45 +91,38 @@ function FieldInput({
     case 'phone':
     case 'url': {
       const type = { short_text: 'text', email: 'email', phone: 'tel', url: 'url' }[f.type];
-      return (
-        <input {...a11y} type={type} className="input" value={String(value ?? '')} onChange={(e) => onChange(e.target.value)} />
-      );
+      return <Input {...a11y} type={type} value={String(value ?? '')} onChange={(e) => onChange(e.target.value)} />;
     }
     case 'long_text':
-      return (
-        <textarea {...a11y} className="input" rows={4} value={String(value ?? '')} onChange={(e) => onChange(e.target.value)} />
-      );
+      return <Textarea {...a11y} rows={4} value={String(value ?? '')} onChange={(e) => onChange(e.target.value)} />;
     case 'number':
-      return (
-        <input {...a11y} type="number" className="input" value={String(value ?? '')} onChange={(e) => onChange(e.target.value)} />
-      );
+      return <Input {...a11y} type="number" value={String(value ?? '')} onChange={(e) => onChange(e.target.value)} />;
     case 'salary':
       return (
         <div className="flex items-center gap-2">
-          <span className="rounded-md border border-line bg-paper px-3 py-2 text-sm text-ink-soft">₹ INR</span>
-          <input
+          <span className="inline-flex h-8 shrink-0 items-center rounded-lg border border-input bg-muted px-2.5 text-sm text-muted-foreground">
+            ₹ INR
+          </span>
+          <Input
             {...a11y}
             type="text"
             inputMode="numeric"
             placeholder="e.g. 450000"
-            className="input"
             value={String(value ?? '')}
             onChange={(e) => onChange(e.target.value)}
           />
         </div>
       );
     case 'date':
-      return (
-        <input {...a11y} type="date" className="input" value={String(value ?? '')} onChange={(e) => onChange(e.target.value)} />
-      );
+      return <Input {...a11y} type="date" value={String(value ?? '')} onChange={(e) => onChange(e.target.value)} />;
     case 'dropdown':
       return (
-        <select {...a11y} className="input" value={String(value ?? '')} onChange={(e) => onChange(e.target.value)}>
-          <option value="">Select…</option>
+        <NativeSelect {...a11y} className="w-full" value={String(value ?? '')} onChange={(e) => onChange(e.target.value)}>
+          <NativeSelectOption value="">Select…</NativeSelectOption>
           {fieldOptions(f).map((o) => (
-            <option key={o} value={o}>{o}</option>
+            <NativeSelectOption key={o} value={o}>{o}</NativeSelectOption>
           ))}
-        </select>
+        </NativeSelect>
       );
     case 'multiple_choice':
     case 'yes_no':
@@ -124,13 +130,7 @@ function FieldInput({
         <div className="space-y-1.5">
           {fieldOptions(f).map((o) => (
             <label key={o} className="flex items-center gap-2 text-sm">
-              <input
-                type="radio"
-                name={f.id}
-                checked={value === o}
-                onChange={() => onChange(o)}
-                className="accent-pine"
-              />
+              <input type="radio" name={f.id} checked={value === o} onChange={() => onChange(o)} />
               {o}
             </label>
           ))}
@@ -148,7 +148,6 @@ function FieldInput({
                 onChange={(e) =>
                   onChange(e.target.checked ? [...selected, o] : selected.filter((x) => x !== o))
                 }
-                className="accent-pine"
               />
               {o}
             </label>

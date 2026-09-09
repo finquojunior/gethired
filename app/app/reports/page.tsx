@@ -2,6 +2,13 @@ import Link from 'next/link';
 import { q } from '@/lib/db';
 import { requireStaff } from '@/lib/auth';
 import { fmtDate, fmtDateTime } from '@/lib/tz';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select';
+import { Button } from '@/components/ui/button';
+import { Field } from '@/components/ui/field';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Reports' };
@@ -131,7 +138,7 @@ export default async function ReportsPage() {
     .slice(0, 15);
 
   const maxWeekly = Math.max(1, ...weekly.map((w) => w.count));
-  const card = 'rounded-lg border border-line bg-card p-5';
+  const h2 = 'font-display text-lg font-semibold';
 
   const pct = (n: number, of: number) => (of > 0 ? `${Math.round((n / of) * 100)}%` : '—');
 
@@ -139,167 +146,188 @@ export default async function ReportsPage() {
     <div>
       <h1 className="track font-display text-3xl font-bold">Reports</h1>
 
-      <section className={`${card} mt-8`}>
-        <h2 className="font-display text-lg font-semibold">Generate a hiring report</h2>
-        <p className="mt-1 text-xs text-ink-soft">
-          Opens a print-ready report — use the Download PDF button there to save it. Pick a month,
+      <Card className="mt-8">
+        <CardHeader>
+          <CardTitle className={h2}>Generate a hiring report</CardTitle>
+          <CardDescription>Opens a print-ready report — use the Download PDF button there to save it. Pick a month,
           or a custom range; leave both empty for the last 30 days. If a month is set it wins over
-          From/To.
-        </p>
-        <form action="/app/reports/print" className="mt-4 flex flex-wrap items-end gap-3">
-          <div>
-            <label className="field-label" htmlFor="rep-opening">Role</label>
-            <select id="rep-opening" name="opening" className="input w-56">
-              <option value="all">All roles</option>
+          From/To.</CardDescription>
+        </CardHeader>
+        <CardContent>
+        <form action="/app/reports/print" className="flex flex-wrap items-end gap-3">
+          <Field className="w-56">
+            <Label htmlFor="rep-opening">Role</Label>
+            <NativeSelect id="rep-opening" name="opening">
+              <NativeSelectOption value="all">All roles</NativeSelectOption>
               {openings.map((o) => (
-                <option key={o.id} value={o.id}>{o.title}</option>
+                <NativeSelectOption key={o.id} value={o.id}>{o.title}</NativeSelectOption>
               ))}
-            </select>
-          </div>
-          <div>
-            <label className="field-label" htmlFor="rep-month">Month</label>
-            <input id="rep-month" type="month" name="month" className="input" />
-          </div>
-          <span className="pb-2 text-sm text-ink-soft">or</span>
-          <div>
-            <label className="field-label" htmlFor="rep-from">From</label>
-            <input id="rep-from" type="date" name="from" className="input" />
-          </div>
-          <div>
-            <label className="field-label" htmlFor="rep-to">To</label>
-            <input id="rep-to" type="date" name="to" className="input" />
-          </div>
-          <button className="btn-primary">Open report</button>
+            </NativeSelect>
+          </Field>
+          <Field className="w-44">
+            <Label htmlFor="rep-month">Month</Label>
+            <Input id="rep-month" type="month" name="month" />
+          </Field>
+          <span className="pb-2 text-sm text-muted-foreground">or</span>
+          <Field className="w-44">
+            <Label htmlFor="rep-from">From</Label>
+            <Input id="rep-from" type="date" name="from" />
+          </Field>
+          <Field className="w-44">
+            <Label htmlFor="rep-to">To</Label>
+            <Input id="rep-to" type="date" name="to" />
+          </Field>
+          <Button type="submit">Open report</Button>
         </form>
-      </section>
+      </CardContent>
+      </Card>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
-        <section className={card}>
-          <h2 className="font-display text-lg font-semibold">How far candidates get</h2>
-          <p className="mt-1 text-xs text-ink-soft">
-            Candidates who ever reached each kind of stage, with conversion from applied.
-          </p>
-          <div className="overflow-x-auto"><table className="mt-3 w-full text-sm">
-            <thead>
-              <tr className="text-left text-xs uppercase tracking-wide text-ink-soft">
-                <th className="py-1 pr-3">Opening</th>
-                <th className="py-1 pl-3 text-right">Applied</th>
-                <th className="py-1 pl-3 text-right">Task</th>
-                <th className="py-1 pl-3 text-right">Interview</th>
-                <th className="py-1 pl-3 text-right">Offer</th>
-                <th className="py-1 pl-3 text-right">Hired</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-line">
+        <Card>
+          <CardHeader>
+            <CardTitle className={h2}>How far candidates get</CardTitle>
+            <CardDescription>Candidates who ever reached each kind of stage, with conversion from applied.</CardDescription>
+          </CardHeader>
+          <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow className="text-xs uppercase tracking-wide text-muted-foreground hover:bg-transparent">
+                <TableHead className="px-0">Opening</TableHead>
+                <TableHead className="text-right">Applied</TableHead>
+                <TableHead className="text-right">Task</TableHead>
+                <TableHead className="text-right">Interview</TableHead>
+                <TableHead className="text-right">Offer</TableHead>
+                <TableHead className="text-right">Hired</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {reach.map((r) => (
-                <tr key={r.opening_id}>
-                  <td className="py-2 pr-3">{r.title}</td>
-                  <td className="py-2 pl-3 text-right font-medium whitespace-nowrap">{r.applied}</td>
-                  <td className="py-2 pl-3 text-right whitespace-nowrap">{r.task} <span className="text-xs text-ink-soft">({pct(r.task, r.applied)})</span></td>
-                  <td className="py-2 pl-3 text-right whitespace-nowrap">{r.interview} <span className="text-xs text-ink-soft">({pct(r.interview, r.applied)})</span></td>
-                  <td className="py-2 pl-3 text-right whitespace-nowrap">{r.offer}</td>
-                  <td className="py-2 pl-3 text-right text-pine-deep whitespace-nowrap">{r.hired} <span className="text-xs text-ink-soft">({pct(r.hired, r.applied)})</span></td>
-                </tr>
+                <TableRow key={r.opening_id}>
+                  <TableCell className="px-0 whitespace-normal">{r.title}</TableCell>
+                  <TableCell className="text-right font-medium whitespace-nowrap">{r.applied}</TableCell>
+                  <TableCell className="text-right whitespace-nowrap">{r.task} <span className="text-xs text-muted-foreground">({pct(r.task, r.applied)})</span></TableCell>
+                  <TableCell className="text-right whitespace-nowrap">{r.interview} <span className="text-xs text-muted-foreground">({pct(r.interview, r.applied)})</span></TableCell>
+                  <TableCell className="text-right whitespace-nowrap">{r.offer}</TableCell>
+                  <TableCell className="text-right text-primary whitespace-nowrap">{r.hired} <span className="text-xs text-muted-foreground">({pct(r.hired, r.applied)})</span></TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table></div>
-          {reach.length === 0 && <p className="mt-2 text-sm text-ink-soft">No applications yet.</p>}
-        </section>
+            </TableBody>
+          </Table>
+          {reach.length === 0 && <p className="mt-2 text-sm text-muted-foreground">No applications yet.</p>}
+        </CardContent>
+      </Card>
 
-        <section className={card}>
-          <h2 className="font-display text-lg font-semibold">Recent hiring activity</h2>
-          <ul className="mt-3 space-y-2 text-sm">
+        <Card>
+          <CardHeader>
+            <CardTitle className={h2}>Recent hiring activity</CardTitle>
+          </CardHeader>
+          <CardContent>
+          <ul className="space-y-2 text-sm">
             {activity.map((ev, i) => (
               <li key={i} className="flex justify-between gap-3">
                 <span>
                   <Link href={`/app/candidates/${ev.app_id}`} className="font-medium hover:underline">
                     {ev.name}
                   </Link>{' '}
-                  <span className="text-ink-soft">{ev.text}</span>
+                  <span className="text-muted-foreground">{ev.text}</span>
                 </span>
-                <span className="shrink-0 text-xs text-ink-soft">{fmtDateTime(ev.when)}</span>
+                <span className="shrink-0 text-xs text-muted-foreground">{fmtDateTime(ev.when)}</span>
               </li>
             ))}
-            {activity.length === 0 && <li className="text-ink-soft">No activity yet.</li>}
+            {activity.length === 0 && <li className="text-muted-foreground">No activity yet.</li>}
           </ul>
-        </section>
+        </CardContent>
+      </Card>
 
-        <section className={card}>
-          <h2 className="font-display text-lg font-semibold">Interview feedback by role</h2>
-          <ul className="mt-3 space-y-2 text-sm">
+        <Card>
+          <CardHeader>
+            <CardTitle className={h2}>Interview feedback by role</CardTitle>
+          </CardHeader>
+          <CardContent>
+          <ul className="space-y-2 text-sm">
             {ratings.map((r) => (
               <li key={r.title} className="flex justify-between">
                 <span>{r.title}</span>
                 <span>
                   <span className="font-medium">★ {r.avg_rating}</span>
-                  <span className="text-ink-soft"> · {r.n} rating(s)</span>
+                  <span className="text-muted-foreground"> · {r.n} rating(s)</span>
                 </span>
               </li>
             ))}
-            {ratings.length === 0 && <li className="text-ink-soft">No feedback recorded yet.</li>}
+            {ratings.length === 0 && <li className="text-muted-foreground">No feedback recorded yet.</li>}
           </ul>
-        </section>
-        <section className={card}>
-          <h2 className="font-display text-lg font-semibold">Funnel by opening</h2>
-          <div className="overflow-x-auto"><table className="mt-3 w-full text-sm">
-            <thead>
-              <tr className="text-left text-xs uppercase tracking-wide text-ink-soft">
-                <th className="py-1">Opening</th>
-                <th className="py-1 text-right">Applied</th>
-                <th className="py-1 text-right">Active</th>
-                <th className="py-1 text-right">Hired</th>
-                <th className="py-1 text-right">Rejected</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-line">
+        </CardContent>
+      </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className={h2}>Funnel by opening</CardTitle>
+          </CardHeader>
+          <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow className="text-xs uppercase tracking-wide text-muted-foreground hover:bg-transparent">
+                <TableHead className="px-0">Opening</TableHead>
+                <TableHead className="text-right">Applied</TableHead>
+                <TableHead className="text-right">Active</TableHead>
+                <TableHead className="text-right">Hired</TableHead>
+                <TableHead className="text-right">Rejected</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {funnel.map((f) => (
-                <tr key={f.opening_id}>
-                  <td className="py-2">
+                <TableRow key={f.opening_id}>
+                  <TableCell className="px-0 whitespace-normal">
                     <Link href={`/app/openings/${f.opening_id}/applications`} className="hover:underline">
                       {f.title}
                     </Link>
-                  </td>
-                  <td className="py-2 text-right font-medium">{f.total}</td>
-                  <td className="py-2 text-right">{f.active}</td>
-                  <td className="py-2 text-right text-pine-deep">{f.hired}</td>
-                  <td className="py-2 text-right text-ink-soft">{f.rejected + f.withdrawn}</td>
-                </tr>
+                  </TableCell>
+                  <TableCell className="text-right font-medium">{f.total}</TableCell>
+                  <TableCell className="text-right">{f.active}</TableCell>
+                  <TableCell className="text-right text-primary">{f.hired}</TableCell>
+                  <TableCell className="text-right text-muted-foreground">{f.rejected + f.withdrawn}</TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table></div>
-        </section>
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
 
-        <section className={card}>
-          <h2 className="font-display text-lg font-semibold">Where candidates come from</h2>
-          <p className="mt-1 text-xs text-ink-soft">
-            From utm_source on apply links — tag your Meta ads with ?utm_source=…&utm_campaign=…
-          </p>
-          <div className="overflow-x-auto"><table className="mt-3 w-full text-sm">
-            <thead>
-              <tr className="text-left text-xs uppercase tracking-wide text-ink-soft">
-                <th className="py-1">Source</th>
-                <th className="py-1 text-right">Applications</th>
-                <th className="py-1 text-right">Interviewed</th>
-                <th className="py-1 text-right">Hired</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-line">
+        <Card>
+          <CardHeader>
+            <CardTitle className={h2}>Where candidates come from</CardTitle>
+            <CardDescription>From utm_source on apply links — tag your Meta ads with ?utm_source=…&utm_campaign=…</CardDescription>
+          </CardHeader>
+          <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow className="text-xs uppercase tracking-wide text-muted-foreground hover:bg-transparent">
+                <TableHead className="px-0">Source</TableHead>
+                <TableHead className="text-right">Applications</TableHead>
+                <TableHead className="text-right">Interviewed</TableHead>
+                <TableHead className="text-right">Hired</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {sources.map((s) => (
-                <tr key={s.source}>
-                  <td className="py-2 font-medium">{s.source}</td>
-                  <td className="py-2 text-right">{s.total}</td>
-                  <td className="py-2 text-right">{s.interviews}</td>
-                  <td className="py-2 text-right text-pine-deep">{s.hired}</td>
-                </tr>
+                <TableRow key={s.source}>
+                  <TableCell className="font-medium">{s.source}</TableCell>
+                  <TableCell className="text-right">{s.total}</TableCell>
+                  <TableCell className="text-right">{s.interviews}</TableCell>
+                  <TableCell className="text-right text-primary">{s.hired}</TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table></div>
-        </section>
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
 
-        <section className={card}>
-          <h2 className="font-display text-lg font-semibold">Applications per week</h2>
+        <Card>
+          <CardHeader>
+            <CardTitle className={h2}>Applications per week</CardTitle>
+          </CardHeader>
+          <CardContent>
           {weekly.length === 0 ? (
-            <p className="mt-4 text-sm text-ink-soft">No applications yet.</p>
+            <p className="text-sm text-muted-foreground">No applications yet.</p>
           ) : (
             (() => {
               const W = 460;
@@ -315,45 +343,50 @@ export default async function ReportsPage() {
                 H - padBottom - (count / maxWeekly) * (H - padTop - padBottom);
               const pts = weekly.map((w, i) => ({ ...w, cx: x(i), cy: y(w.count) }));
               return (
-                <svg viewBox={`0 0 ${W} ${H}`} className="mt-4 w-full" role="img"
+                <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img"
                   aria-label="Applications received per week">
                   {/* recessive baseline */}
                   <line x1={padX} y1={H - padBottom} x2={W - padX} y2={H - padBottom}
-                    stroke="var(--color-line)" strokeWidth="1" />
+                    stroke="var(--border)" strokeWidth="1" />
                   <polyline
                     points={pts.map((p) => `${p.cx},${p.cy}`).join(' ')}
-                    fill="none" stroke="var(--color-pine)" strokeWidth="2"
+                    fill="none" stroke="var(--primary)" strokeWidth="2"
                     strokeLinejoin="round" strokeLinecap="round" />
                   {pts.map((p) => (
                     <g key={p.week.toISOString()}>
-                      <circle cx={p.cx} cy={p.cy} r="4" fill="var(--color-pine)"
-                        stroke="var(--color-card)" strokeWidth="2">
+                      <circle cx={p.cx} cy={p.cy} r="4" fill="var(--primary)"
+                        stroke="var(--card)" strokeWidth="2">
                         <title>{`Week of ${fmtDate(p.week)}: ${p.count} application(s)`}</title>
                       </circle>
                       <text x={p.cx} y={p.cy - 9} textAnchor="middle" fontSize="10"
-                        fill="var(--color-ink-soft)">{p.count}</text>
+                        fill="var(--muted-foreground)">{p.count}</text>
                       <text x={p.cx} y={H - padBottom + 14} textAnchor="middle" fontSize="9"
-                        fill="var(--color-ink-soft)">{fmtDate(p.week).slice(5)}</text>
+                        fill="var(--muted-foreground)">{fmtDate(p.week).slice(5)}</text>
                     </g>
                   ))}
                 </svg>
               );
             })()
           )}
-        </section>
+        </CardContent>
+      </Card>
 
-        <section className={card}>
-          <h2 className="font-display text-lg font-semibold">Time to hire</h2>
-          <ul className="mt-3 space-y-2 text-sm">
+        <Card>
+          <CardHeader>
+            <CardTitle className={h2}>Time to hire</CardTitle>
+          </CardHeader>
+          <CardContent>
+          <ul className="space-y-2 text-sm">
             {tth.map((t) => (
               <li key={t.title} className="flex justify-between">
                 <span>{t.title}</span>
                 <span className="font-medium">{t.avg_days} days</span>
               </li>
             ))}
-            {tth.length === 0 && <li className="text-ink-soft">No hires yet.</li>}
+            {tth.length === 0 && <li className="text-muted-foreground">No hires yet.</li>}
           </ul>
-        </section>
+        </CardContent>
+      </Card>
       </div>
     </div>
   );

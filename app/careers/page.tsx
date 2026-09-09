@@ -3,6 +3,10 @@ import type { Metadata } from 'next';
 import { q } from '@/lib/db';
 import { ORG_NAME as ORG } from '@/lib/email';
 import CandidateFooter from '@/components/CandidateFooter';
+import { Badge } from '@/components/ui/badge';
+import { buttonVariants } from '@/components/ui/button';
+import { Card, CardAction, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Empty, EmptyDescription } from '@/components/ui/empty';
 
 export const revalidate = 60; // ad-burst traffic hits cache, not Postgres
 
@@ -35,40 +39,48 @@ export default async function CareersPage() {
 
   return (
     <main className="mx-auto max-w-2xl px-6 py-16">
-      <p className="text-sm font-medium uppercase tracking-widest text-pine">{ORG} · We&apos;re hiring</p>
+      <p className="text-sm font-medium uppercase tracking-widest text-primary">{ORG} · We&apos;re hiring</p>
       <h1 className="track mt-2 font-display text-4xl font-bold">Open roles</h1>
-      <p className="mt-4 text-ink-soft">
+      <p className="mt-4 text-muted-foreground">
         Join the team. Apply in minutes — you&apos;ll get a private link to track your application,
         book interviews, and hear back at every step.
       </p>
       <ul className="mt-10 space-y-3">
         {openings.map((o) => (
           <li key={o.slug}>
-            <Link
-              href={`/careers/${o.slug}`}
-              className="flex items-center gap-4 rounded-lg border border-line bg-card px-4 py-4 hover:border-pine sm:px-5"
-            >
-              {o.poster_path && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={`/api/files/${o.poster_path}`}
-                  alt=""
-                  className="h-14 w-14 shrink-0 rounded-lg border border-line object-cover"
-                />
-              )}
-              <div className="min-w-0 flex-1">
-                <div className="font-display text-lg font-semibold">{o.title}</div>
-                <div className="truncate text-sm text-ink-soft">
-                  {[o.department, o.location, o.employment_type].filter(Boolean).join(' · ')}
+            <Card>
+              <CardHeader className="items-center">
+                <div className="flex items-center gap-4">
+                  {o.poster_path && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={`/api/files/${o.poster_path}`}
+                      alt=""
+                      className="h-14 w-14 shrink-0 rounded-lg border border-border object-cover"
+                    />
+                  )}
+                  <div className="min-w-0">
+                    <CardTitle className="font-display text-lg font-semibold">{o.title}</CardTitle>
+                    <CardDescription className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+                      {[o.department, o.location].filter(Boolean).join(' · ')}
+                      {o.employment_type && <Badge variant="secondary">{o.employment_type}</Badge>}
+                    </CardDescription>
+                  </div>
                 </div>
-              </div>
-              <span className="shrink-0 text-pine">Apply →</span>
-            </Link>
+                <CardAction className="self-center">
+                  <Link href={`/careers/${o.slug}`} className={buttonVariants({ size: 'lg' })}>
+                    Apply →
+                  </Link>
+                </CardAction>
+              </CardHeader>
+            </Card>
           </li>
         ))}
         {openings.length === 0 && (
-          <li className="rounded-lg border border-line bg-card px-5 py-10 text-center text-ink-soft">
-            No open roles right now — check back soon.
+          <li>
+            <Empty className="bg-card ring-1 ring-foreground/10">
+              <EmptyDescription>No open roles right now — check back soon.</EmptyDescription>
+            </Empty>
           </li>
         )}
       </ul>

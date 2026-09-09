@@ -1,7 +1,14 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { CircleCheck } from 'lucide-react';
 import FormFields from '@/components/FormFields';
+import { Alert, AlertTitle } from '@/components/ui/alert';
+import { Button, buttonVariants } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field';
+import { Input } from '@/components/ui/input';
 import { RESUME_ACCEPT, RESUME_EXTS, RESUME_MAX_BYTES } from '@/lib/uploads';
 import {
   validateAnswers,
@@ -201,26 +208,32 @@ export default function ApplyForm({
   if (status === 'done') {
     const first = done?.name.split(' ')[0];
     return (
-      <div className="py-6 text-center" role="status">
-        <div className="mx-auto mb-3 h-3 w-3 rounded-full bg-pine" />
-        <h2 className="font-display text-2xl font-semibold">Application received</h2>
-        <p className="mt-2 text-ink-soft">
-          Thanks{first ? `, ${first}` : ''}. We&apos;ll review it and reach out{done?.email ? ` at ${done.email}` : ''}.
-        </p>
-        {done?.portal_url && (
-          <p className="mt-4 text-sm">
-            Your private status page:{' '}
-            <a href={done.portal_url} className="break-all font-medium text-pine underline">
-              {done.portal_url}
-            </a>
+      <Card className="text-center" role="status">
+        <CardHeader className="justify-items-center">
+          <CircleCheck className="mb-1 size-8 text-primary" aria-hidden />
+          <CardTitle className="font-display text-2xl font-semibold">
+            <h2>Application received</h2>
+          </CardTitle>
+          <CardDescription>
+            Thanks{first ? `, ${first}` : ''}. We&apos;ll review it and reach out{done?.email ? ` at ${done.email}` : ''}.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {done?.portal_url && (
+            <p className="text-sm">
+              Your private status page:{' '}
+              <a href={done.portal_url} className={cn(buttonVariants({ variant: 'outline', size: 'lg' }), 'mt-1 max-w-full')}>
+                <span className="truncate">{done.portal_url}</span>
+              </a>
+            </p>
+          )}
+          <p className="mt-2 text-sm text-muted-foreground">
+            We&apos;ve also emailed {done?.portal_url ? 'it' : 'your status link'} to {done?.email || 'you'} — check
+            your spam folder if it hasn&apos;t arrived. Save the link: it&apos;s how you track progress, book
+            interviews and submit tasks.
           </p>
-        )}
-        <p className="mt-2 text-sm text-ink-soft">
-          We&apos;ve also emailed {done?.portal_url ? 'it' : 'your status link'} to {done?.email || 'you'} — check
-          your spam folder if it hasn&apos;t arrived. Save the link: it&apos;s how you track progress, book
-          interviews and submit tasks.
-        </p>
-      </div>
+        </CardContent>
+      </Card>
     );
   }
 
@@ -232,51 +245,55 @@ export default function ApplyForm({
       }}
     >
       {steps > 1 && (
-        <p className="mb-4 text-xs font-medium uppercase tracking-widest text-ink-soft">
-          Step {step + 1} of {steps}
-          {step > 0 && ` · ${pagesWithFields[step - 1].page.title}`}
-        </p>
+        <div className="mb-4">
+          <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
+            Step {step + 1} of {steps}
+            {step > 0 && ` · ${pagesWithFields[step - 1].page.title}`}
+          </p>
+          <div className="mt-2 h-1.5 rounded bg-muted" aria-hidden>
+            <div className="h-full rounded bg-primary transition-all" style={{ width: `${((step + 1) / steps) * 100}%` }} />
+          </div>
+        </div>
       )}
 
       {step === 0 ? (
-        <div className="space-y-5">
-          <div>
-            <label className="field-label" htmlFor="name">Full name <span className="text-rust">*</span></label>
-            <input id="name" className="input" value={core.name} autoComplete="name"
+        <FieldGroup>
+          <Field data-invalid={Boolean(errors.name) || undefined}>
+            <FieldLabel htmlFor="name" className="gap-1">Full name <span className="text-destructive">*</span></FieldLabel>
+            <Input id="name" value={core.name} autoComplete="name"
               aria-invalid={Boolean(errors.name)} aria-describedby={errors.name ? 'name-error' : undefined}
               onChange={(e) => setCore({ ...core, name: e.target.value })} />
-            {errors.name && <p id="name-error" className="mt-1 text-sm text-rust">{errors.name}</p>}
-          </div>
-          <div>
-            <label className="field-label" htmlFor="email">Email <span className="text-rust">*</span></label>
-            <input id="email" type="email" className="input" value={core.email} autoComplete="email"
+            {errors.name && <FieldError id="name-error">{errors.name}</FieldError>}
+          </Field>
+          <Field data-invalid={Boolean(errors.email) || undefined}>
+            <FieldLabel htmlFor="email" className="gap-1">Email <span className="text-destructive">*</span></FieldLabel>
+            <Input id="email" type="email" value={core.email} autoComplete="email"
               aria-invalid={Boolean(errors.email)} aria-describedby={errors.email ? 'email-error' : undefined}
               onChange={(e) => setCore({ ...core, email: e.target.value })} />
-            {errors.email && <p id="email-error" className="mt-1 text-sm text-rust">{errors.email}</p>}
-          </div>
-          <div>
-            <label className="field-label" htmlFor="phone">Phone</label>
-            <input id="phone" className="input" value={core.phone} autoComplete="tel"
+            {errors.email && <FieldError id="email-error">{errors.email}</FieldError>}
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="phone">Phone</FieldLabel>
+            <Input id="phone" value={core.phone} autoComplete="tel"
               onChange={(e) => setCore({ ...core, phone: e.target.value })} />
-          </div>
-          <div>
-            <label className="field-label" htmlFor="resume">Resume <span className="text-rust">*</span></label>
-            <p id="resume-help" className="-mt-0.5 mb-1 text-xs text-ink-soft">{RESUME_HELP}</p>
-            <input
+          </Field>
+          <Field data-invalid={Boolean(errors.resume) || undefined}>
+            <FieldLabel htmlFor="resume" className="gap-1">Resume <span className="text-destructive">*</span></FieldLabel>
+            <FieldDescription id="resume-help">{RESUME_HELP}</FieldDescription>
+            <Input
               id="resume"
               type="file"
               accept={RESUME_ACCEPT}
-              className="input"
               aria-invalid={Boolean(errors.resume)}
               aria-describedby={errors.resume ? 'resume-help resume-error' : 'resume-help'}
               onChange={(e) => setResume(e.target.files?.[0] ?? null)}
             />
             {resume && !errors.resume && (
-              <p className="mt-1 text-xs text-ink-soft">Attached: {resume.name}</p>
+              <FieldDescription className="text-xs">Attached: {resume.name}</FieldDescription>
             )}
-            {errors.resume && <p id="resume-error" className="mt-1 text-sm text-rust">{errors.resume}</p>}
-          </div>
-        </div>
+            {errors.resume && <FieldError id="resume-error">{errors.resume}</FieldError>}
+          </Field>
+        </FieldGroup>
       ) : (
         <FormFields
           fields={pagesWithFields[step - 1].page.fields.filter((f) =>
@@ -289,33 +306,37 @@ export default function ApplyForm({
       )}
 
       {isLast && (
-        <div className="mt-6 rounded-md border border-line bg-paper p-3">
-          <label className="flex items-start gap-2.5 text-sm">
+        <Field className="mt-6 rounded-lg border border-border bg-background p-3" data-invalid={Boolean(errors.consent) || undefined}>
+          <label className="flex items-start gap-2.5 text-sm text-foreground">
             <input
               type="checkbox"
               checked={consented}
               onChange={(e) => setConsented(e.target.checked)}
-              className="mt-0.5 accent-pine"
+              className="mt-0.5"
             />
             <span>{consentText || DEFAULT_CONSENT}</span>
           </label>
-          {errors.consent && <p className="mt-1.5 text-sm text-rust" role="alert">{errors.consent}</p>}
-        </div>
+          {errors.consent && <FieldError>{errors.consent}</FieldError>}
+        </Field>
       )}
 
-      {serverError && <p className="mt-4 text-sm text-rust" role="alert">{serverError}</p>}
+      {serverError && (
+        <Alert variant="destructive" className="mt-4">
+          <AlertTitle>{serverError}</AlertTitle>
+        </Alert>
+      )}
 
       <div className="mt-6 flex items-center justify-between">
         {step > 0 ? (
-          <button type="button" className="btn-quiet min-h-11" onClick={() => setStep(step - 1)}>
+          <Button type="button" variant="outline" size="lg" onClick={() => setStep(step - 1)}>
             Back
-          </button>
+          </Button>
         ) : (
           <span />
         )}
-        <button className="btn-primary min-h-11" disabled={status === 'sending'}>
+        <Button type="submit" size="lg" disabled={status === 'sending'}>
           {status === 'sending' ? 'Sending…' : isLast ? 'Submit application' : 'Continue'}
-        </button>
+        </Button>
       </div>
     </form>
   );

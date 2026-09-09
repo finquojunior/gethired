@@ -2,6 +2,8 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import { Button, buttonVariants } from '@/components/ui/button';
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader } from '@/components/ui/empty';
 
 // Route-level error boundary: shows a friendly recovery UI and reports the
 // error (any user, staff or candidate) to the admin error log.
@@ -28,26 +30,28 @@ export default function ErrorBoundary({
   }, [error]);
 
   return (
-    <main className="mx-auto max-w-md px-6 py-24 text-center">
-      <div className="mx-auto mb-4 h-3 w-3 rounded-full bg-rust" />
-      <h1 className="font-display text-2xl font-semibold">Something went wrong</h1>
-      <p className="mt-2 text-sm text-ink-soft">
-        The problem has been reported automatically. You can try again — if it keeps happening,
-        {support ? (
-          <>
-            {' '}email <a href={`mailto:${support}`} className="text-pine underline">{support}</a> and
-            tell us what you were doing.
-          </>
-        ) : (
-          ' let the hiring team know what you were doing (reply to any email we sent you).'
-        )}
-      </p>
-      <div className="mt-6 flex justify-center gap-3">
-        <button onClick={reset} className="btn-primary min-h-11">
-          Try again
-        </button>
-        <Link href="/careers" className="btn-quiet min-h-11">Open roles</Link>
-      </div>
+    <main className="mx-auto max-w-md px-6 py-24">
+      <Empty>
+        <EmptyHeader>
+          <div className="mb-2 h-3 w-3 rounded-full bg-destructive" />
+          <h1 className="font-display text-2xl font-semibold">Something went wrong</h1>
+          <EmptyDescription>
+            The problem has been reported automatically. You can try again — if it keeps happening,
+            {support ? (
+              <>
+                {' '}email <a href={`mailto:${support}`}>{support}</a> and
+                tell us what you were doing.
+              </>
+            ) : (
+              ' let the hiring team know what you were doing (reply to any email we sent you).'
+            )}
+          </EmptyDescription>
+        </EmptyHeader>
+        <EmptyContent className="flex-row justify-center gap-3">
+          <Button size="lg" onClick={reset}>Try again</Button>
+          <Link href="/careers" className={buttonVariants({ variant: 'outline', size: 'lg' })}>Open roles</Link>
+        </EmptyContent>
+      </Empty>
     </main>
   );
 }

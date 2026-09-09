@@ -1,6 +1,10 @@
 'use client';
 
 import { useState } from 'react';
+import { Plus } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select';
+import { Button } from '@/components/ui/button';
 
 export type SubmissionField = {
   id: string;
@@ -27,41 +31,41 @@ export default function SubmissionFieldsEditor({
       <input type="hidden" name={name} value={JSON.stringify(items)} />
       {items.map((it, i) => (
         <div key={it.id} className="flex flex-wrap items-center gap-2">
-          <input
+          <Input
             value={it.title}
             onChange={(e) => patch(i, { title: e.target.value })}
             placeholder="e.g. Source code, Live demo…"
-            maxLength={200}
-            className="input w-64"
-          />
-          <select
+            maxLength={200} className="w-64" />
+          <NativeSelect
             value={it.kind}
-            onChange={(e) => patch(i, { kind: e.target.value as SubmissionField['kind'] })}
-            className="input w-40"
+            onChange={(e) => patch(i, { kind: e.target.value as SubmissionField['kind'] })} className="w-40"
           >
-            <option value="file">File upload</option>
-            <option value="link">Link</option>
-            <option value="either">File or link</option>
-          </select>
-          <label className="flex items-center gap-1.5 text-sm text-ink-soft">
+            <NativeSelectOption value="file">File upload</NativeSelectOption>
+            <NativeSelectOption value="link">Link</NativeSelectOption>
+            <NativeSelectOption value="either">File or link</NativeSelectOption>
+          </NativeSelect>
+          <label className="flex items-center gap-1.5 text-sm text-muted-foreground">
             <input
               type="checkbox"
               checked={it.required}
               onChange={(e) => patch(i, { required: e.target.checked })}
-              className="accent-pine"
+              
             />
             required
           </label>
-          <button
+          <Button
             type="button"
+            variant="link"
+            size="sm"
+            className="text-destructive"
             onClick={() => setItems(items.filter((_, k) => k !== i))}
-            className="text-sm text-rust underline"
           >
             Remove
-          </button>
+          </Button>
         </div>
       ))}
-      <button
+      <Button
+        variant="outline"
         type="button"
         onClick={() =>
           setItems([
@@ -69,12 +73,12 @@ export default function SubmissionFieldsEditor({
             { id: crypto.randomUUID(), title: '', kind: 'either', required: true },
           ])
         }
-        className="btn-quiet"
       >
-        + Add requirement
-      </button>
+        <Plus data-icon="inline-start" />
+        Add requirement
+      </Button>
       {items.length === 0 && (
-        <p className="text-xs text-rust">
+        <p className="text-xs text-destructive">
           No requirements defined — candidates cannot submit anything until you add at least one.
         </p>
       )}

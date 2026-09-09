@@ -10,11 +10,11 @@ export default function BulkProgress() {
   const n = data instanceof FormData ? data.getAll('appId').length : 0;
   return (
     <div className="w-full basis-full">
-      <p className="text-xs text-ink-soft">
+      <p className="text-xs text-muted-foreground">
         Processing{n > 0 ? ` ${n} candidate${n > 1 ? 's' : ''}` : ''}…
       </p>
-      <div className="mt-1 h-1.5 w-full overflow-hidden rounded bg-line">
-        <div className="h-full w-1/3 rounded bg-pine animate-progress" />
+      <div className="mt-1 h-1.5 w-full overflow-hidden rounded bg-muted">
+        <div className="h-full w-1/3 rounded bg-primary animate-progress" />
       </div>
     </div>
   );

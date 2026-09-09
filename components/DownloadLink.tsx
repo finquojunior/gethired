@@ -1,13 +1,16 @@
 'use client';
 
 import { useState } from 'react';
+import { Download } from 'lucide-react';
+import { buttonVariants } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 
 // Plain download link that shows a "Preparing…" label for a few seconds after
 // the click, since a zip/CSV can take a while before the browser reacts.
 export default function DownloadLink({
   href,
   children,
-  className = 'btn-quiet',
+  className,
   preparingLabel = 'Preparing…',
 }: {
   href: string;
@@ -19,13 +22,14 @@ export default function DownloadLink({
   return (
     <a
       href={href}
-      className={`${className} ${busy ? 'pointer-events-none opacity-60' : ''}`}
+      className={cn(buttonVariants({ variant: 'outline' }), busy && 'pointer-events-none opacity-60', className)}
       aria-busy={busy}
       onClick={() => {
         setBusy(true);
         setTimeout(() => setBusy(false), 8000);
       }}
     >
+      <Download data-icon="inline-start" />
       {busy ? preparingLabel : children}
     </a>
   );

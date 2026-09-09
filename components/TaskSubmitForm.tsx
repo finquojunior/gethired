@@ -2,6 +2,13 @@
 
 import { useRef, useState } from 'react';
 import { uploadErrorText } from '@/lib/uploads';
+import { Alert, AlertTitle } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Field, FieldLabel } from '@/components/ui/field';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 
 type Requirement = {
   id: string;
@@ -121,45 +128,51 @@ export default function TaskSubmitForm({
       className="mt-4 space-y-3"
     >
       {requirements.map((r) => (
-        <fieldset key={r.id} className="space-y-2 rounded-md border border-line p-4">
-          <legend className="px-1 text-sm font-medium">
-            {r.title}{' '}
-            <span className={`text-xs font-normal ${r.required ? 'text-rust' : 'text-ink-soft'}`}>
-              {r.required ? 'required' : 'optional'}
-            </span>
-          </legend>
-          {r.done && (
-            <p className="text-xs text-pine-deep">
-              Submitted {r.done} — attach again to add a new version.
-            </p>
-          )}
-          <input type="hidden" name={`filePath_${r.id}`} defaultValue="" />
-          <input type="hidden" name={`fileSig_${r.id}`} defaultValue="" />
-          <input type="hidden" name={`fileName_${r.id}`} defaultValue="" />
-          {r.kind !== 'link' && (
-            <div>
-              <label htmlFor={`file_${r.id}`} className="mb-1 block text-xs text-ink-soft">
-                {r.kind === 'either' ? 'Upload a file' : 'File'}
-              </label>
-              <input id={`file_${r.id}`} type="file" name={`file_${r.id}`} accept={accept} className="input" />
-            </div>
-          )}
-          {r.kind !== 'file' && (
-            <div>
-              <label htmlFor={`link_${r.id}`} className="mb-1 block text-xs text-ink-soft">
-                {r.kind === 'either' ? 'or paste a link' : 'Link'}
-              </label>
-              <input id={`link_${r.id}`} type="url" name={`link_${r.id}`} placeholder="https://…" className="input" />
-            </div>
-          )}
-        </fieldset>
+        <Card key={r.id} size="sm">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              {r.title}
+              <Badge variant={r.required ? 'destructive' : 'secondary'}>{r.required ? 'required' : 'optional'}</Badge>
+            </CardTitle>
+            {r.done && (
+              <CardDescription className="text-primary">
+                Submitted {r.done} — attach again to add a new version.
+              </CardDescription>
+            )}
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <input type="hidden" name={`filePath_${r.id}`} defaultValue="" />
+            <input type="hidden" name={`fileSig_${r.id}`} defaultValue="" />
+            <input type="hidden" name={`fileName_${r.id}`} defaultValue="" />
+            {r.kind !== 'link' && (
+              <Field>
+                <FieldLabel htmlFor={`file_${r.id}`} className="text-xs font-normal text-muted-foreground">
+                  {r.kind === 'either' ? 'Upload a file' : 'File'}
+                </FieldLabel>
+                <Input id={`file_${r.id}`} type="file" name={`file_${r.id}`} accept={accept} />
+              </Field>
+            )}
+            {r.kind !== 'file' && (
+              <Field>
+                <FieldLabel htmlFor={`link_${r.id}`} className="text-xs font-normal text-muted-foreground">
+                  {r.kind === 'either' ? 'or paste a link' : 'Link'}
+                </FieldLabel>
+                <Input id={`link_${r.id}`} type="url" name={`link_${r.id}`} placeholder="https://…" />
+              </Field>
+            )}
+          </CardContent>
+        </Card>
       ))}
       <label htmlFor="task-note" className="sr-only">Note for the team</label>
-      <textarea id="task-note" name="note" rows={2} placeholder="Anything we should know? (context)" className="input" />
-      <button className="btn-primary min-h-11" disabled={busy}>
+      <Textarea id="task-note" name="note" rows={2} placeholder="Anything we should know? (context)" />
+      <Button type="submit" size="lg" disabled={busy}>
         {busy ? 'Sending…' : 'Submit task'}
-      </button>
-      {error && <p className="text-sm text-rust" role="alert">{error}</p>}
+      </Button>
+      {error && (
+        <Alert variant="destructive">
+          <AlertTitle>{error}</AlertTitle>
+        </Alert>
+      )}
     </form>
   );
 }

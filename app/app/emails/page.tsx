@@ -2,21 +2,28 @@ import Link from 'next/link';
 import { q } from '@/lib/db';
 import { currentUser, isStaff, openingScope, scopeSql } from '@/lib/auth';
 import { fmtDateTime } from '@/lib/tz';
+import { Search } from 'lucide-react';
 import { mailConfigured } from '@/lib/email';
 import SubmitButton from '@/components/SubmitButton';
 import { cancelEmail, processOutbox, resendFailedEmail, sendDraft } from './actions';
+import { Input } from '@/components/ui/input';
+import { Button, buttonVariants } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Empty, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Emails' };
 
 const LIMIT = 100;
 
-const STATUS_STYLE: Record<string, string> = {
-  draft: 'bg-amber/15 text-amber',
-  sent: 'bg-pine-wash text-pine-deep',
-  pending: 'bg-amber/15 text-amber',
-  failed: 'bg-rust/10 text-rust',
-  cancelled: 'bg-line text-ink-soft',
+type BadgeStyle = { variant: 'default' | 'secondary' | 'destructive' | 'outline'; className?: string };
+const AMBER: BadgeStyle = { variant: 'outline', className: 'border-transparent bg-amber/15 text-amber' };
+const STATUS_BADGE: Record<string, BadgeStyle> = {
+  draft: AMBER,
+  sent: { variant: 'secondary' },
+  pending: AMBER,
+  failed: { variant: 'destructive' },
+  cancelled: { variant: 'outline' },
 };
 
 export default async function EmailsPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
@@ -57,13 +64,13 @@ export default async function EmailsPage({ searchParams }: { searchParams: Promi
         <h1 className="font-display text-3xl font-bold">Emails</h1>
         {isStaff(user) && (
         <form action={processOutbox} className="pb-1">
-          <SubmitButton className="btn-quiet" pendingLabel="Processing…">
+          <SubmitButton variant="outline" pendingLabel="Processing…">
             Process outbox now
           </SubmitButton>
         </form>
         )}
       </div>
-      <p className="mt-4 text-sm text-ink-soft">
+      <p className="mt-4 text-sm text-muted-foreground">
         Every email the system sends is logged here. Drafts (from &quot;Reject + draft email&quot;)
         wait until you send them; failed sends retry up to 3 times.
         {!configured.resend && !configured.gmail &&
@@ -72,16 +79,14 @@ export default async function EmailsPage({ searchParams }: { searchParams: Promi
 
       <form method="get" className="mt-6 flex flex-wrap gap-2">
         <label className="sr-only" htmlFor="q">Search emails</label>
-        <input
+        <Input
           id="q"
           name="q"
           defaultValue={term}
-          placeholder="Search by candidate, email address, subject, template, or status…"
-          className="input min-w-48 flex-1"
-        />
-        <button className="btn-primary">Search</button>
+          placeholder="Search by candidate, email address, subject, template, or status…" className="min-w-48 flex-1" />
+        <Button type="submit"><Search data-icon="inline-start" />Search</Button>
         {term && (
-          <Link href="/app/emails" className="btn-quiet">
+          <Link href="/app/emails" className={buttonVariants({ variant: 'outline' })}>
             Clear
           </Link>
         )}
@@ -89,30 +94,26 @@ export default async function EmailsPage({ searchParams }: { searchParams: Promi
 
       <ul className="mt-6 space-y-2">
         {emails.map((e) => (
-          <li key={e.id} className="rounded-lg border border-line bg-card">
-            <details>
-              <summary className="flex cursor-pointer flex-wrap items-center gap-3 px-4 py-3 text-sm">
-                <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_STYLE[e.status]}`}>
+          <li key={e.id}>
+            <details className="group">
+              <summary className="flex cursor-pointer flex-wrap items-center gap-3 rounded-lg border bg-card px-4 py-3 text-sm hover:bg-muted/40 group-open:rounded-b-none">
+                <Badge variant={STATUS_BADGE[e.status]?.variant ?? 'outline'} className={STATUS_BADGE[e.status]?.className}>
                   {e.status}
-                </span>
-                {e.service && (
-                  <span className="rounded-full bg-line px-2 py-0.5 text-xs text-ink-soft">
-                    via {e.service}
-                  </span>
-                )}
+                </Badge>
+                {e.service && <Badge variant="outline">via {e.service}</Badge>}
                 <span className="font-medium">{e.subject}</span>
-                <span className="text-ink-soft">
+                <span className="text-muted-foreground">
                   to {e.to_email} · {e.template} · {fmtDateTime(e.created_at)}
                 </span>
                 {e.status === 'pending' && e.send_after > new Date() && (
                   <span className="text-xs text-amber">sends {fmtDateTime(e.send_after)}</span>
                 )}
               </summary>
-              <div className="border-t border-line px-4 py-3 text-sm">
+              <div className="rounded-b-lg border border-t-0 bg-card px-4 py-3 text-sm">
                 <p className="whitespace-pre-line">{e.body}</p>
-                {e.error && <p className="mt-2 text-rust">error: {e.error}</p>}
+                {e.error && <p className="mt-2 text-destructive">error: {e.error}</p>}
                 <div className="mt-3 flex gap-3">
-                  <Link href={`/app/candidates/${e.application_id}`} className="text-pine underline">
+                  <Link href={`/app/candidates/${e.application_id}`} className="text-primary underline">
                     {e.candidate}
                   </Link>
                   {e.status === 'failed' && (
@@ -121,7 +122,8 @@ export default async function EmailsPage({ searchParams }: { searchParams: Promi
                       <SubmitButton
                         name="service"
                         value="resend"
-                        className="text-pine underline"
+                        variant="link"
+                        size="sm"
                         pendingLabel="Sending…"
                         doneMessage="Resend attempted — check the status"
                       >
@@ -130,7 +132,8 @@ export default async function EmailsPage({ searchParams }: { searchParams: Promi
                       <SubmitButton
                         name="service"
                         value="gmail"
-                        className="text-pine underline"
+                        variant="link"
+                        size="sm"
                         pendingLabel="Sending…"
                         doneMessage="Resend attempted — check the status"
                       >
@@ -141,7 +144,7 @@ export default async function EmailsPage({ searchParams }: { searchParams: Promi
                   {e.status === 'draft' && (
                     <form action={sendDraft}>
                       <input type="hidden" name="emailId" value={e.id} />
-                      <SubmitButton className="text-pine underline" pendingLabel="Sending…">
+                      <SubmitButton variant="link" size="sm" pendingLabel="Sending…">
                         Send now
                       </SubmitButton>
                     </form>
@@ -149,7 +152,7 @@ export default async function EmailsPage({ searchParams }: { searchParams: Promi
                   {(e.status === 'pending' || e.status === 'draft') && (
                     <form action={cancelEmail}>
                       <input type="hidden" name="emailId" value={e.id} />
-                      <SubmitButton className="btn-danger !py-1" pendingLabel="Cancelling…" confirmText="Cancel this email? It will not be sent.">
+                      <SubmitButton variant="destructive" size="sm" pendingLabel="Cancelling…" confirmText="Cancel this email? It will not be sent.">
                         Cancel this email
                       </SubmitButton>
                     </form>
@@ -160,12 +163,16 @@ export default async function EmailsPage({ searchParams }: { searchParams: Promi
           </li>
         ))}
         {emails.length === 0 && (
-          <li className="rounded-lg border border-line bg-card px-4 py-8 text-center text-sm text-ink-soft">
-            {term ? `No emails match “${term}”.` : 'No emails yet.'}
+          <li>
+            <Empty className="border bg-card">
+              <EmptyHeader>
+                <EmptyTitle>{term ? `No emails match “${term}”.` : 'No emails yet.'}</EmptyTitle>
+              </EmptyHeader>
+            </Empty>
           </li>
         )}
         {truncated && (
-          <li className="px-4 py-3 text-center text-xs text-ink-soft">
+          <li className="px-4 py-3 text-center text-xs text-muted-foreground">
             Showing the most recent {LIMIT} — search to narrow it down.
           </li>
         )}

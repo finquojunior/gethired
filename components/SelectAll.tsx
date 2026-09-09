@@ -58,7 +58,7 @@ export default function SelectAll({ name }: { name: string }) {
       type="checkbox"
       aria-label="Select all"
       title="Select all (shift-click rows for ranges)"
-      className="accent-pine"
+      
       onChange={(e) => toggleAll(e.currentTarget.checked)}
     />
   );
@@ -87,8 +87,8 @@ export function SelectedCount({ name }: { name: string }) {
     };
   }, [name]);
   return (
-    <span ref={ref} className="text-ink-soft">
-      <span data-selected={n} className="font-medium text-ink">{n}</span> selected
+    <span ref={ref} className="text-muted-foreground">
+      <span data-selected={n} className="font-medium text-foreground">{n}</span> selected
     </span>
   );
 }

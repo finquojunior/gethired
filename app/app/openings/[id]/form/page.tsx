@@ -53,18 +53,18 @@ export default async function FormBuilderPage({ params }: { params: Promise<{ id
       <BackButton fallback={`/app/openings/${openingId}`} />
       <div className="track flex items-end justify-between">
         <h1 className="font-display text-3xl font-bold">
-          <Link href={`/app/openings/${openingId}`} className="text-ink-soft hover:underline">
+          <Link href={`/app/openings/${openingId}`} className="text-muted-foreground hover:underline">
             {opening.title}
           </Link>{' '}
           · Form
         </h1>
-        <span className="pb-1 text-sm text-ink-soft">
+        <span className="pb-1 text-sm text-muted-foreground">
           {published ? `v${published.version} is live` : 'Not published yet'}
         </span>
       </div>
       <OpeningTabs openingId={openingId} current="form" />
       {moreOpenings && (
-        <p className="mt-2 text-xs text-ink-soft">&quot;Copy questions from&quot; lists the 30 most recent openings.</p>
+        <p className="mt-2 text-xs text-muted-foreground">&quot;Copy questions from&quot; lists the 30 most recent openings.</p>
       )}
       <div className="mt-8">
         <FormBuilder

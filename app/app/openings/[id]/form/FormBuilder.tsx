@@ -3,6 +3,10 @@
 import { useEffect, useMemo, useState, useTransition } from 'react';
 import FormFields from '@/components/FormFields';
 import { toast } from '@/components/Toaster';
+import ConfirmDialog from '@/components/ConfirmDialog';
+import { ArrowDown, ArrowUp, Copy, Plus, X } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardHeader, CardTitle, CardAction } from '@/components/ui/card';
 import {
   CHOICE_TYPES,
   fieldOptions,
@@ -13,6 +17,11 @@ import {
   type FieldType,
   type FormSchema,
 } from '@/lib/form-schema';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select';
+import { Button } from '@/components/ui/button';
 
 const FIELD_TYPES: Array<[FieldType, string]> = [
   ['short_text', 'Short text'],
@@ -50,6 +59,7 @@ export default function FormBuilder({
   const [dirty, setDirty] = useState(false);
   const [pending, startTransition] = useTransition();
   const [previewAnswers, setPreviewAnswers] = useState<Answers>({});
+  const [confirm, setConfirm] = useState<{ title: string; text: string; run: () => void } | null>(null);
 
   // unsaved edits: warn before the tab closes or navigates away
   useEffect(() => {
@@ -100,75 +110,91 @@ export default function FormBuilder({
 
   return (
     <div className="grid gap-8 lg:grid-cols-2">
+      <ConfirmDialog
+        open={confirm !== null}
+        onOpenChange={(o) => !o && setConfirm(null)}
+        title={confirm?.title}
+        description={confirm?.text}
+        confirmLabel="Delete"
+        destructive
+        onConfirm={() => confirm?.run()}
+      />
       {/* editor */}
       <div className="space-y-6">
-        <section className="rounded-lg border border-dashed border-line bg-paper p-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-semibold">Contact details — built in</h3>
-            <span className="text-xs text-ink-soft">🔒 always asked first</span>
-          </div>
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {['Full name *', 'Email *', 'Phone', 'Resume upload *'].map((f) => (
-              <span key={f} className="rounded-full border border-line bg-card px-2.5 py-0.5 text-xs text-ink-soft">
-                {f}
-              </span>
-            ))}
-          </div>
-          <p className="mt-2 text-xs text-ink-soft">
-            Every application starts with these — they can&apos;t be removed or edited, so
-            candidates are always reachable and always attach a resume. The questions you build
-            below are asked after them.
-          </p>
-        </section>
+        <Card size="sm" className="border border-dashed bg-muted/40 shadow-none ring-0">
+          <CardHeader>
+            <CardTitle className="text-sm font-semibold">Contact details — built in</CardTitle>
+            <CardAction className="text-xs text-muted-foreground">🔒 always asked first</CardAction>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-1.5">
+              {['Full name *', 'Email *', 'Phone', 'Resume upload *'].map((f) => (
+                <Badge key={f} variant="outline" className="bg-card text-muted-foreground">
+                  {f}
+                </Badge>
+              ))}
+            </div>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Every application starts with these — they can&apos;t be removed or edited, so
+              candidates are always reachable and always attach a resume. The questions you build
+              below are asked after them.
+            </p>
+          </CardContent>
+        </Card>
 
         {schema.pages.map((page, pi) => (
-          <section key={pi} className="rounded-lg border border-line bg-card p-4">
+          <Card key={pi}>
+            <CardContent>
             <div className="mb-3 flex items-center gap-2">
-              <input
-                className="input font-medium"
+              <Input
+                className="font-medium"
                 aria-label={`Page ${pi + 1} title`}
                 value={page.title}
                 onChange={(e) => update((s) => ((s.pages[pi].title = e.target.value), s))}
               />
               {schema.pages.length > 1 && (
-                <button
+                <Button
+                  variant="destructive"
                   type="button"
-                  className="btn-danger"
                   onClick={() => {
                     const n = page.fields.length;
-                    if (
-                      n > 0 &&
-                      !window.confirm(`Delete "${page.title || `Page ${pi + 1}`}" and its ${n} question${n === 1 ? '' : 's'}?`)
-                    )
+                    const run = () => update((s) => (s.pages.splice(pi, 1), s));
+                    if (n > 0) {
+                      setConfirm({
+                        title: 'Delete page?',
+                        text: `Delete "${page.title || `Page ${pi + 1}`}" and its ${n} question${n === 1 ? '' : 's'}?`,
+                        run,
+                      });
                       return;
-                    update((s) => (s.pages.splice(pi, 1), s));
+                    }
+                    run();
                   }}
                 >
                   Delete page
-                </button>
+                </Button>
               )}
             </div>
 
             <div className="space-y-3">
               {page.fields.map((f, fi) => (
-                <div key={f.id} className="rounded-md border border-line p-3">
-                  <input
-                    className="input mb-2"
+                <div key={f.id} className="rounded-lg border border-border p-3">
+                  <Input
+                    className="mb-2"
                     aria-label="Question label"
                     placeholder="Question label"
                     value={f.label}
                     onChange={(e) => updateField(pi, fi, { label: e.target.value })}
                   />
-                  <input
-                    className="input mb-2 text-xs"
+                  <Input
+                    className="mb-2 text-xs"
                     aria-label="Help text"
                     placeholder="Help text shown under the question (optional)"
                     value={f.help ?? ''}
                     onChange={(e) => updateField(pi, fi, { help: e.target.value || undefined })}
                   />
                   <div className="flex flex-wrap items-center gap-2">
-                    <select
-                      className="input w-40"
+                    <NativeSelect
+                      className="w-40"
                       aria-label="Question type"
                       value={f.type}
                       onChange={(e) => {
@@ -181,24 +207,24 @@ export default function FormBuilder({
                       }}
                     >
                       {FIELD_TYPES.map(([v, l]) => (
-                        <option key={v} value={v}>{l}</option>
+                        <NativeSelectOption key={v} value={v}>{l}</NativeSelectOption>
                       ))}
-                    </select>
+                    </NativeSelect>
                     <div className="flex-1" />
-                    <label className="flex items-center gap-1 text-xs text-ink-soft">
+                    <label className="flex items-center gap-1 text-xs text-muted-foreground">
                       <input
                         type="checkbox"
                         checked={!!f.required}
                         onChange={(e) => updateField(pi, fi, { required: e.target.checked })}
-                        className="accent-pine"
                       />
                       required
                     </label>
-                    <button
+                    <Button
                       type="button"
+                      variant="ghost"
+                      size="icon-sm"
                       title="Move up"
                       aria-label="Move question up"
-                      className="text-ink-soft hover:text-ink disabled:opacity-30"
                       disabled={fi === 0}
                       onClick={() =>
                         update((s) => {
@@ -208,13 +234,14 @@ export default function FormBuilder({
                         })
                       }
                     >
-                      ↑
-                    </button>
-                    <button
+                      <ArrowUp />
+                    </Button>
+                    <Button
                       type="button"
+                      variant="ghost"
+                      size="icon-sm"
                       title="Move down"
                       aria-label="Move question down"
-                      className="text-ink-soft hover:text-ink disabled:opacity-30"
                       disabled={fi === page.fields.length - 1}
                       onClick={() =>
                         update((s) => {
@@ -224,13 +251,14 @@ export default function FormBuilder({
                         })
                       }
                     >
-                      ↓
-                    </button>
-                    <button
+                      <ArrowDown />
+                    </Button>
+                    <Button
                       type="button"
+                      variant="ghost"
+                      size="icon-sm"
                       title="Duplicate question"
                       aria-label="Duplicate question"
-                      className="text-ink-soft hover:text-ink"
                       onClick={() =>
                         update((s) => {
                           const copy = structuredClone(s.pages[pi].fields[fi]);
@@ -240,27 +268,33 @@ export default function FormBuilder({
                         })
                       }
                     >
-                      ⧉
-                    </button>
-                    <button
+                      <Copy />
+                    </Button>
+                    <Button
                       type="button"
+                      variant="ghost"
+                      size="icon-sm"
                       title="Delete question"
                       aria-label="Delete question"
-                      className="text-rust"
+                      className="text-destructive hover:text-destructive"
                       onClick={() => {
-                        if (f.label.trim() && !window.confirm(`Delete the question "${f.label}"?`)) return;
-                        update((s) => (s.pages[pi].fields.splice(fi, 1), s));
+                        const run = () => update((s) => (s.pages[pi].fields.splice(fi, 1), s));
+                        if (f.label.trim()) {
+                          setConfirm({ title: 'Delete question?', text: `Delete the question "${f.label}"?`, run });
+                          return;
+                        }
+                        run();
                       }}
                     >
-                      ✕
-                    </button>
+                      <X />
+                    </Button>
                   </div>
 
                   {CHOICE_TYPES.includes(f.type) && f.type !== 'yes_no' && (
                     <div className="mt-2">
-                      <label className="text-xs text-ink-soft">Options (one per line)</label>
-                      <textarea
-                        className="input mt-1"
+                      <label className="text-xs text-muted-foreground">Options (one per line)</label>
+                      <Textarea
+                        className="mt-1"
                         rows={3}
                         value={(f.options ?? []).join('\n')}
                         onChange={(e) =>
@@ -270,14 +304,13 @@ export default function FormBuilder({
                           updateField(pi, fi, {
                             options: e.target.value.split('\n').map((s) => s.trim()).filter(Boolean),
                           })
-                        }
-                      />
+                        } />
                     </div>
                   )}
 
                   {CHOICE_TYPES.includes(f.type) && (
                     <details className="mt-2" open={!!f.points}>
-                      <summary className="cursor-pointer text-xs text-ink-soft">
+                      <summary className="cursor-pointer text-xs text-muted-foreground">
                         {f.points
                           ? '★ Scoring answers — candidates are ranked by their total points'
                           : 'Score answers (optional) — give points to rank candidates automatically'}
@@ -286,9 +319,8 @@ export default function FormBuilder({
                         {fieldOptions(f).map((o) => (
                           <label key={o} className="flex items-center gap-2 text-xs">
                             <span className="w-28 truncate">{o}</span>
-                            <input
+                            <Input
                               type="number"
-                              className="input py-1"
                               value={f.points?.[o] ?? ''}
                               placeholder="0 pts"
                               onChange={(e) => {
@@ -298,8 +330,7 @@ export default function FormBuilder({
                                 updateField(pi, fi, {
                                   points: Object.keys(points).length ? points : undefined,
                                 });
-                              }}
-                            />
+                              }} />
                           </label>
                         ))}
                       </div>
@@ -318,11 +349,10 @@ export default function FormBuilder({
                       : 'Show this question only for some candidates (optional)';
                     return (
                       <details className="mt-2" open={!!f.showIf}>
-                        <summary className="cursor-pointer text-xs text-ink-soft">{summary}</summary>
+                        <summary className="cursor-pointer text-xs text-muted-foreground">{summary}</summary>
                         <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
                           <span>Show only when the answer to</span>
-                          <select
-                            className="input w-44 py-1"
+                          <NativeSelect size="sm" className="w-44"
                             value={f.showIf?.fieldId ?? ''}
                             onChange={(e) => {
                               const fieldId = e.target.value;
@@ -333,15 +363,14 @@ export default function FormBuilder({
                               });
                             }}
                           >
-                            <option value="">— no condition, always shown —</option>
+                            <NativeSelectOption value="">— no condition, always shown —</NativeSelectOption>
                             {priorFields(pi, fi).map((pf) => (
-                              <option key={pf.id} value={pf.id}>{pf.label || 'Untitled question'}</option>
+                              <NativeSelectOption key={pf.id} value={pf.id}>{pf.label || 'Untitled question'}</NativeSelectOption>
                             ))}
-                          </select>
+                          </NativeSelect>
                           {f.showIf && (
                             <>
-                              <select
-                                className="input w-24 py-1"
+                              <NativeSelect size="sm" className="w-24"
                                 value={f.showIf.op}
                                 onChange={(e) =>
                                   updateField(pi, fi, {
@@ -349,37 +378,34 @@ export default function FormBuilder({
                                   })
                                 }
                               >
-                                <option value="eq">is</option>
-                                <option value="neq">is not</option>
-                              </select>
+                                <NativeSelectOption value="eq">is</NativeSelectOption>
+                                <NativeSelectOption value="neq">is not</NativeSelectOption>
+                              </NativeSelect>
                               {controllerOptions.length > 0 ? (
-                                <select
-                                  className="input min-w-28 py-1"
+                                <NativeSelect size="sm" className="min-w-28"
                                   value={String(f.showIf.value)}
                                   onChange={(e) =>
                                     updateField(pi, fi, { showIf: { ...f.showIf!, value: e.target.value } })
                                   }
                                 >
-                                  <option value="">— pick an answer —</option>
+                                  <NativeSelectOption value="">— pick an answer —</NativeSelectOption>
                                   {controllerOptions.map((o) => (
-                                    <option key={o} value={o}>{o}</option>
+                                    <NativeSelectOption key={o} value={o}>{o}</NativeSelectOption>
                                   ))}
-                                </select>
+                                </NativeSelect>
                               ) : (
-                                <input
-                                  className="input min-w-24 flex-1 py-1"
+                                <Input className="min-w-24 flex-1"
                                   placeholder="answer to match"
                                   value={String(f.showIf.value)}
                                   onChange={(e) =>
                                     updateField(pi, fi, { showIf: { ...f.showIf!, value: e.target.value } })
-                                  }
-                                />
+                                  } />
                               )}
                             </>
                           )}
                         </div>
                         {f.showIf && !controller && (
-                          <p className="mt-1 text-xs text-rust">
+                          <p className="mt-1 text-xs text-destructive">
                             The question this depended on was removed — this question is now hidden
                             for everyone. Pick another question or remove the condition.
                           </p>
@@ -391,9 +417,10 @@ export default function FormBuilder({
               ))}
             </div>
 
-            <button
+            <Button
+              variant="outline"
               type="button"
-              className="btn-quiet mt-3"
+              className="mt-3"
               onClick={() =>
                 update((s) => {
                   s.pages[pi].fields.push({ id: newFieldId(), type: 'short_text', label: '' });
@@ -401,37 +428,41 @@ export default function FormBuilder({
                 })
               }
             >
-              + Add question
-            </button>
-          </section>
+              <Plus data-icon="inline-start" />
+              Add question
+            </Button>
+            </CardContent>
+          </Card>
         ))}
 
         <div className="flex flex-wrap items-center gap-3">
-          <button
+          <Button
+            variant="outline"
             type="button"
-            className="btn-quiet"
             onClick={() => update((s) => (s.pages.push({ title: `Page ${s.pages.length + 1}`, fields: [] }), s))}
             title="Each page is a separate step for the candidate — use pages to split long forms"
           >
-            + Add step (page)
-          </button>
+            <Plus data-icon="inline-start" />
+            Add step (page)
+          </Button>
           {otherOpenings.length > 0 && (
-            <select
-              className="input w-56 py-2 text-sm"
+            <NativeSelect
+              className="w-56"
+              aria-label="Copy questions from"
               value=""
               disabled={pending}
               onChange={(e) => e.target.value && importFrom(Number(e.target.value))}
             >
-              <option value="">Copy questions from…</option>
+              <NativeSelectOption value="">Copy questions from…</NativeSelectOption>
               {otherOpenings.map((o) => (
-                <option key={o.id} value={o.id}>{o.title}</option>
+                <NativeSelectOption key={o.id} value={o.id}>{o.title}</NativeSelectOption>
               ))}
-            </select>
+            </NativeSelect>
           )}
           <div className="flex-1" />
-          <button
+          <Button
+            variant="outline"
             type="button"
-            className="btn-quiet"
             disabled={pending || !dirty}
             onClick={() =>
               startTransition(async () => {
@@ -442,10 +473,9 @@ export default function FormBuilder({
             }
           >
             {dirty ? 'Save draft' : 'Draft saved'}
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
-            className="btn-primary"
             disabled={pending}
             onClick={() =>
               startTransition(async () => {
@@ -457,9 +487,9 @@ export default function FormBuilder({
             }
           >
             {publishedVersion ? `Publish (replaces v${publishedVersion})` : 'Publish form'}
-          </button>
+          </Button>
         </div>
-        <p className="text-xs text-ink-soft">
+        <p className="text-xs text-muted-foreground">
           Publishing makes this version live for new applicants; past applications keep the
           version they answered.
         </p>
@@ -467,34 +497,33 @@ export default function FormBuilder({
 
       {/* live preview */}
       <div>
-        <div className="sticky top-8 rounded-lg border border-line bg-card p-5">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="font-display text-lg font-semibold">Candidate preview</h2>
-            <button
-              type="button"
-              className="text-xs text-ink-soft underline"
-              onClick={() => setPreviewAnswers({})}
-            >
-              Reset answers
-            </button>
-          </div>
-          <div className="mb-5 space-y-3 border-b border-dashed border-line pb-5 opacity-60">
-            <p className="text-xs font-medium uppercase tracking-wide text-ink-soft">
+        <Card className="sticky top-8">
+          <CardHeader>
+            <CardTitle className="font-display text-lg font-semibold">Candidate preview</CardTitle>
+            <CardAction>
+              <Button type="button" variant="link" size="sm" className="text-muted-foreground" onClick={() => setPreviewAnswers({})}>
+                Reset answers
+              </Button>
+            </CardAction>
+          </CardHeader>
+          <CardContent>
+          <div className="mb-5 space-y-3 border-b border-dashed border-border pb-5 opacity-60">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
               Step 1 · Contact details (built in)
             </p>
             {['Full name *', 'Email *', 'Phone'].map((l) => (
-              <div key={l}>
-                <label className="field-label">{l}</label>
-                <input className="input" disabled placeholder="Filled by the candidate" />
+              <div key={l} className="space-y-1.5">
+                <Label>{l}</Label>
+                <Input disabled placeholder="Filled by the candidate" />
               </div>
             ))}
-            <div>
-              <label className="field-label">Resume *</label>
-              <input type="file" className="input" disabled />
+            <div className="space-y-1.5">
+              <Label>Resume *</Label>
+              <Input type="file" disabled />
             </div>
           </div>
           {schema.pages.length > 0 && preview.length > 0 && (
-            <p className="mb-3 text-xs font-medium uppercase tracking-wide text-ink-soft">
+            <p className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
               Your questions{schema.pages.length > 1 ? ` · ${schema.pages.length} steps` : ''}
             </p>
           )}
@@ -505,12 +534,13 @@ export default function FormBuilder({
             onChange={(id, v) => setPreviewAnswers((a) => ({ ...a, [id]: v }))}
           />
           {preview.length === 0 && (
-            <p className="text-sm text-ink-soft">
+            <p className="text-sm text-muted-foreground">
               No questions of your own yet — candidates would only fill the contact details above.
               Add questions on the left.
             </p>
           )}
-        </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

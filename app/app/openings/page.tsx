@@ -4,12 +4,19 @@ import { currentUser, departmentScope, isStaff, openingScope, scopeSql } from '@
 import Flash from '@/components/Flash';
 import SubmitButton from '@/components/SubmitButton';
 import { createOpening } from './actions';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select';
+import { Field } from '@/components/ui/field';
+import { Badge } from '@/components/ui/badge';
+import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from '@/components/ui/empty';
+import { cn } from '@/lib/utils';
 
-const STATUS_STYLE: Record<string, string> = {
-  draft: 'bg-line text-ink-soft',
-  open: 'bg-pine-wash text-pine-deep',
-  paused: 'bg-amber/15 text-amber',
-  closed: 'bg-rust/10 text-rust',
+const STATUS_BADGE: Record<string, { variant: 'outline' | 'secondary' | 'destructive'; className?: string }> = {
+  draft: { variant: 'outline' },
+  open: { variant: 'secondary' },
+  paused: { variant: 'outline', className: 'border-transparent bg-amber/15 text-amber' },
+  closed: { variant: 'destructive' },
 };
 
 export const dynamic = 'force-dynamic';
@@ -53,68 +60,77 @@ export default async function OpeningsPage({
     <div>
       <div className="track flex items-end justify-between">
         <h1 className="font-display text-3xl font-bold">Openings</h1>
-        <div className="flex gap-2 pb-1 text-sm">
-          <Link
-            href="/app/openings"
-            className={`rounded-full px-3 py-1 ${!closed ? 'bg-ink text-white' : 'border border-line bg-card text-ink-soft'}`}
-          >
-            Active
-          </Link>
-          <Link
-            href="/app/openings?show=closed"
-            className={`rounded-full px-3 py-1 ${closed ? 'bg-ink text-white' : 'border border-line bg-card text-ink-soft'}`}
-          >
-            Closed
-          </Link>
+        <div className="mb-1 inline-flex h-9 items-center gap-0.5 rounded-lg bg-muted p-1 text-sm">
+          {[
+            ['Active', '/app/openings', !closed],
+            ['Closed', '/app/openings?show=closed', closed],
+          ].map(([label, href, active]) => (
+            <Link
+              key={String(label)}
+              href={String(href)}
+              aria-current={active ? 'page' : undefined}
+              className={cn(
+                'inline-flex h-7 items-center rounded-md px-3 transition-colors',
+                active ? 'bg-card font-medium text-foreground shadow-xs' : 'text-muted-foreground hover:text-foreground'
+              )}
+            >
+              {label}
+            </Link>
+          ))}
         </div>
       </div>
 
       {e && ERR[e] && <Flash kind="error" message={ERR[e]} cleanParams={['e']} />}
       {canCreate && (
       <form action={createOpening} className="mt-8 flex flex-wrap items-end gap-3">
-        <div className="min-w-56 flex-1">
-          <label className="field-label" htmlFor="title">New opening *</label>
-          <input id="title" name="title" required placeholder="e.g. Performance Marketer" className="input" />
-        </div>
-        <div className="w-52">
-          <label className="field-label" htmlFor="department">Department{isStaff(user) ? '' : ' *'}</label>
-          <select id="department" name="department" className="input" required={!isStaff(user)} defaultValue={creatable.length === 1 ? creatable[0] : ''}>
-            {isStaff(user) && <option value="">— none —</option>}
+        <Field className="min-w-56 flex-1">
+          <Label htmlFor="title">New opening *</Label>
+          <Input id="title" name="title" required placeholder="e.g. Performance Marketer" />
+        </Field>
+        <Field className="w-52">
+          <Label htmlFor="department">Department{isStaff(user) ? '' : ' *'}</Label>
+          <NativeSelect className="w-full" id="department" name="department" required={!isStaff(user)} defaultValue={creatable.length === 1 ? creatable[0] : ''}>
+            {isStaff(user) && <NativeSelectOption value="">— none —</NativeSelectOption>}
             {creatable.map((d) => (
-              <option key={d} value={d}>{d}</option>
+              <NativeSelectOption key={d} value={d}>{d}</NativeSelectOption>
             ))}
-          </select>
-        </div>
-        <SubmitButton className="btn-primary" pendingLabel="Creating…">Create opening</SubmitButton>
+          </NativeSelect>
+        </Field>
+        <SubmitButton pendingLabel="Creating…">Create opening</SubmitButton>
         {isStaff(user) && departments.length === 0 && (
-          <p className="w-full text-xs text-ink-soft">No departments yet — add them on the <Link href="/app/team" className="text-pine underline">Team</Link> page.</p>
+          <p className="w-full text-xs text-muted-foreground">No departments yet — add them on the <Link href="/app/team" className="text-primary underline">Team</Link> page.</p>
         )}
       </form>
       )}
 
-      <ul className="mt-8 divide-y divide-line rounded-lg border border-line bg-card">
+      <ul className="mt-8 divide-y divide-border rounded-lg border border-border bg-card">
         {openings.map((o) => (
           <li key={o.id}>
             <Link
               href={`/app/openings/${o.id}`}
-              className="flex flex-wrap items-center justify-between gap-2 px-4 py-4 hover:bg-paper sm:px-5"
+              className="flex flex-wrap items-center justify-between gap-2 px-4 py-4 hover:bg-muted/40 sm:px-5"
             >
               <div>
                 <div className="font-medium">{o.title}</div>
-                <div className="text-sm text-ink-soft">{o.department || '—'}</div>
+                <div className="text-sm text-muted-foreground">{o.department || '—'}</div>
               </div>
               <div className="flex items-center gap-4 text-sm">
-                <span className="text-ink-soft">{o.applications} candidate{o.applications === '1' ? '' : 's'}</span>
-                <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_STYLE[o.status]}`}>
+                <span className="text-muted-foreground">{o.applications} candidate{o.applications === '1' ? '' : 's'}</span>
+                <Badge variant={STATUS_BADGE[o.status]?.variant ?? 'outline'} className={STATUS_BADGE[o.status]?.className}>
                   {o.status}
-                </span>
+                </Badge>
               </div>
             </Link>
           </li>
         ))}
         {openings.length === 0 && (
-          <li className="px-5 py-10 text-center text-sm text-ink-soft">
-            No openings yet. Create the first one above.
+          <li>
+            <Empty>
+              <EmptyHeader>
+                <EmptyTitle>No openings yet.</EmptyTitle>
+                <EmptyDescription>Create the first one above.</EmptyDescription>
+              </EmptyHeader>
+            </Empty>
           </li>
         )}
       </ul>

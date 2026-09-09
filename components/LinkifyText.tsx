@@ -12,7 +12,7 @@ export default function LinkifyText({ value }: { value: unknown }) {
             href={part}
             target="_blank"
             rel="noopener noreferrer"
-            className="break-all text-pine underline"
+            className="break-all text-primary underline"
           >
             {part}
           </a>

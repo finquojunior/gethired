@@ -1,6 +1,10 @@
 'use client';
 
 import { useEffect } from 'react';
+// the root layout (and its stylesheet) is gone when this renders
+import './globals.css';
+import { Button } from '@/components/ui/button';
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader } from '@/components/ui/empty';
 
 // Last-resort boundary (errors in the root layout itself).
 export default function GlobalError({
@@ -25,12 +29,18 @@ export default function GlobalError({
 
   return (
     <html lang="en">
-      <body style={{ fontFamily: 'system-ui', textAlign: 'center', padding: '6rem 1.5rem' }}>
-        <h1>Something went wrong</h1>
-        <p>The problem has been reported. Please try again.</p>
-        <button onClick={reset} style={{ marginTop: '1rem', padding: '0.5rem 1rem' }}>
-          Try again
-        </button>
+      <body>
+        <main className="mx-auto max-w-md px-6 py-24">
+          <Empty>
+            <EmptyHeader>
+              <h1 className="font-display text-2xl font-semibold">Something went wrong</h1>
+              <EmptyDescription>The problem has been reported. Please try again.</EmptyDescription>
+            </EmptyHeader>
+            <EmptyContent>
+              <Button size="lg" onClick={reset}>Try again</Button>
+            </EmptyContent>
+          </Empty>
+        </main>
       </body>
     </html>
   );

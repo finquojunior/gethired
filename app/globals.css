@@ -1,4 +1,8 @@
 @import 'tailwindcss';
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
 
 @theme {
   --color-ink: #16233b;
@@ -38,9 +42,10 @@ body {
 }
 
 /* keyboard focus is always visible */
-:focus-visible {
+a:focus-visible {
   outline: 2px solid var(--color-pine);
   outline-offset: 2px;
+  border-radius: 4px;
 }
 
 /* display headings: size-specific tracking and leading */
@@ -49,36 +54,42 @@ h1 {
   line-height: 1.1;
 }
 
+/* Legacy utility classes, restyled to match components/ui/button + input so
+   unmigrated markup looks identical to the shadcn components. */
 .btn-primary,
-.btn-quiet {
-  @apply inline-flex items-center gap-1.5 rounded-md px-3.5 py-2 text-sm font-medium transition-colors;
-}
-
-/* instant pointer-down feedback */
-@media (prefers-reduced-motion: no-preference) {
-  .btn-primary,
-  .btn-quiet {
-    transition:
-      transform 100ms ease-out,
-      background-color 150ms,
-      border-color 150ms;
-  }
-  .btn-primary:active,
-  .btn-quiet:active {
-    transform: scale(0.97);
-  }
+.btn-quiet,
+.btn-danger {
+  @apply inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-transparent px-2.5 text-sm font-medium whitespace-nowrap transition-all outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4;
 }
 .btn-primary {
-  @apply bg-pine text-white hover:bg-pine-deep;
+  @apply bg-primary text-primary-foreground hover:bg-primary/85;
 }
 .btn-quiet {
-  @apply border border-line bg-card text-ink hover:border-pine;
+  @apply border-border bg-card text-foreground hover:bg-muted;
+}
+.btn-danger {
+  @apply bg-destructive/10 text-destructive hover:bg-destructive/20 focus-visible:border-destructive/40 focus-visible:ring-destructive/20;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .btn-primary:active,
+  .btn-quiet:active,
+  .btn-danger:active {
+    transform: translateY(1px);
+  }
 }
 .field-label {
-  @apply mb-1 block text-sm font-medium text-ink;
+  @apply mb-1.5 block text-sm leading-none font-medium text-foreground;
 }
 .input {
-  @apply w-full rounded-md border border-line bg-card px-3 py-2 text-sm text-ink outline-none focus:border-pine;
+  @apply w-full min-w-0 rounded-lg border border-input bg-card px-2.5 py-1.5 text-sm text-foreground transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20;
+}
+input.input:not([type='file']),
+select.input {
+  @apply h-8;
+}
+input[type='checkbox'],
+input[type='radio'] {
+  accent-color: var(--primary);
 }
 
 /* indeterminate bulk-action progress bar */
@@ -90,7 +101,95 @@ h1 {
   animation: gh-progress 1.2s linear infinite;
 }
 
-/* destructive actions: one look everywhere */
-.btn-danger {
-  @apply inline-flex items-center gap-1.5 rounded-md border border-rust/40 bg-card px-3.5 py-2 text-sm font-medium text-rust transition-colors hover:border-rust hover:bg-rust/10 disabled:opacity-40;
+
+@theme inline {
+  --font-heading: var(--font-display);
+  --font-sans: var(--font-sans);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+:root {
+  /* shadcn tokens mapped to the gethired identity: paper ground, ink text, pine accent */
+  --background: #f4f6f5;
+  --foreground: #16233b;
+  --card: #ffffff;
+  --card-foreground: #16233b;
+  --popover: #ffffff;
+  --popover-foreground: #16233b;
+  --primary: #0f5c4e;
+  --primary-foreground: #ffffff;
+  --secondary: #e3efec;
+  --secondary-foreground: #0b4a3f;
+  --muted: #e9eeec;
+  --muted-foreground: #46536b;
+  --accent: #e3efec;
+  --accent-foreground: #0b4a3f;
+  --destructive: #b3452e;
+  --border: #dde3e0;
+  --input: #dde3e0;
+  --ring: #0f5c4e;
+  --chart-1: #0f5c4e;
+  --chart-2: #c77d1f;
+  --chart-3: #b3452e;
+  --chart-4: #46536b;
+  --chart-5: #9fc7bd;
+  --radius: 0.5rem;
+  --sidebar: #16233b;
+  --sidebar-foreground: #e6ebe9;
+  --sidebar-primary: #0f5c4e;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: rgba(255, 255, 255, 0.08);
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: rgba(255, 255, 255, 0.1);
+  --sidebar-ring: #4fb39d;
+}
+
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
 }

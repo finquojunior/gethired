@@ -1,6 +1,9 @@
 'use client';
 
 import { useRef } from 'react';
+import { Bold, Italic, List } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
+import { Button } from '@/components/ui/button';
 
 // Textarea with a tiny formatting toolbar: wraps the selected text in the
 // markdown markers that lib/richtext.ts renders on the public pages.
@@ -39,24 +42,24 @@ export default function RichTextArea({
     el.setSelectionRange(s + 2, s + 2);
   };
 
-  const btn = 'rounded border border-line bg-card px-2 py-0.5 text-xs hover:border-pine';
   return (
     <div>
       <div className="mb-1 flex gap-1.5">
-        <button type="button" className={`${btn} font-bold`} onClick={() => wrap('**')} title="Bold selection">
-          B
-        </button>
-        <button type="button" className={`${btn} italic`} onClick={() => wrap('*')} title="Italic selection">
-          I
-        </button>
-        <button type="button" className={btn} onClick={bullet} title="Bullet point">
-          • list
-        </button>
-        <span className="self-center text-xs text-ink-soft">
+        <Button type="button" variant="outline" size="icon-xs" onClick={() => wrap('**')} title="Bold selection" aria-label="Bold selection">
+          <Bold />
+        </Button>
+        <Button type="button" variant="outline" size="icon-xs" onClick={() => wrap('*')} title="Italic selection" aria-label="Italic selection">
+          <Italic />
+        </Button>
+        <Button type="button" variant="outline" size="xs" onClick={bullet} title="Bullet point">
+          <List data-icon="inline-start" />
+          list
+        </Button>
+        <span className="self-center text-xs text-muted-foreground">
           select text, then B / I — shown formatted on the public page
         </span>
       </div>
-      <textarea ref={ref} name={name} id={id} rows={rows} defaultValue={defaultValue} placeholder={placeholder} className="input" />
+      <Textarea ref={ref} name={name} id={id} rows={rows} defaultValue={defaultValue} placeholder={placeholder} />
     </div>
   );
 }

@@ -2,6 +2,12 @@ import Link from 'next/link';
 import { q } from '@/lib/db';
 import { currentUser, openingScope, scopeSql } from '@/lib/auth';
 import { fmtDate } from '@/lib/tz';
+import { Search } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent } from '@/components/ui/card';
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Candidates' };
@@ -62,79 +68,82 @@ export default async function CandidatesSearchPage({
       <h1 className="track font-display text-3xl font-bold">Candidates</h1>
       <form method="get" className="mt-8 flex flex-wrap gap-2">
         <label className="sr-only" htmlFor="q">Search candidates</label>
-        <input
+        <Input
           id="q"
           name="q"
           defaultValue={term}
-          placeholder="Search by name or email — or tag:frontend to search tags…"
-          className="input min-w-48 flex-1"
-          autoFocus
-        />
-        <button className="btn-primary">Search</button>
+          placeholder="Search by name or email — or tag:frontend to search tags…" className="min-w-48 flex-1"
+          autoFocus />
+        <Button type="submit"><Search data-icon="inline-start" />Search</Button>
       </form>
 
       {!term && (
         <section className="mt-8">
           <h2 className="font-display text-lg font-semibold">Browse by opening</h2>
-          <p className="mt-1 text-sm text-ink-soft">
+          <p className="mt-1 text-sm text-muted-foreground">
             Pick an opening to see its candidates — then filter by stage, status, date, and sort
             inside.
           </p>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             {openings.map((o) => (
-              <Link
-                key={o.id}
-                href={`/app/openings/${o.id}/applications`}
-                className="rounded-lg border border-line bg-card p-4 hover:border-pine"
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <span className="font-medium">{o.title}</span>
-                  <span className="shrink-0 rounded-full bg-pine-wash px-2.5 py-0.5 text-xs font-medium text-pine-deep">
-                    {o.active} active
-                  </span>
-                </div>
-                <div className="mt-1 text-sm text-ink-soft">
-                  {[o.department, `${o.total} total`, o.status].filter(Boolean).join(' · ')}
-                </div>
+              <Link key={o.id} href={`/app/openings/${o.id}/applications`} className="rounded-xl">
+                <Card size="sm" className="h-full transition-shadow hover:ring-primary/50">
+                  <CardContent>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-medium">{o.title}</span>
+                      <Badge variant="secondary" className="shrink-0">{o.active} active</Badge>
+                    </div>
+                    <div className="mt-1 text-sm text-muted-foreground">
+                      {[o.department, `${o.total} total`, o.status].filter(Boolean).join(' · ')}
+                    </div>
+                  </CardContent>
+                </Card>
               </Link>
             ))}
             {openings.length === 0 && (
-              <p className="text-sm text-ink-soft">No candidates anywhere yet.</p>
+              <Empty className="sm:col-span-2">
+                <EmptyHeader>
+                  <EmptyTitle>No candidates anywhere yet.</EmptyTitle>
+                </EmptyHeader>
+              </Empty>
             )}
           </div>
         </section>
       )}
 
       {term && (
-        <ul className="mt-6 divide-y divide-line rounded-lg border border-line bg-card">
+        <ul className="mt-6 divide-y divide-border rounded-lg border border-border bg-card">
           {results.map((r) => (
             <li key={r.id}>
               <Link
                 href={`/app/candidates/${r.id}`}
-                className="flex items-center justify-between px-5 py-3 hover:bg-paper"
+                className="flex items-center justify-between px-5 py-3 hover:bg-muted/40"
               >
                 <div>
                   <span className="font-medium">{r.name}</span>
-                  <span className="ml-2 text-sm text-ink-soft">{r.email}</span>
+                  <span className="ml-2 text-sm text-muted-foreground">{r.email}</span>
                   {r.tags.map((t) => (
-                    <span key={t} className="ml-1.5 rounded-full bg-pine-wash px-2 py-0.5 text-xs text-pine-deep">
-                      {t}
-                    </span>
+                    <Badge key={t} variant="secondary" className="ml-1.5">{t}</Badge>
                   ))}
                 </div>
-                <div className="text-sm text-ink-soft">
+                <div className="text-sm text-muted-foreground">
                   {r.title} · {r.stage ?? '—'} · {r.status} · {fmtDate(r.created_at)}
                 </div>
               </Link>
             </li>
           ))}
           {results.length === 0 && (
-            <li className="px-5 py-8 text-center text-sm text-ink-soft">
-              No candidates match “{term}”.
+            <li>
+              <Empty>
+                <EmptyHeader>
+                  <EmptyTitle>No candidates match “{term}”.</EmptyTitle>
+                  <EmptyDescription>Try a different name, email, or tag.</EmptyDescription>
+                </EmptyHeader>
+              </Empty>
             </li>
           )}
           {truncated && (
-            <li className="px-5 py-3 text-center text-xs text-ink-soft">
+            <li className="px-5 py-3 text-center text-xs text-muted-foreground">
               Showing the first {LIMIT} matches — refine your search.
             </li>
           )}

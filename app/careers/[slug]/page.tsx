@@ -8,6 +8,9 @@ import { ORG_NAME as ORG } from '@/lib/email';
 import CandidateFooter from '@/components/CandidateFooter';
 import CandidateResendForm from '@/components/CandidateResendForm';
 import ApplyForm from './ApplyForm';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { buttonVariants } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 export const revalidate = 60; // ad-burst traffic hits cache, not Postgres
 
@@ -64,13 +67,15 @@ export default async function OpeningPublicPage({
   if (!o.accepting || !o.form_id || !o.schema) {
     return (
       <main className="mx-auto max-w-2xl px-6 py-16">
-        <p className="text-sm font-medium uppercase tracking-widest text-pine">{ORG}</p>
+        <p className="text-sm font-medium uppercase tracking-widest text-primary">{ORG}</p>
         <h1 className="track mt-2 font-display text-3xl font-bold">{o.title}</h1>
-        <p className="mt-6 text-lg">This role is no longer accepting applications.</p>
-        <p className="mt-2 text-sm text-ink-soft">
-          If you already applied, your status link from the confirmation email still works.
-        </p>
-        <Link href="/careers" className="btn-primary mt-6 min-h-11">See other open roles →</Link>
+        <Alert className="mt-6">
+          <AlertTitle>This role is no longer accepting applications.</AlertTitle>
+          <AlertDescription>
+            If you already applied, your status link from the confirmation email still works.
+          </AlertDescription>
+        </Alert>
+        <Link href="/careers" className={`${buttonVariants({ size: 'lg' })} mt-6`}>See other open roles →</Link>
         <CandidateFooter />
       </main>
     );
@@ -78,11 +83,11 @@ export default async function OpeningPublicPage({
 
   return (
     <main className="mx-auto max-w-2xl px-6 py-16">
-      <Link href="/careers" className="text-sm text-ink-soft hover:text-pine">
+      <Link href="/careers" className="text-sm text-muted-foreground hover:text-primary">
         ← All open roles
       </Link>
       {o.department && (
-        <p className="mt-4 text-sm font-medium uppercase tracking-widest text-pine">{o.department}</p>
+        <p className="mt-4 text-sm font-medium uppercase tracking-widest text-primary">{o.department}</p>
       )}
       <h1 className="track mt-2 font-display text-4xl font-bold">{o.title}</h1>
       {o.poster_path && (
@@ -90,37 +95,43 @@ export default async function OpeningPublicPage({
         <img
           src={`/api/files/${o.poster_path}`}
           alt={`${o.title} — role poster`}
-          className="mt-6 max-h-96 w-full rounded-xl border border-line object-contain"
+          className="mt-6 max-h-96 w-full rounded-xl border border-border object-contain"
         />
       )}
       {(o.location || o.employment_type || o.salary_range) && (
-        <p className="mt-4 text-sm font-medium text-ink-soft">
+        <p className="mt-4 text-sm font-medium text-muted-foreground">
           {[o.location, o.employment_type, o.salary_range].filter(Boolean).join(' · ')}
         </p>
       )}
       {o.description && (
         <div
-          className="mt-6 space-y-2 text-ink-soft"
+          className="mt-6 max-w-prose space-y-2 text-muted-foreground"
           dangerouslySetInnerHTML={{ __html: renderRich(o.description) }}
         />
       )}
       {o.notes && (
-        <div className="mt-6 rounded-lg border border-amber/40 bg-amber/10 p-4">
-          <p className="text-sm font-semibold text-amber">Before you apply</p>
-          <div
-            className="mt-1 space-y-1 text-sm"
+        <Alert className="mt-6 border-amber/40 bg-amber/15">
+          <AlertTitle className="text-amber">Before you apply</AlertTitle>
+          <AlertDescription
+            className="space-y-1 text-foreground"
             dangerouslySetInnerHTML={{ __html: renderRich(o.notes) }}
           />
-        </div>
+        </Alert>
       )}
-      <div className="mt-10 rounded-lg border border-line bg-card p-4 sm:p-6">
-        <h2 className="font-display text-xl font-semibold">Apply for {o.title}</h2>
-        <p className="mb-5 mt-1 text-sm text-ink-soft">
-          Takes only a few minutes. Fields marked <span className="text-rust">*</span> are
-          required — you&apos;ll get a private link by email to track your application.
-        </p>
-        <ApplyForm direct={directUploads} slug={slug} formId={o.form_id} schema={o.schema} consentText={o.consent_text} />
-      </div>
+      <Card className="mt-10 sm:[--card-spacing:--spacing(6)]">
+        <CardHeader>
+          <CardTitle className="font-display text-xl font-semibold">
+            <h2>Apply for {o.title}</h2>
+          </CardTitle>
+          <CardDescription>
+            Takes only a few minutes. Fields marked <span className="text-destructive">*</span> are
+            required — you&apos;ll get a private link by email to track your application.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ApplyForm direct={directUploads} slug={slug} formId={o.form_id} schema={o.schema} consentText={o.consent_text} />
+        </CardContent>
+      </Card>
       <CandidateResendForm slug={slug} />
       <CandidateFooter />
     </main>

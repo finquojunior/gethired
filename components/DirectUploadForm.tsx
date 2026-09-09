@@ -70,8 +70,8 @@ export default function DirectUploadForm({ direct, signUrl, fileField, maxBytes,
   return (
     <form ref={ref} onSubmit={onSubmit} {...form}>
       {children}
-      {busy && <p className="mt-2 text-sm text-ink-soft">Uploading file…</p>}
-      {error && <p className="mt-2 text-sm text-rust">{error}</p>}
+      {busy && <p className="mt-2 text-sm text-muted-foreground">Uploading file…</p>}
+      {error && <p className="mt-2 text-sm text-destructive">{error}</p>}
     </form>
   );
 }
