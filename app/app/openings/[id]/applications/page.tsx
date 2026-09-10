@@ -23,6 +23,7 @@ import {
 } from '@/lib/pipeline';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
+import LiveSearch from '@/components/LiveSearch';
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -224,7 +225,7 @@ export default async function ApplicationsPage({
         {board && <input type="hidden" name="view" value="board" />}
         <Field className="min-w-48 flex-1">
           <Label htmlFor="q">Name or email</Label>
-          <Input id="q" type="search" name="q" defaultValue={term} placeholder="Search this pipeline…" />
+          <LiveSearch id="q" name="q" defaultValue={term} placeholder="Search this pipeline…" />
         </Field>
         <Field className="w-40">
           <Label htmlFor="from">Applied from</Label>

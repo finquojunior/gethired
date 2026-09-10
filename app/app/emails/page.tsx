@@ -2,12 +2,11 @@ import Link from 'next/link';
 import { q } from '@/lib/db';
 import { currentUser, isStaff, openingScope, scopeSql } from '@/lib/auth';
 import { fmtDateTime } from '@/lib/tz';
-import { Search } from 'lucide-react';
 import { mailConfigured } from '@/lib/email';
 import SubmitButton from '@/components/SubmitButton';
 import { cancelEmail, processOutbox, resendFailedEmail, sendDraft } from './actions';
-import { Input } from '@/components/ui/input';
-import { Button, buttonVariants } from '@/components/ui/button';
+import LiveSearch from '@/components/LiveSearch';
+import { buttonVariants } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Empty, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
 
@@ -79,12 +78,11 @@ export default async function EmailsPage({ searchParams }: { searchParams: Promi
 
       <form method="get" className="mt-6 flex flex-wrap gap-2">
         <label className="sr-only" htmlFor="q">Search emails</label>
-        <Input
+        <LiveSearch
           id="q"
           name="q"
           defaultValue={term}
           placeholder="Search by candidate, email address, subject, template, or status…" className="min-w-48 flex-1" />
-        <Button type="submit"><Search data-icon="inline-start" />Search</Button>
         {term && (
           <Link href="/app/emails" className={buttonVariants({ variant: 'outline' })}>
             Clear

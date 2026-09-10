@@ -2,12 +2,10 @@ import Link from 'next/link';
 import { q } from '@/lib/db';
 import { currentUser, openingScope, scopeSql } from '@/lib/auth';
 import { fmtDate } from '@/lib/tz';
-import { Search } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
+import LiveSearch from '@/components/LiveSearch';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Candidates' };
@@ -68,13 +66,12 @@ export default async function CandidatesSearchPage({
       <h1 className="track font-display text-3xl font-bold">Candidates</h1>
       <form method="get" className="mt-8 flex flex-wrap gap-2">
         <label className="sr-only" htmlFor="q">Search candidates</label>
-        <Input
+        <LiveSearch
           id="q"
           name="q"
           defaultValue={term}
           placeholder="Search by name or email — or tag:frontend to search tags…" className="min-w-48 flex-1"
           autoFocus />
-        <Button type="submit"><Search data-icon="inline-start" />Search</Button>
       </form>
 
       {!term && (
