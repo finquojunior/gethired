@@ -65,6 +65,20 @@ export default async function SlotsPage({
     [openingId]
   );
   const starved = interviewStages.filter((s) => s.waiting > 0 && s.open === 0);
+  // who is waiting, by name: in an interview stage, active, no slot booked for that stage
+  const { rows: waiting } = await q<{ id: number; name: string; email: string; stage: string; since: Date; open: number }>(
+    `select a.id, a.name, a.email, s.name as stage,
+            coalesce((select max(h.created_at) from public.stage_history h
+                       where h.application_id = a.id and h.to_stage_id = s.id), a.created_at) as since,
+            (select count(*)::int from public.slots sl
+              where sl.stage_id = s.id and sl.application_id is null and sl.starts_at > now()) as open
+     from public.applications a
+     join public.stages s on s.id = a.current_stage_id
+     where a.opening_id = $1 and a.status = 'active' and s.kind = 'interview'
+       and not exists (select 1 from public.slots sl where sl.application_id = a.id and sl.stage_id = s.id)
+     order by since`,
+    [openingId]
+  );
   const { rows: people } = await q<{ id: string; full_name: string }>(
     `select id, full_name from public.profiles order by full_name`
   );
@@ -142,6 +156,41 @@ export default async function SlotsPage({
             </AlertTitle>
             <AlertDescription>Create slots below for this opening.</AlertDescription>
           </Alert>
+        )}
+        {waiting.length > 0 && (
+          <section className="mt-8">
+            <h2 className="font-display text-lg font-semibold">Waiting to book</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Invited to an interview stage but no slot booked yet — worth a nudge if slots are open.
+            </p>
+            <Card className="mt-2 py-0">
+              <Table>
+                <TableHeader>
+                  <TableRow className="text-xs uppercase tracking-wide text-muted-foreground hover:bg-transparent">
+                    <TableHead className="px-4">Candidate</TableHead>
+                    <TableHead className="px-4">Stage</TableHead>
+                    <TableHead className="px-4">In stage since</TableHead>
+                    <TableHead className="px-4">Open slots</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {waiting.map((w) => (
+                    <TableRow key={w.id}>
+                      <TableCell className="px-4">
+                        <Link href={`/app/candidates/${w.id}`} className="text-primary underline">{w.name}</Link>
+                        <span className="text-muted-foreground"> · {w.email}</span>
+                      </TableCell>
+                      <TableCell className="px-4">{w.stage}</TableCell>
+                      <TableCell className="px-4">{fmtDateTime(w.since)}</TableCell>
+                      <TableCell className="px-4">
+                        {w.open > 0 ? w.open : <Badge variant="destructive">none</Badge>}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </Card>
+          </section>
         )}
         <form action={createSlots} className="mt-8 flex flex-wrap items-end gap-2 rounded-xl bg-card p-4 ring-1 ring-foreground/10">
           <input type="hidden" name="openingId" value={openingId} />
