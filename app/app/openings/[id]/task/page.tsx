@@ -11,6 +11,7 @@ import { directUploads } from '@/lib/storage';
 import SubmitButton from '@/components/SubmitButton';
 import DirectUploadForm from '@/components/DirectUploadForm';
 import OpeningTabs from '@/components/OpeningTabs';
+import TaskSortSelect from '@/components/TaskSortSelect';
 import { updateTaskMaterials } from '../../actions';
 import { bulkPipeline } from '@/app/app/candidates/actions';
 import { pipelineFlash } from '@/app/app/candidates/flash';
@@ -44,10 +45,23 @@ export default async function TaskPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ ok?: string; e?: string }>;
+  searchParams: Promise<{ ok?: string; e?: string; sort?: string }>;
 }) {
   const { id } = await params;
-  const { ok, e: errorCode } = await searchParams;
+  const { ok, e: errorCode, sort } = await searchParams;
+  // fixed order-by fragments only — never user input. Default clusters deadlines
+  // yet to come at the top (soonest first), then candidates with no deadline,
+  // then overdue ones at the bottom (most recently overdue first).
+  const TASK_SORTS: Record<string, string> = {
+    deadline: `(case when deadline is null then 1 when deadline >= now() then 0 else 2 end),
+               (case when deadline >= now() then deadline end) asc,
+               (case when deadline < now() then deadline end) desc,
+               lower(name)`,
+    name: 'lower(name)',
+    submitted: 'submitted_at desc nulls last, lower(name)',
+    rating: 'latest_rating desc nulls last, lower(name)',
+  };
+  const sortKey = Object.hasOwn(TASK_SORTS, sort ?? '') ? sort! : 'deadline';
   const flash = pipelineFlash(ok, errorCode);
   const openingId = Number(id);
   const {
@@ -86,7 +100,8 @@ export default async function TaskPage({
     latest_rating: number | null;
     rating_count: number;
   }>(
-    `select s.id as stage_id, a.id, a.name, a.status, a.current_stage_id, cs.name as current_stage,
+    `select * from (
+       select s.id as stage_id, a.id, a.name, a.status, a.current_stage_id, cs.name as current_stage,
             case when s.task_days > 0 then
               coalesce((select max(h.created_at) from public.stage_history h
                          where h.application_id = a.id and h.to_stage_id = s.id), a.created_at)
@@ -104,14 +119,15 @@ export default async function TaskPage({
               order by f.updated_at desc limit 1) as latest_rating,
             (select count(*)::int from public.feedback f
               where f.application_id = a.id and f.stage_id = s.id and f.rating is not null) as rating_count
-     from public.stages s
-     join public.applications a on a.opening_id = s.opening_id and (
-       a.current_stage_id = s.id or exists (
-         select 1 from public.stage_history h
-         where h.application_id = a.id and h.to_stage_id = s.id))
-     left join public.stages cs on cs.id = a.current_stage_id
-     where s.opening_id = $1 and s.kind = 'task'
-     order by submitted_at desc nulls last, a.name`,
+       from public.stages s
+       join public.applications a on a.opening_id = s.opening_id and (
+         a.current_stage_id = s.id or exists (
+           select 1 from public.stage_history h
+           where h.application_id = a.id and h.to_stage_id = s.id))
+       left join public.stages cs on cs.id = a.current_stage_id
+       where s.opening_id = $1 and s.kind = 'task'
+     ) c
+     order by ${TASK_SORTS[sortKey]}`,
     [openingId]
   );
   const today = fmtDate(new Date()); // org-local; overdue only once the deadline day has passed
@@ -291,8 +307,13 @@ export default async function TaskPage({
 
           <Card>
             <CardHeader>
-              <CardTitle className="font-display text-lg font-semibold">Candidates in this task stage</CardTitle>
-              <CardDescription>Everyone who reached {t.name}, including candidates who have since moved on.</CardDescription>
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <CardTitle className="font-display text-lg font-semibold">Candidates in this task stage</CardTitle>
+                  <CardDescription>Everyone who reached {t.name}, including candidates who have since moved on.</CardDescription>
+                </div>
+                {(candidatesByStage.get(t.id) ?? []).length > 1 && <TaskSortSelect value={sortKey} />}
+              </div>
             </CardHeader>
             <CardContent>
               <form action={bulkPipeline}>
