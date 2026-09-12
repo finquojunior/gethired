@@ -152,6 +152,12 @@ for (let i = 0; i < 3; i++) {
   await c.query(`insert into public.slots (opening_id, stage_id, interviewer_id, starts_at, duration_mins, meeting_link, panel) values ($1,$2,$3,$4,30,'Office, 3rd floor',$5)`,
     [gd.id, gd.S.Interview, IV, new Date(nextWeek.getTime() + i * 30 * 60e3), []]);
 }
+// one booked candidate has asked to move their interview
+const asker = inFsdInterview[1];
+if (asker) {
+  const { rows: [sl] } = await c.query(`select id, stage_id from public.slots where application_id = $1 limit 1`, [asker.id]);
+  await c.query(`insert into public.reschedule_requests (application_id, slot_id, stage_id, requested_at, note) values ($1,$2,$3, now() + interval '3 days', 'I have an exam that evening — could we do the following morning instead?')`, [asker.id, sl.id, sl.stage_id]);
+}
 // a past interview with feedback pending, plus some feedback and notes
 const past = inFsdInterview[4];
 if (past) {

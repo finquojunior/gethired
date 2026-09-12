@@ -4,20 +4,24 @@ import { notFound } from 'next/navigation';
 import { q } from '@/lib/db';
 import { canAccessOpening, currentUser } from '@/lib/auth';
 import { portalUrl } from '@/lib/email';
-import { fmtDate, fmtDateTime } from '@/lib/tz';
+import { fmtClock, fmtDate, fmtDateTime } from '@/lib/tz';
 import { allFields, type FormSchema } from '@/lib/form-schema';
 import { parseSubmissionFields } from '@/lib/brief';
 import SubmitButton from '@/components/SubmitButton';
 import LinkifyText from '@/components/LinkifyText';
 import StarRating from '@/components/StarRating';
 import CompleteInterviewButton from '@/components/CompleteInterviewButton';
+import RescheduleDecision from '@/components/RescheduleDecision';
 import Flash from '@/components/Flash';
 import { FEEDBACK_JOIN, PIPELINE_SORTS, PIPELINE_WHERE, pipelineWhereParams, type PipelineCtx } from '@/lib/pipeline';
 import {
   addFeedback,
   addNote,
+  approveReschedule,
   bulkPipeline,
   completeInterview,
+  markNoShow,
+  rejectReschedule,
   composeEmail,
   reopenInterview,
   resendEmail,
@@ -109,7 +113,7 @@ export default async function CandidatePage({
   );
   if (!a || !(await canAccessOpening(user, Number(a.opening_id)))) notFound();
 
-  const [{ rows: stages }, { rows: history }, { rows: feedback }, { rows: notes }, { rows: subs }, { rows: slots }, { rows: emails }, { rows: taskStages }, { rows: responses }, { rows: reached }] =
+  const [{ rows: stages }, { rows: history }, { rows: feedback }, { rows: notes }, { rows: subs }, { rows: slots }, { rows: emails }, { rows: taskStages }, { rows: responses }, { rows: reached }, { rows: requests }, { rows: people }] =
     await Promise.all([
       q<{ id: number; name: string; kind: string }>(
         `select id, name, kind from public.stages where opening_id = $1 order by position`,
@@ -145,8 +149,8 @@ export default async function CandidatePage({
          where su.application_id = $1 order by su.created_at desc`,
         [appId]
       ),
-      q<{ id: number; stage_id: number; starts_at: Date; duration_mins: number; stage: string; interviewer: string; completed_at: Date | null }>(
-        `select sl.id, sl.stage_id, sl.starts_at, sl.duration_mins, st.name as stage, p.full_name as interviewer, sl.completed_at
+      q<{ id: number; stage_id: number; starts_at: Date; duration_mins: number; stage: string; interviewer: string; interviewer_id: string; completed_at: Date | null; no_show_at: Date | null }>(
+        `select sl.id, sl.stage_id, sl.starts_at, sl.duration_mins, st.name as stage, p.full_name as interviewer, sl.interviewer_id, sl.completed_at, sl.no_show_at
          from public.slots sl
          join public.stages st on st.id = sl.stage_id
          join public.profiles p on p.id = sl.interviewer_id
@@ -173,7 +177,16 @@ export default async function CandidatePage({
          union select stage_id from public.submissions where application_id = $1 and stage_id is not null`,
         [appId]
       ),
+      q<{ id: number; slot_id: number | null; requested_at: Date; note: string; status: string; decided_at: Date | null; decision_note: string; created_at: Date; decided_by_name: string | null }>(
+        `select r.id, r.slot_id, r.requested_at, r.note, r.status, r.decided_at, r.decision_note, r.created_at,
+                (select full_name from public.profiles where id = r.decided_by) as decided_by_name
+         from public.reschedule_requests r where r.application_id = $1 order by r.id desc`,
+        [appId]
+      ),
+      q<{ id: string; full_name: string }>(`select id, full_name from public.profiles order by full_name`),
     ]);
+  const pendingRequest = requests.find((r) => r.status === 'pending');
+  const pendingSlot = pendingRequest ? slots.find((s) => Number(s.id) === Number(pendingRequest.slot_id)) : undefined;
 
   // the task's asked-for items, so the profile shows all of them — submitted or not
   const requirements = taskStages.flatMap((ts) =>
@@ -313,6 +326,19 @@ export default async function CandidatePage({
       strong: `${s.stage} with ${s.interviewer}`,
       extra: '',
     })),
+    ...slots.filter((s) => s.no_show_at).map((s) => ({
+      at: s.no_show_at!,
+      kind: 'noshow' as const,
+      text: 'No show: ',
+      strong: `${s.stage} on ${fmtDateTime(s.starts_at)}`,
+      extra: '',
+    })),
+    ...requests.flatMap((r) => [
+      { at: r.created_at, kind: 'request' as const, text: 'Reschedule requested for ', strong: fmtDateTime(r.requested_at), extra: r.note },
+      ...(r.decided_at
+        ? [{ at: r.decided_at, kind: 'request' as const, text: r.status === 'approved' ? 'Reschedule approved: ' : 'Reschedule declined: ', strong: fmtDateTime(r.requested_at), extra: [r.decided_by_name, r.decision_note].filter(Boolean).join(' · ') }]
+        : []),
+    ]),
   ].sort((x, y) => y.at.getTime() - x.at.getTime());
   const dot: Record<string, string> = {
     stage: 'bg-primary',
@@ -322,6 +348,8 @@ export default async function CandidatePage({
     note: 'bg-border',
     submission: 'bg-primary',
     interview: 'bg-secondary border border-primary',
+    request: 'bg-amber',
+    noshow: 'bg-destructive',
   };
 
   const navArrow = (id: number | undefined, label: string, dir: 'prev' | 'next') => {
@@ -643,6 +671,33 @@ export default async function CandidatePage({
                 </AlertDescription>
               </Alert>
             )}
+            {pendingRequest && a.status === 'active' && (
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber/40 bg-amber/5 p-3 text-sm">
+                <span>
+                  <Badge className="bg-amber/15 text-amber">Reschedule requested</Badge>
+                  <span className="ml-2">asks for <span className="font-medium">{fmt(pendingRequest.requested_at)}</span></span>
+                  {pendingSlot && <span className="text-muted-foreground"> · currently {fmt(pendingSlot.starts_at)}</span>}
+                  {pendingRequest.note && <span className="block text-muted-foreground">“{pendingRequest.note}”</span>}
+                </span>
+                <RescheduleDecision
+                  request={{
+                    id: pendingRequest.id,
+                    applicationId: a.id,
+                    candidateName: a.name,
+                    currentWhen: pendingSlot ? fmt(pendingSlot.starts_at) : null,
+                    requestedLabel: fmt(pendingRequest.requested_at),
+                    requestedDate: fmtDate(pendingRequest.requested_at),
+                    requestedTime: fmtClock(pendingRequest.requested_at),
+                    note: pendingRequest.note,
+                    interviewerId: pendingSlot?.interviewer_id ?? null,
+                    duration: pendingSlot?.duration_mins ?? 30,
+                  }}
+                  people={people}
+                  approve={approveReschedule}
+                  reject={rejectReschedule}
+                />
+              </div>
+            )}
             <ul className="mt-3 space-y-2 text-sm">
               {slots.map((s) => (
                 <li key={s.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-card p-3">
@@ -650,16 +705,29 @@ export default async function CandidatePage({
                     <span className="font-medium">{fmt(s.starts_at)}</span>
                     <span className="text-muted-foreground"> · {s.duration_mins}m · {s.stage} · with {s.interviewer}</span>
                     {s.completed_at && <Badge variant="secondary" className="ml-2">Completed</Badge>}
+                    {s.no_show_at && <Badge variant="destructive" className="ml-2">No show</Badge>}
                   </span>
                   <span className="flex items-center gap-2">
-                    {!s.completed_at && s.starts_at <= new Date() && (
-                      <CompleteInterviewButton
-                        action={completeInterview}
-                        applicationId={a.id}
-                        slotId={s.id}
-                        candidateName={a.name}
-                        when={fmt(s.starts_at)}
-                      />
+                    {!s.completed_at && !s.no_show_at && s.starts_at <= new Date() && Number(pendingRequest?.slot_id) !== Number(s.id) && (
+                      <>
+                        <CompleteInterviewButton
+                          action={completeInterview}
+                          applicationId={a.id}
+                          slotId={s.id}
+                          candidateName={a.name}
+                          when={fmt(s.starts_at)}
+                        />
+                        {a.status === 'active' && (
+                          <form action={markNoShow}>
+                            <input type="hidden" name="applicationId" value={a.id} />
+                            <input type="hidden" name="slotId" value={s.id} />
+                            <SubmitButton variant="outline" size="sm" pendingLabel="Marking…"
+                              confirmText={`Mark ${a.name} as a no-show for the ${fmt(s.starts_at)} interview? They will be rejected and emailed.`}>
+                              No show
+                            </SubmitButton>
+                          </form>
+                        )}
+                      </>
                     )}
                     {s.completed_at && (
                       <form action={reopenInterview}>

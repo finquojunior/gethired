@@ -86,6 +86,31 @@ export const DEFAULT_TEMPLATES: Record<string, { subject: string; body: string; 
     body: `The interview with {{name}} for {{role}} on {{when}} was cancelled and the slot has been freed.\n`,
     vars: ['name', 'role', 'when'],
   },
+  reschedule_requested: {
+    subject: 'We received your reschedule request — {{role}} at {{org}}',
+    body: `Hi {{name}},\n\nWe've received your request to move your {{role}} interview to {{requested}}.\n\nUntil the team confirms, your current interview slot on {{when}} still stands — please keep it free. We'll email you as soon as there's a decision, usually within a working day.\n\nYou can check the status any time:\n{{portal_link}}\n` + SIGN,
+    vars: ['name', 'role', 'when', 'requested', 'portal_link'],
+  },
+  reschedule_approved: {
+    subject: 'Interview rescheduled — {{role}} at {{org}}',
+    body: `Hi {{name}},\n\nYour reschedule request has been approved. Your {{role}} interview is now:\n\n{{when}} ({{duration}} minutes) with {{interviewer}}.\n{{link}}\n\nYour previous slot has been released. A calendar invite is attached.\n\nYour status page:\n{{portal_link}}\n` + SIGN,
+    vars: ['name', 'role', 'when', 'duration', 'interviewer', 'link', 'portal_link'],
+  },
+  reschedule_rejected: {
+    subject: 'About your reschedule request — {{role}} at {{org}}',
+    body: `Hi {{name}},\n\nUnfortunately we couldn't accommodate your request to move the interview to {{requested}}.\n\nYour interview remains scheduled for {{when}}. {{reason}}\n\nIf that time doesn't work, you can still pick another open slot on your status page up to an hour before the interview:\n{{portal_link}}\n` + SIGN,
+    vars: ['name', 'role', 'when', 'requested', 'reason', 'portal_link'],
+  },
+  no_show: {
+    subject: 'Update on your application — {{role}} at {{org}}',
+    body: `Hi {{name}},\n\nYour interview for {{role}} was scheduled for {{when}}, but you did not attend and we didn't hear from you beforehand. As a result, we are closing your application for this role.\n\nIf something serious prevented you from attending, reply to this email and let us know — we'll take a look.\n\nYou're welcome to apply for future roles — see what's open at {{careers_link}}\n` + SIGN,
+    vars: ['name', 'role', 'when', 'careers_link'],
+  },
+  interviewer_reschedule_requested: {
+    subject: 'Reschedule requested: {{name}} — {{role}}',
+    body: `{{name}} has asked to move their {{role}} interview from {{when}} to {{requested}}.\n\nTheir note: {{note}}\n\nThe current slot stays booked until someone approves or rejects the request here: {{requests_link}}\n`,
+    vars: ['name', 'role', 'when', 'requested', 'note', 'requests_link'],
+  },
   feedback_nudge: {
     subject: 'Feedback pending: {{name}} — {{role}}',
     body: `Your interview with {{name}} for {{role}} has ended, and no feedback has been recorded yet.\n\nAdd your verdict here: {{profile_link}}\n`,

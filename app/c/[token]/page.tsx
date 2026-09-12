@@ -2,7 +2,7 @@ import Link from 'next/link';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { q } from '@/lib/db';
-import { daysUntil, fmtDay, fmtSlot, fmtTime, gcalUrl } from '@/lib/tz';
+import { daysUntil, fmtDate, fmtDay, fmtSlot, fmtTime, gcalUrl } from '@/lib/tz';
 import { TASK_MAX_BYTES, TASK_TYPE_HELP } from '@/lib/uploads';
 import { allFields, type FormSchema } from '@/lib/form-schema';
 import { ORG_NAME } from '@/lib/email';
@@ -12,6 +12,11 @@ import Toaster from '@/components/Toaster';
 import PostForm from '@/components/PostForm';
 import CandidateStepper from '@/components/CandidateStepper';
 import CandidateFooter from '@/components/CandidateFooter';
+import CancelBookingDialog from '@/components/CancelBookingDialog';
+import { canChangeBooking } from '@/lib/reschedule';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
 import { directUploads } from '@/lib/storage';
 import { briefLinks, FALLBACK_REQUIREMENT, parseSubmissionFields } from '@/lib/brief';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -36,7 +41,8 @@ const OK_TEXT: Record<string, string> = {
   task: 'Submission received — thank you! A confirmation email is on its way.',
   response: 'Response saved — thank you!',
   booked: 'Interview scheduled! Your slot is confirmed and a confirmation email is on its way.',
-  cancelled: 'Booking cancelled.',
+  rebooked: 'Interview moved! Your new slot is confirmed and a confirmation email is on its way.',
+  requested: 'Request sent. Your current slot stays booked until the team decides — we\'ll email you either way.',
   withdrawn: 'Your application has been withdrawn.',
 };
 
@@ -49,6 +55,9 @@ const ERROR_TEXT: Record<string, string> = {
   size: `A file is too large — the maximum is ${Math.round(TASK_MAX_BYTES / 1048576)} MB per file. Zip or compress it and try again.`,
   ratelimit: 'Too many attempts — wait a few minutes and try again.',
   nothing: 'Nothing new to submit — attach at least one file or link.',
+  late: 'The interview is less than an hour away, so it can no longer be changed here.',
+  pending: 'You already have a reschedule request awaiting a decision.',
+  time: 'Pick a date and time at least an hour from now.',
 };
 
 const KIND_TEXT: Record<string, string> = {
@@ -125,14 +134,29 @@ export default async function PortalPage({
       ).rows[0]
     : undefined;
 
+  // latest reschedule request for this stage: pending shows as such; rejected shows while the booking it referred to stands
+  const request = booking
+    ? (
+        await q<{ id: number; slot_id: number | null; requested_at: Date; status: string; decision_note: string }>(
+          `select id, slot_id, requested_at, status, decision_note from public.reschedule_requests
+           where application_id = $1 and stage_id = $2 order by id desc limit 1`,
+          [a.id, a.stage_id]
+        )
+      ).rows[0]
+    : undefined;
+  const pendingRequest = request?.status === 'pending' ? request : undefined;
+  const rejectedRequest = request?.status === 'rejected' && Number(request.slot_id) === Number(booking?.id) ? request : undefined;
+  const interviewPast = booking && (booking.completed_at != null || booking.starts_at.getTime() + booking.duration_mins * 60_000 < Date.now());
+  const canChange = !!booking && !interviewPast && canChangeBooking(booking.starts_at);
+
   const openSlots =
-    showInterview && !booking
+    showInterview && (!booking || canChange)
       ? (
           await q<{ id: number; starts_at: Date; duration_mins: number }>(
             `select id, starts_at, duration_mins from public.slots
-             where stage_id = $1 and application_id is null and starts_at > now()
+             where stage_id = $1 and application_id is null and starts_at > now() and id <> coalesce($2::bigint, 0)
              order by starts_at limit 40`,
-            [a.stage_id]
+            [a.stage_id, booking?.id ?? null]
           )
         ).rows
       : [];
@@ -176,8 +200,6 @@ export default async function PortalPage({
     if (s.field_id && !doneByField.has(s.field_id)) doneByField.set(s.field_id, s.created_at);
   }
   const fmt = fmtSlot;
-  const canCancel = booking && booking.starts_at.getTime() - Date.now() > 24 * 3600_000;
-  const interviewPast = booking && (booking.completed_at != null || booking.starts_at.getTime() + booking.duration_mins * 60_000 < Date.now());
   const daysLeft = a.deadline ? daysUntil(a.deadline) : null;
   const overdue = daysLeft !== null && daysLeft < 0;
   const slotsByDay = new Map<string, typeof openSlots>();
@@ -185,6 +207,24 @@ export default async function PortalPage({
     const day = fmtDay(s.starts_at);
     slotsByDay.set(day, [...(slotsByDay.get(day) ?? []), s]);
   }
+  const today = fmtDate(new Date());
+  const slotPicker = () =>
+    [...slotsByDay].map(([day, slots]) => (
+      <fieldset key={day} className="mt-3 first:mt-0">
+        <legend className="mb-1.5 text-sm font-medium">{day}</legend>
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          {slots.map((s) => (
+            <label
+              key={s.id}
+              className="flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border p-3 text-sm transition-colors hover:bg-muted has-[:checked]:border-primary has-[:checked]:bg-secondary has-[:checked]:font-medium"
+            >
+              <input type="radio" name="slotId" value={s.id} required />
+              {fmtTime(s.starts_at)} · {s.duration_mins} min
+            </label>
+          ))}
+        </div>
+      </fieldset>
+    ));
   const gcal = (starts: Date, mins: number, link: string) =>
     gcalUrl({
       title: `Interview — ${a.title} (${ORG_NAME})`,
@@ -228,12 +268,7 @@ export default async function PortalPage({
           okCode && OK_TEXT[okCode]
             ? {
                 kind: 'success',
-                message:
-                  okCode === 'cancelled' && openSlots.length > 0
-                    ? 'Booking cancelled. You can pick a new slot below.'
-                    : okCode === 'cancelled'
-                      ? 'Booking cancelled. There are no open slots right now — we\'ll be in touch to reschedule.'
-                      : OK_TEXT[okCode],
+                message: OK_TEXT[okCode],
               }
             : errorCode && ERROR_TEXT[errorCode]
               ? { kind: 'error', message: ERROR_TEXT[errorCode] }
@@ -287,20 +322,73 @@ export default async function PortalPage({
             {a.stage_brief && (
               <p className="mt-3 whitespace-pre-line text-sm text-muted-foreground"><LinkifyText value={a.stage_brief} /></p>
             )}
-            {canCancel ? (
-              <PostForm
-                pendingText="Cancelling…"
-                confirmText="Cancel this interview booking? Your slot will be released and you'll need to pick another one."
-                method="post"
-                action={`/c/${token}/cancel`}
-                className="mt-4 flex flex-wrap items-center gap-2"
-              >
-                <Button type="submit" variant="destructive" size="lg">Cancel booking</Button>
-                <span className="text-xs text-muted-foreground">You can pick another slot after cancelling, if any are open.</span>
-              </PostForm>
+            {pendingRequest && (
+              <Alert className="mt-4">
+                <AlertTitle>Reschedule requested for {fmt(pendingRequest.requested_at)}</AlertTitle>
+                <AlertDescription>
+                  Awaiting the team&apos;s decision. Until then this interview still stands — please keep the time
+                  free. We&apos;ll email you either way.
+                </AlertDescription>
+              </Alert>
+            )}
+            {rejectedRequest && (
+              <Alert variant="destructive" className="mt-4">
+                <AlertTitle>Your request for {fmt(rejectedRequest.requested_at)} couldn&apos;t be accommodated.</AlertTitle>
+                <AlertDescription>
+                  {rejectedRequest.decision_note || 'Your interview remains at the time above.'}
+                  {canChange && openSlots.length > 0 ? ' You can still pick another open slot below.' : ''}
+                </AlertDescription>
+              </Alert>
+            )}
+            {canChange ? (
+              <div id="reschedule" className="mt-5 space-y-3 border-t border-border pt-4">
+                <p className="text-sm font-medium">Need to change this interview?</p>
+                {openSlots.length > 0 && (
+                  <details className="text-sm">
+                    <summary className="cursor-pointer text-primary underline">Pick another open slot</summary>
+                    <PostForm pendingText="Moving…" submitToast="Moving your interview…" method="post" action={`/c/${token}/rebook`} className="mt-3">
+                      {slotPicker()}
+                      <Button type="submit" size="lg" className="mt-3">Move to this slot</Button>
+                    </PostForm>
+                  </details>
+                )}
+                {!pendingRequest && (
+                  <details className="text-sm">
+                    <summary className="cursor-pointer text-primary underline">
+                      {openSlots.length > 0 ? 'None of these work? Request another day or time' : 'Request another day or time'}
+                    </summary>
+                    <PostForm pendingText="Sending…" method="post" action={`/c/${token}/reschedule`} className="mt-3 space-y-3">
+                      <p className="text-muted-foreground">
+                        Tell us when you can make it. The team will confirm or suggest an alternative — your current
+                        slot stays booked until then.
+                      </p>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <Label htmlFor="rs-date">Date</Label>
+                          <Input id="rs-date" type="date" name="date" min={today} required />
+                        </div>
+                        <div className="space-y-1">
+                          <Label htmlFor="rs-time">Time (IST)</Label>
+                          <Input id="rs-time" type="time" name="time" required />
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <Label htmlFor="rs-note">Reason (optional)</Label>
+                        <Textarea id="rs-note" name="note" rows={2} maxLength={1000} placeholder="e.g. I have an exam that afternoon." />
+                      </div>
+                      <Button type="submit" size="lg">Send request</Button>
+                    </PostForm>
+                  </details>
+                )}
+                <div className="flex flex-wrap items-center gap-2 pt-1">
+                  <CancelBookingDialog role={a.title} withdrawAction={`/c/${token}/withdraw`} />
+                  <span className="text-xs text-muted-foreground">Changes are possible up to 1 hour before the interview.</span>
+                </div>
+              </div>
             ) : (
               <p className="mt-3 text-xs text-muted-foreground">
-                Bookings can be changed up to 24 hours before the interview.
+                This interview is less than an hour away, so it can no longer be changed here. If you can&apos;t
+                attend, reply to your confirmation email.
               </p>
             )}
           </CardContent>
@@ -330,22 +418,7 @@ export default async function PortalPage({
                 method="post"
                 action={`/c/${token}/book`}
               >
-                {[...slotsByDay].map(([day, slots]) => (
-                  <fieldset key={day} className="mt-3 first:mt-0">
-                    <legend className="mb-1.5 text-sm font-medium">{day}</legend>
-                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                      {slots.map((s) => (
-                        <label
-                          key={s.id}
-                          className="flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border p-3 text-sm transition-colors hover:bg-muted has-[:checked]:border-primary has-[:checked]:bg-secondary has-[:checked]:font-medium"
-                        >
-                          <input type="radio" name="slotId" value={s.id} required />
-                          {fmtTime(s.starts_at)} · {s.duration_mins} min
-                        </label>
-                      ))}
-                    </div>
-                  </fieldset>
-                ))}
+                {slotPicker()}
                 <p className="mt-3 text-xs text-muted-foreground">
                   Pick a time, then confirm. You&apos;ll get a confirmation email with a calendar invite.
                 </p>

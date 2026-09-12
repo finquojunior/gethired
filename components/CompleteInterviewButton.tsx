@@ -1,25 +1,16 @@
 'use client';
 
-import { useState, useTransition } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import StarRating from '@/components/StarRating';
-import { toast } from '@/components/Toaster';
-import { pipelineFlash } from '@/app/app/candidates/flash';
-
-type Result = { ok?: string; error?: string };
-
-// How long we wait for the server before giving up on the response and
-// refreshing anyway — the action itself finishes in about a second.
-const RESPONSE_TIMEOUT_MS = 15_000;
+import { useDialogAction, type ActionResult } from '@/components/useDialogAction';
 
 /**
  * "Mark completed" for a held interview: opens a prompt for the star rating and
  * an optional note, then calls the server action, which completes the slot,
- * saves the feedback and moves the candidate to Interview review. The dialog
- * closes and refreshes the page itself rather than relying on a redirect.
+ * saves the feedback and moves the candidate to Interview review.
  */
 export default function CompleteInterviewButton({
   action,
@@ -28,41 +19,14 @@ export default function CompleteInterviewButton({
   candidateName,
   when,
 }: {
-  action: (formData: FormData) => Promise<Result>;
+  action: (formData: FormData) => Promise<ActionResult>;
   applicationId: number;
   slotId: number;
   candidateName: string;
   when: string;
 }) {
   const [open, setOpen] = useState(false);
-  const [pending, startTransition] = useTransition();
-  const router = useRouter();
-
-  const submit = (formData: FormData) =>
-    startTransition(async () => {
-      const timeout = new Promise<Result>((resolve) =>
-        setTimeout(() => resolve({ error: 'timeout' }), RESPONSE_TIMEOUT_MS)
-      );
-      let result: Result;
-      try {
-        result = await Promise.race([action(formData), timeout]);
-      } catch {
-        result = { error: 'timeout' };
-      }
-      if (result.error === 'timeout') {
-        // The save usually went through even when the response is lost; show the truth.
-        toast('error', 'No response from the server — refreshing to show the current state.');
-        setOpen(false);
-        router.refresh();
-        return;
-      }
-      const flash = pipelineFlash(result.ok, result.error);
-      if (flash) toast(flash.kind, flash.message);
-      if (result.ok) {
-        setOpen(false);
-        router.refresh();
-      }
-    });
+  const { submit, pending } = useDialogAction(action, () => setOpen(false));
 
   return (
     <>

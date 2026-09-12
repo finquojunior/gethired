@@ -1,5 +1,5 @@
 import { q } from '@/lib/db';
-import { portalUrl, sendEmail } from '@/lib/email';
+import { appUrl, icsEvent, portalUrl, sendEmail } from '@/lib/email';
 import { fmtDateTimeFull } from '@/lib/tz';
 
 /**
@@ -66,4 +66,68 @@ export async function staffEmails(ids: string[]): Promise<string[]> {
     [ids]
   );
   return rows.map((r) => r.email);
+}
+
+export type BookedSlot = {
+  starts_at: Date;
+  duration_mins: number;
+  interviewer: string;
+  meeting_link: string;
+  interviewer_email: string | null;
+  panel: string[];
+};
+
+/** `returning` fragment that yields a BookedSlot (alias the slot `sl`, the interviewer profile `p`). */
+export const BOOKED_SLOT_COLS = `sl.starts_at, sl.duration_mins, p.full_name as interviewer, sl.meeting_link,
+  (select u.email from auth.users u where u.id = p.id) as interviewer_email, sl.panel`;
+
+/**
+ * After a slot is booked: confirmation (with .ics) to the candidate, heads-up to the
+ * interviewer and panel. `template` lets a reschedule approval use its own wording.
+ */
+export async function notifyBooking(
+  a: { id: number; name: string; email: string; title: string; portal_token?: string },
+  slot: BookedSlot,
+  template: 'booking_confirmation' | 'reschedule_approved' = 'booking_confirmation'
+): Promise<void> {
+  const when = fmtDateTimeFull(slot.starts_at);
+  const ics = icsEvent({
+    title: `Interview — ${a.title}`,
+    startsAt: slot.starts_at,
+    durationMins: slot.duration_mins,
+    description: `Interview with ${slot.interviewer}`,
+    ...(/^https?:\/\//.test(slot.meeting_link) ? { url: slot.meeting_link } : {}),
+    location: slot.meeting_link,
+  });
+  await sendEmail({
+    applicationId: a.id,
+    template,
+    to: a.email,
+    vars: {
+      name: a.name,
+      role: a.title,
+      when,
+      duration: String(slot.duration_mins),
+      interviewer: slot.interviewer,
+      link: slot.meeting_link,
+      portal_link: a.portal_token ? portalUrl(a.portal_token) : '',
+    },
+    ics,
+  });
+  const panelEmails = await staffEmails(slot.panel ?? []);
+  for (const to of [slot.interviewer_email, ...panelEmails].filter(Boolean) as string[]) {
+    await sendEmail({
+      applicationId: a.id,
+      template: 'interviewer_booked',
+      to,
+      vars: {
+        name: a.name,
+        role: a.title,
+        when,
+        duration: String(slot.duration_mins),
+        profile_link: appUrl(`/app/candidates/${a.id}`),
+      },
+      ics,
+    });
+  }
 }

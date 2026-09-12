@@ -40,6 +40,14 @@ export function gcalUrl(opts: { title: string; startsAt: Date; durationMins: num
   return `https://calendar.google.com/calendar/render?${p}`;
 }
 
+/** "17:00" in the org zone — for <input type="time"> prefills. */
+export const fmtClock = (d: Date) => {
+  const p = Object.fromEntries(
+    dtf({ hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(d).map((x) => [x.type, x.value])
+  );
+  return `${String(Number(p.hour) % 24).padStart(2, '0')}:${p.minute}`;
+};
+
 export const fmtDate = (d: Date) => {
   const p = Object.fromEntries(
     dtf({ year: 'numeric', month: '2-digit', day: '2-digit' })

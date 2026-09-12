@@ -14,6 +14,9 @@ const OK_TEXT: Record<string, (n: number) => string> = {
   auto_review: () => 'Scored — moved to the review stage and the candidate has been emailed.',
   interview_done: () => 'Interview marked completed and feedback saved.',
   interview_reopened: () => 'Interview reopened.',
+  no_show: () => 'Marked as no-show — candidate rejected and emailed.',
+  reschedule_approved: () => 'Rescheduled — new slot created, candidate and interviewer emailed.',
+  reschedule_rejected: () => 'Request declined — candidate emailed that the original time stands.',
 };
 const ERR_TEXT: Record<string, string> = {
   rating_required: 'Pick a star rating to mark the interview completed.',
@@ -21,6 +24,9 @@ const ERR_TEXT: Record<string, string> = {
   taken: 'That slot was just booked by someone else — pick another.',
   invalid: 'Enter a name and a valid email.',
   duplicate: 'Another candidate in this opening already uses that email.',
+  time: 'Enter a date and time in the future.',
+  link: 'Paste the meeting link or location for the new slot.',
+  interviewer: 'Pick an interviewer.',
 };
 
 export function pipelineFlash(ok?: string, e?: string): { kind: 'success' | 'error'; message: string } | null {

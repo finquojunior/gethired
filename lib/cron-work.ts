@@ -114,6 +114,7 @@ export async function runCronWork() {
      join public.openings o on o.id = a.opening_id
      where sl.starts_at + make_interval(mins => sl.duration_mins) < now()
        and sl.starts_at > now() - interval '2 days'
+       and sl.no_show_at is null
        and a.status = 'active'
        and not exists (
          select 1 from public.feedback f

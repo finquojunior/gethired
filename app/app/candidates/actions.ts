@@ -5,11 +5,12 @@ import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { q, tx } from '@/lib/db';
 import { forbidden, requireApplicationAccess, requireOpeningAccess, verifyUploadPath } from '@/lib/auth';
-import { appUrl, attemptSend, icsEvent, portalUrl, sendCustomEmail, sendEmail } from '@/lib/email';
-import { fmtDateTimeFull, fmtDay } from '@/lib/tz';
+import { appUrl, attemptSend, portalUrl, sendCustomEmail, sendEmail } from '@/lib/email';
+import { fmtDateTimeFull, fmtDay, orgTimeToUtc } from '@/lib/tz';
+const fmtWhen = fmtDateTimeFull;
 import { audit } from '@/lib/audit';
 import { composeBriefEmail } from '@/lib/brief';
-import { freeFutureSlots, staffEmails } from '@/lib/slots';
+import { BOOKED_SLOT_COLS, freeFutureSlots, notifyBooking, type BookedSlot } from '@/lib/slots';
 import { RESUME_EXTS, RESUME_MAX_BYTES, saveUpload } from '@/lib/storage';
 import { uploadedPathRe } from '@/lib/uploads';
 import { nextReviewStage } from '@/lib/advance';
@@ -222,12 +223,13 @@ export async function bulkPipeline(formData: FormData) {
       `update public.applications set status = 'active' where id = any($1) and opening_id = $2 and status <> 'active'`,
       [ids, openingId]
     );
-    // cancel rejection emails not yet delivered (drafts or queued retries)
+    // cancel rejection emails not yet delivered (drafts or queued retries); undo a no-show mark
     await q(
       `update public.email_log set status = 'cancelled'
-       where application_id = any($1) and template = 'rejection' and status in ('draft', 'pending', 'failed')`,
+       where application_id = any($1) and template in ('rejection', 'no_show') and status in ('draft', 'pending', 'failed')`,
       [ids]
     );
+    await q(`update public.slots set no_show_at = null where application_id = any($1) and no_show_at is not null`, [ids]);
     n = rowCount ?? 0;
     await audit(user.id, 'restore', 'application', ids.join(','));
   } else if (intent === 'hire') {
@@ -453,8 +455,8 @@ export async function staffBookSlot(formData: FormData) {
   const slotId = Number(formData.get('slotId'));
   const {
     rows: [a],
-  } = await q<{ id: number; name: string; email: string; stage_id: number | null; title: string }>(
-    `select a.id, a.name, a.email, a.current_stage_id as stage_id, o.title
+  } = await q<{ id: number; name: string; email: string; portal_token: string; stage_id: number | null; title: string }>(
+    `select a.id, a.name, a.email, a.portal_token, a.current_stage_id as stage_id, o.title
      from public.applications a join public.openings o on o.id = a.opening_id
      where a.id = $1 and a.status = 'active'`,
     [applicationId]
@@ -462,46 +464,16 @@ export async function staffBookSlot(formData: FormData) {
   if (!a || !a.stage_id || !slotId) return;
   const {
     rows: [slot],
-  } = await q<{ starts_at: Date; duration_mins: number; interviewer: string; meeting_link: string; interviewer_email: string | null; panel: string[] }>(
+  } = await q<BookedSlot>(
     `update public.slots sl set application_id = $1
      from public.profiles p
      where sl.id = $2 and sl.stage_id = $3 and sl.application_id is null
        and sl.starts_at > now() and p.id = sl.interviewer_id
-     returning sl.starts_at, sl.duration_mins, p.full_name as interviewer, sl.meeting_link,
-       (select u.email from auth.users u where u.id = p.id) as interviewer_email, sl.panel`,
+     returning ${BOOKED_SLOT_COLS}`,
     [a.id, slotId, a.stage_id]
   );
   if (!slot) redirect(`/app/candidates/${applicationId}?e=taken`);
-  const when = fmtDateTimeFull(slot.starts_at);
-  const ics = icsEvent({
-    title: `Interview — ${a.title}`,
-    startsAt: slot.starts_at,
-    durationMins: slot.duration_mins,
-    description: `Interview with ${slot.interviewer}`,
-  });
-  await sendEmail({
-    applicationId: a.id,
-    template: 'booking_confirmation',
-    to: a.email,
-    vars: {
-      name: a.name, role: a.title, when,
-      duration: String(slot.duration_mins), interviewer: slot.interviewer, link: slot.meeting_link,
-    },
-    ics,
-  });
-  const panelEmails = await staffEmails(slot.panel ?? []);
-  for (const to of [slot.interviewer_email, ...panelEmails].filter(Boolean) as string[]) {
-    await sendEmail({
-      applicationId: a.id,
-      template: 'interviewer_booked',
-      to,
-      vars: {
-        name: a.name, role: a.title, when,
-        duration: String(slot.duration_mins), profile_link: appUrl(`/app/candidates/${a.id}`),
-      },
-      ics,
-    });
-  }
+  await notifyBooking(a, slot);
   await audit(user.id, 'book_slot', 'application', applicationId, { slotId });
   redirect(`/app/candidates/${applicationId}?ok=booked`);
 }
@@ -629,4 +601,154 @@ export async function addNote(formData: FormData) {
   ]);
   await audit(user.id, 'note', 'application', applicationId);
   revalidatePath(`/app/candidates/${applicationId}`);
+}
+
+/** Candidate booked but never turned up: mark the slot, reject them with the no-show email. */
+export async function markNoShow(formData: FormData) {
+  const applicationId = Number(formData.get('applicationId'));
+  const slotId = Number(formData.get('slotId'));
+  const { user } = await requireApplicationAccess(applicationId);
+  const back = safeBack(formData.get('back'), `/app/candidates/${applicationId}`);
+  const {
+    rows: [slot],
+  } = await q<{ starts_at: Date }>(
+    `update public.slots sl set no_show_at = now()
+     where sl.id = $1 and sl.application_id = $2 and sl.starts_at <= now()
+       and sl.completed_at is null and sl.no_show_at is null
+       and not exists (select 1 from public.reschedule_requests r where r.slot_id = sl.id and r.status = 'pending')
+     returning sl.starts_at`,
+    [slotId, applicationId]
+  );
+  if (!slot) redirect(withParam(back, 'e', 'nothing'));
+  const {
+    rows: [a],
+  } = await q<{ name: string; email: string; title: string }>(
+    `update public.applications a set status = 'rejected'
+     from public.openings o where a.id = $1 and o.id = a.opening_id and a.status = 'active'
+     returning a.name, a.email, o.title`,
+    [applicationId]
+  );
+  await freeFutureSlots([applicationId], null);
+  if (a) {
+    await sendEmail({
+      applicationId,
+      template: 'no_show',
+      to: a.email,
+      vars: { name: a.name, role: a.title, when: fmtWhen(slot.starts_at) },
+    });
+  }
+  await audit(user.id, 'no_show', 'application', applicationId, { slotId });
+  redirect(withParam(back, 'ok', 'no_show'));
+}
+
+type DecisionResult = { ok?: 'reschedule_approved' | 'reschedule_rejected'; error?: 'nothing' | 'time' | 'link' | 'interviewer' };
+
+/**
+ * Approve a reschedule request: create a slot at the chosen time, book the candidate
+ * into it, release whatever they held in that stage, email everyone. Returns for the
+ * dialog that called it (see RescheduleDecision).
+ */
+export async function approveReschedule(formData: FormData): Promise<DecisionResult> {
+  const requestId = Number(formData.get('requestId'));
+  const applicationId = Number(formData.get('applicationId'));
+  const { user } = await requireApplicationAccess(applicationId);
+  const date = String(formData.get('date') ?? '');
+  const time = String(formData.get('time') ?? '');
+  const interviewerId = String(formData.get('interviewerId') ?? '');
+  const duration = Math.max(5, Number(formData.get('duration')) || 30);
+  const meetingLink = String(formData.get('meetingLink') ?? '').trim().slice(0, 500);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}$/.test(time)) return { error: 'time' };
+  const startsAt = orgTimeToUtc(date, time);
+  if (!(startsAt.getTime() > Date.now())) return { error: 'time' };
+  if (!meetingLink) return { error: 'link' };
+  if (!interviewerId) return { error: 'interviewer' };
+
+  const result = await tx(async (c) => {
+    const {
+      rows: [r],
+    } = await c.query<{ stage_id: number; opening_id: number; panel: string[] | null; old_starts: Date | null; old_interviewer_email: string | null }>(
+      `update public.reschedule_requests r set status = 'approved', decided_by = $3, decided_at = now()
+       from public.stages s
+       where r.id = $1 and r.application_id = $2 and r.status = 'pending' and s.id = r.stage_id
+       returning r.stage_id, s.opening_id,
+         (select sl.panel from public.slots sl where sl.id = r.slot_id) as panel,
+         (select sl.starts_at from public.slots sl where sl.id = r.slot_id) as old_starts,
+         (select u.email from public.slots sl join auth.users u on u.id = sl.interviewer_id where sl.id = r.slot_id) as old_interviewer_email`,
+      [requestId, applicationId, user.id]
+    );
+    if (!r) return null;
+    // release what the candidate holds in this stage (even if past) so the one-booking rule admits the new slot
+    await c.query(`update public.slots set application_id = null where application_id = $1 and stage_id = $2`, [applicationId, r.stage_id]);
+    const panel = (r.panel ?? []).filter((id) => id !== interviewerId);
+    const {
+      rows: [slot],
+    } = await c.query<BookedSlot & { id: number }>(
+      `insert into public.slots (opening_id, stage_id, interviewer_id, starts_at, duration_mins, meeting_link, panel, application_id)
+       values ($1, $2, $3, $4, $5, $6, $7, $8)
+       returning id, starts_at, duration_mins, meeting_link, panel,
+         (select full_name from public.profiles where id = $3) as interviewer,
+         (select email from auth.users where id = $3) as interviewer_email`,
+      [r.opening_id, r.stage_id, interviewerId, startsAt.toISOString(), duration, meetingLink, panel, applicationId]
+    );
+    return { ...r, slot };
+  });
+  if (!result) return { error: 'nothing' };
+
+  const {
+    rows: [a],
+  } = await q<{ id: number; name: string; email: string; portal_token: string; title: string }>(
+    `select a.id, a.name, a.email, a.portal_token, o.title
+     from public.applications a join public.openings o on o.id = a.opening_id where a.id = $1`,
+    [applicationId]
+  );
+  if (result.old_interviewer_email && result.old_starts && result.old_starts > new Date()) {
+    await sendEmail({
+      applicationId,
+      template: 'interviewer_cancelled',
+      to: result.old_interviewer_email,
+      vars: { name: a.name, role: a.title, when: fmtWhen(result.old_starts) },
+    });
+  }
+  await notifyBooking(a, result.slot, 'reschedule_approved');
+  await audit(user.id, 'reschedule_approved', 'application', applicationId, { requestId, slotId: result.slot.id });
+  return { ok: 'reschedule_approved' };
+}
+
+/** Decline a reschedule request: the original booking stands; the candidate is told why. */
+export async function rejectReschedule(formData: FormData): Promise<DecisionResult> {
+  const requestId = Number(formData.get('requestId'));
+  const applicationId = Number(formData.get('applicationId'));
+  const { user } = await requireApplicationAccess(applicationId);
+  const note = String(formData.get('note') ?? '').trim().slice(0, 500);
+  const {
+    rows: [r],
+  } = await q<{ requested_at: Date; when_at: Date | null }>(
+    `update public.reschedule_requests r set status = 'rejected', decided_by = $3, decided_at = now(), decision_note = $4
+     where r.id = $1 and r.application_id = $2 and r.status = 'pending'
+     returning r.requested_at, (select sl.starts_at from public.slots sl where sl.id = r.slot_id) as when_at`,
+    [requestId, applicationId, user.id, note]
+  );
+  if (!r) return { error: 'nothing' };
+  const {
+    rows: [a],
+  } = await q<{ name: string; email: string; portal_token: string; title: string }>(
+    `select a.name, a.email, a.portal_token, o.title
+     from public.applications a join public.openings o on o.id = a.opening_id where a.id = $1`,
+    [applicationId]
+  );
+  await sendEmail({
+    applicationId,
+    template: 'reschedule_rejected',
+    to: a.email,
+    vars: {
+      name: a.name,
+      role: a.title,
+      when: r.when_at ? fmtWhen(r.when_at) : 'the original time',
+      requested: fmtWhen(r.requested_at),
+      reason: note,
+      portal_link: portalUrl(a.portal_token),
+    },
+  });
+  await audit(user.id, 'reschedule_rejected', 'application', applicationId, { requestId });
+  return { ok: 'reschedule_rejected' };
 }

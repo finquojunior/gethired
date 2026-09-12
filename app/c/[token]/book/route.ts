@@ -1,9 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { q } from '@/lib/db';
 import { audit } from '@/lib/audit';
-import { staffEmails } from '@/lib/slots';
-import { appUrl, icsEvent, sendEmail } from '@/lib/email';
-import { fmtDateTimeFull } from '@/lib/tz';
+import { BOOKED_SLOT_COLS, notifyBooking, type BookedSlot } from '@/lib/slots';
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ token: string }> }) {
   const { token } = await ctx.params;
@@ -13,8 +11,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ token: str
 
   const {
     rows: [a],
-  } = await q<{ id: number; name: string; email: string; stage_id: number | null; title: string }>(
-    `select a.id, a.name, a.email, a.current_stage_id as stage_id, o.title
+  } = await q<{ id: number; name: string; email: string; portal_token: string; stage_id: number | null; title: string }>(
+    `select a.id, a.name, a.email, a.portal_token, a.current_stage_id as stage_id, o.title
      from public.applications a join public.openings o on o.id = a.opening_id
      where a.portal_token = $1 and a.status = 'active'`,
     [token]
@@ -34,20 +32,12 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ token: str
   try {
     ({
       rows: [slot],
-    } = await q<{
-      starts_at: Date;
-      duration_mins: number;
-      interviewer: string;
-      meeting_link: string;
-      interviewer_email: string | null;
-      panel: string[];
-    }>(
+    } = await q<BookedSlot>(
       `update public.slots sl set application_id = $1
        from public.profiles p
        where sl.id = $2 and sl.stage_id = $3 and sl.application_id is null
          and sl.starts_at > now() and p.id = sl.interviewer_id
-       returning sl.starts_at, sl.duration_mins, p.full_name as interviewer, sl.meeting_link,
-         (select u.email from auth.users u where u.id = p.id) as interviewer_email, sl.panel`,
+       returning ${BOOKED_SLOT_COLS}`,
       [a.id, slotId, a.stage_id]
     ));
   } catch (e) {
@@ -57,44 +47,6 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ token: str
   if (!slot) return back('?e=taken');
 
   await audit(null, 'booked_slot', 'application', a.id, { slotId });
-  const when = fmtDateTimeFull(slot.starts_at);
-  const ics = icsEvent({
-    title: `Interview — ${a.title}`,
-    startsAt: slot.starts_at,
-    durationMins: slot.duration_mins,
-    description: `Interview with ${slot.interviewer}`,
-    ...(/^https?:\/\//.test(slot.meeting_link) ? { url: slot.meeting_link } : {}),
-    location: slot.meeting_link,
-  });
-  await sendEmail({
-    applicationId: a.id,
-    template: 'booking_confirmation',
-    to: a.email,
-    vars: {
-      name: a.name,
-      role: a.title,
-      when,
-      duration: String(slot.duration_mins),
-      interviewer: slot.interviewer,
-      link: slot.meeting_link,
-    },
-    ics,
-  });
-  const panelEmails = await staffEmails(slot.panel ?? []);
-  for (const to of [slot.interviewer_email, ...panelEmails].filter(Boolean) as string[]) {
-    await sendEmail({
-      applicationId: a.id,
-      template: 'interviewer_booked',
-      to,
-      vars: {
-        name: a.name,
-        role: a.title,
-        when,
-        duration: String(slot.duration_mins),
-        profile_link: appUrl(`/app/candidates/${a.id}`),
-      },
-      ics,
-    });
-  }
+  await notifyBooking(a, slot);
   return back('?ok=booked');
 }
