@@ -23,10 +23,21 @@ export default function SelectAll({ name }: { name: string }) {
       }
     };
 
+    const isRowBox = (t: EventTarget | null): t is HTMLInputElement =>
+      t instanceof HTMLInputElement && t.type === 'checkbox' && t.name === name;
+
+    // A shift-click across rows makes the browser select the text between the two
+    // clicks; that selection can swallow the second checkbox's toggle, so the
+    // range-select appears to do nothing. Suppressing selection on the shift-
+    // mousedown keeps the click (and the toggle) intact.
+    const onMouseDown = (e: MouseEvent) => {
+      if (e.shiftKey && isRowBox(e.target)) e.preventDefault();
+    };
+
     let last: HTMLInputElement | null = null;
     const onClick = (e: MouseEvent) => {
       const t = e.target;
-      if (!(t instanceof HTMLInputElement) || t.type !== 'checkbox' || t.name !== name) return;
+      if (!isRowBox(t)) return;
       if (e.shiftKey && last && last !== t) {
         const all = boxes();
         const i = all.indexOf(last);
@@ -39,9 +50,13 @@ export default function SelectAll({ name }: { name: string }) {
       sync();
     };
 
+    form.addEventListener('mousedown', onMouseDown);
     form.addEventListener('click', onClick);
     sync();
-    return () => form.removeEventListener('click', onClick);
+    return () => {
+      form.removeEventListener('mousedown', onMouseDown);
+      form.removeEventListener('click', onClick);
+    };
   }, [name]);
 
   const toggleAll = (checked: boolean) => {
