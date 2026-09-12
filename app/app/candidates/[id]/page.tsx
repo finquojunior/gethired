@@ -462,18 +462,21 @@ export default async function CandidatePage({
           <form key={t} action={updateTags}>
             <input type="hidden" name="applicationId" value={a.id} />
             <input type="hidden" name="remove" value={t} />
-            <button
-              className={cn(badgeVariants({ variant: 'secondary' }), 'cursor-pointer hover:bg-destructive/10 hover:text-destructive')}
+            <SubmitButton
+              variant="ghost"
+              size="xs"
+              pendingLabel="…"
+              className={cn(badgeVariants({ variant: 'secondary' }), 'h-auto cursor-pointer hover:bg-destructive/10 hover:text-destructive')}
               title="Remove tag"
             >
               {t} ✕
-            </button>
+            </SubmitButton>
           </form>
         ))}
         <form action={updateTags} className="flex items-center gap-1">
           <input type="hidden" name="applicationId" value={a.id} />
           <Input name="add" aria-label="New tag" placeholder="+ tag" className="h-6 w-28 px-2 text-xs" />
-          <SubmitButton variant="outline" size="xs" pendingLabel="…">Add</SubmitButton>
+          <SubmitButton variant="outline" size="xs" pendingLabel="…" doneMessage="Tags updated">Add</SubmitButton>
         </form>
       </div>
 
@@ -898,7 +901,7 @@ export default async function CandidatePage({
               <input type="hidden" name="applicationId" value={a.id} />
               <Input name="subject" required placeholder="Subject" />
               <Textarea name="body" required rows={3} placeholder="Message — sent as plain text and logged in the timeline" />
-              <SubmitButton pendingLabel="Sending…">Send email</SubmitButton>
+              <SubmitButton pendingLabel="Sending…" doneMessage="Email queued — it appears under Emails sent">Send email</SubmitButton>
             </form>
           </section>
 
@@ -907,7 +910,7 @@ export default async function CandidatePage({
             <form action={addNote} className="mt-3 flex gap-2">
               <input type="hidden" name="applicationId" value={a.id} />
               <Input name="body" placeholder="Add an internal note…" className="flex-1" />
-              <SubmitButton pendingLabel="Adding…">Add</SubmitButton>
+              <SubmitButton pendingLabel="Adding…" doneMessage="Note added">Add</SubmitButton>
             </form>
             <ul className="mt-3 space-y-2 text-sm">
               {notes.map((n, i) => (

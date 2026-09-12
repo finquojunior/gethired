@@ -1,11 +1,12 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import { toast } from '@/components/Toaster';
 
 // Plain-POST form that flips its buttons to a pending label on submit, so
 // candidates see something happening while the request is in flight.
+const STALL_MS = 15_000;
 export default function PostForm({
   pendingText = 'Sending…',
   submitToast,
@@ -20,10 +21,21 @@ export default function PostForm({
   confirmTitle?: string;
 }) {
   const [open, setOpen] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
   const confirmed = useRef(false);
+  // Watchdog: if the response never arrives, reload so the page shows what the server did.
+  useEffect(() => {
+    if (!submitted) return;
+    const t = setTimeout(() => {
+      toast('error', 'This is taking longer than usual — reloading to show the current state.');
+      setTimeout(() => window.location.reload(), 1500);
+    }, STALL_MS);
+    return () => clearTimeout(t);
+  }, [submitted]);
   const submitter = useRef<HTMLElement | null>(null);
 
   const markPending = (f: HTMLFormElement) => {
+    setSubmitted(true);
     if (submitToast) toast('success', submitToast);
     // after this tick, so button values still ride along in the POST
     setTimeout(() => {

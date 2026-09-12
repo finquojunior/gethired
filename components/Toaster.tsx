@@ -7,7 +7,7 @@ type ToastInput = { kind: 'success' | 'error'; message: string };
 
 /** Fire a toast from anywhere client-side. The sonner <Toaster> is mounted once in app/layout.tsx. */
 export function toast(kind: ToastInput['kind'], message: string) {
-  if (kind === 'success') sonner.success(message);
+  if (kind === 'success') sonner.success(message, { duration: 6000 });
   // errors stay until dismissed — the reader needs time to see what to fix
   else sonner.error(message, { duration: Infinity, closeButton: true });
 }

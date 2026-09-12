@@ -18,10 +18,10 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ token: str
      where a.portal_token = $1 and a.status = 'active'`,
     [token]
   );
-  if (!a || a.kind !== 'task') return back();
+  if (!a || a.kind !== 'task') return back('?e=oops');
 
   const response = String((await req.formData()).get('response'));
-  if (response !== 'yes' && response !== 'no') return back();
+  if (response !== 'yes' && response !== 'no') return back('?e=oops');
 
   // append-only: only insert when it actually changes, so the timeline stays clean
   const {

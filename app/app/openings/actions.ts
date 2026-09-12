@@ -85,7 +85,7 @@ export async function createOpening(formData: FormData) {
     return opening.id as number;
   });
   await audit(user.id, 'create', 'opening', id, { title });
-  redirect(`/app/openings/${id}`);
+  redirect(`/app/openings/${id}?ok=created`);
 }
 
 export async function updateOpening(formData: FormData) {
@@ -260,7 +260,7 @@ export async function deleteOpeningData(formData: FormData) {
     files: files.length,
   });
   revalidatePath('/careers');
-  redirect('/app/openings');
+  redirect('/app/openings?ok=deleted');
 }
 
 /**
@@ -316,7 +316,7 @@ export async function cloneOpening(formData: FormData) {
     return opening.id as number;
   });
   await audit(user.id, 'clone', 'opening', id, { from: sourceId });
-  redirect(`/app/openings/${id}`);
+  redirect(`/app/openings/${id}?ok=cloned`);
 }
 
 // --- stages ---
@@ -480,6 +480,7 @@ export async function deleteStage(formData: FormData) {
   });
   if (old?.brief_file_path) await deleteFile(old.brief_file_path);
   await audit(user.id, 'delete', 'stage', stageId);
+  redirect(`/app/openings/${openingId}/stages?ok=deleted`);
 }
 
 // --- team ---

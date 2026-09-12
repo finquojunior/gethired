@@ -15,7 +15,6 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select';
 import { Field } from '@/components/ui/field';
-import { Button } from '@/components/ui/button';
 
 export const dynamic = 'force-dynamic';
 
@@ -45,10 +44,10 @@ export default async function StagesPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ e?: string }>;
+  searchParams: Promise<{ e?: string; ok?: string }>;
 }) {
   const { id } = await params;
-  const { e } = await searchParams;
+  const { e, ok } = await searchParams;
   const openingId = Number(id);
   const {
     rows: [opening],
@@ -75,7 +74,7 @@ export default async function StagesPage({
 
   return (
     <div>
-      <Flash kind="error" message={e ? ERRORS[e] : null} />
+      <Flash kind={ok ? 'success' : 'error'} message={ok === 'deleted' ? 'Stage deleted' : e ? ERRORS[e] : null} />
       <BackButton fallback={`/app/openings/${openingId}`} />
       <h1 className="track font-display text-3xl font-bold">
         <Link href={`/app/openings/${openingId}`} className="text-muted-foreground hover:underline">
@@ -107,10 +106,10 @@ export default async function StagesPage({
             {/* Default submit target so Enter in the name field saves instead of hitting "Move up" */}
             <button type="submit" className="hidden" tabIndex={-1} aria-hidden />
             <div className="flex flex-col gap-1">
-              <Button type="submit" variant="ghost" size="icon-sm" formAction={shiftStage.bind(null, openingId, s.id, -1)} disabled={i === 0}
-                aria-label={`Move ${s.name} up`} title="Move up"><ArrowUp /></Button>
-              <Button type="submit" variant="ghost" size="icon-sm" formAction={shiftStage.bind(null, openingId, s.id, 1)} disabled={i === stages.length - 1}
-                aria-label={`Move ${s.name} down`} title="Move down"><ArrowDown /></Button>
+              <SubmitButton variant="ghost" size="icon-sm" formAction={shiftStage.bind(null, openingId, s.id, -1)} disabled={i === 0}
+                pendingLabel="…" aria-label={`Move ${s.name} up`} title="Move up"><ArrowUp /></SubmitButton>
+              <SubmitButton variant="ghost" size="icon-sm" formAction={shiftStage.bind(null, openingId, s.id, 1)} disabled={i === stages.length - 1}
+                pendingLabel="…" aria-label={`Move ${s.name} down`} title="Move down"><ArrowDown /></SubmitButton>
             </div>
             <div className="flex-1 space-y-2">
               <div className="flex flex-wrap items-center gap-2">

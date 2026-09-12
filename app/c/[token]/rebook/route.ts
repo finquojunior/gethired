@@ -26,9 +26,9 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ token: str
      where a.portal_token = $1 and a.status = 'active'`,
     [token]
   );
-  if (!a || !slotId) return back();
+  if (!a || !slotId) return back('?e=oops');
   if (a.old_starts.getTime() - Date.now() <= CHANGE_CUTOFF_MS) return back('?e=late');
-  if (slotId === a.old_id) return back();
+  if (slotId === a.old_id) return back('?e=oops');
 
   // release the old slot and claim the new one together; a lost race rolls both back
   const slot = await tx(async (c) => {

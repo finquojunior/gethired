@@ -2,6 +2,7 @@
 
 import { useRef, useState } from 'react';
 import { uploadErrorText } from '@/lib/uploads';
+import { toast } from '@/components/Toaster';
 import { Alert, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -73,6 +74,7 @@ export default function TaskSubmitForm({
       return;
     }
 
+    toast('success', 'Submitting your work…');
     const withFiles = items.filter((it) => it.file);
     if (!direct || withFiles.length === 0) {
       // plain submit carries the files — but repaint the busy state first

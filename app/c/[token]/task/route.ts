@@ -43,7 +43,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ token: str
      where a.portal_token = $1 and a.status = 'active'`,
     [token]
   );
-  if (!a || a.kind !== 'task') return back();
+  if (!a || a.kind !== 'task') return back('?e=oops');
 
   // no requirements defined → one generic "Your work" item, same as the portal renders
   const parsed = parseSubmissionFields(a.submission_fields);

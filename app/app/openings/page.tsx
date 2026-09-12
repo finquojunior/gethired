@@ -25,9 +25,9 @@ export const metadata = { title: 'Openings' };
 export default async function OpeningsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ show?: string; e?: string }>;
+  searchParams: Promise<{ show?: string; e?: string; ok?: string }>;
 }) {
-  const { show, e } = await searchParams;
+  const { show, e, ok } = await searchParams;
   const closed = show === 'closed';
   const user = await currentUser();
   const scope = await openingScope(user);
@@ -81,6 +81,7 @@ export default async function OpeningsPage({
       </div>
 
       {e && ERR[e] && <Flash kind="error" message={ERR[e]} cleanParams={['e']} />}
+      {ok === 'deleted' && <Flash kind="success" message="Opening deleted — its candidates, files and emails are gone" cleanParams={['ok']} />}
       {canCreate && (
       <form action={createOpening} className="mt-8 flex flex-wrap items-end gap-3">
         <Field className="min-w-56 flex-1">

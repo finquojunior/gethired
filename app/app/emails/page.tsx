@@ -63,7 +63,7 @@ export default async function EmailsPage({ searchParams }: { searchParams: Promi
         <h1 className="font-display text-3xl font-bold">Emails</h1>
         {isStaff(user) && (
         <form action={processOutbox} className="pb-1">
-          <SubmitButton variant="outline" pendingLabel="Processing…">
+          <SubmitButton variant="outline" pendingLabel="Processing…" doneMessage="Outbox processed — statuses updated below">
             Process outbox now
           </SubmitButton>
         </form>
@@ -142,7 +142,7 @@ export default async function EmailsPage({ searchParams }: { searchParams: Promi
                   {e.status === 'draft' && (
                     <form action={sendDraft}>
                       <input type="hidden" name="emailId" value={e.id} />
-                      <SubmitButton variant="link" size="sm" pendingLabel="Sending…">
+                      <SubmitButton variant="link" size="sm" pendingLabel="Sending…" doneMessage="Draft sent">
                         Send now
                       </SubmitButton>
                     </form>
@@ -150,7 +150,7 @@ export default async function EmailsPage({ searchParams }: { searchParams: Promi
                   {(e.status === 'pending' || e.status === 'draft') && (
                     <form action={cancelEmail}>
                       <input type="hidden" name="emailId" value={e.id} />
-                      <SubmitButton variant="destructive" size="sm" pendingLabel="Cancelling…" confirmText="Cancel this email? It will not be sent.">
+                      <SubmitButton variant="destructive" size="sm" pendingLabel="Cancelling…" doneMessage="Email cancelled" confirmText="Cancel this email? It will not be sent.">
                         Cancel this email
                       </SubmitButton>
                     </form>

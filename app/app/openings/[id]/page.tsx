@@ -109,7 +109,7 @@ export default async function OpeningPage({
     <div>
       <Flash
         kind={ok ? 'success' : 'error'}
-        message={ok === 'saved' ? 'Opening saved' : e === 'poster' ? 'Saved — but the poster was not accepted (JPG, PNG, or WebP up to 3 MB).' : e === 'slug' ? 'Not saved — that public link is empty or already used.' : e === 'department' ? 'Not saved — pick a department you belong to from the list.' : null}
+        message={ok === 'saved' ? 'Opening saved' : ok === 'created' ? 'Opening created — work through the setup checklist below' : ok === 'cloned' ? 'Draft created — a copy with the same stages, form, task brief and team' : e === 'poster' ? 'Saved — but the poster was not accepted (JPG, PNG, or WebP up to 3 MB).' : e === 'slug' ? 'Not saved — that public link is empty or already used.' : e === 'department' ? 'Not saved — pick a department you belong to from the list.' : null}
       />
       <BackButton fallback="/app/openings" />
       <div className="track flex flex-wrap items-end justify-between gap-3">

@@ -56,6 +56,7 @@ const ERROR_TEXT: Record<string, string> = {
   ratelimit: 'Too many attempts — wait a few minutes and try again.',
   nothing: 'Nothing new to submit — attach at least one file or link.',
   late: 'The interview is less than an hour away, so it can no longer be changed here.',
+  oops: 'That didn\'t go through — reload the page and try again.',
   pending: 'You already have a reschedule request awaiting a decision.',
   time: 'Pick a date and time at least an hour from now.',
 };

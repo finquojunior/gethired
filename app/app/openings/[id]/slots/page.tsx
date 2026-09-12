@@ -315,6 +315,7 @@ export default async function SlotsPage({
                       variant="destructive"
                       size="sm"
                       pendingLabel="Deleting…"
+                      doneMessage="Slot deleted"
                       confirmText={`Delete the ${fmtDateTime(s.starts_at)} slot?`}
                     >
                       Delete

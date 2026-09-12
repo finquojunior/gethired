@@ -31,7 +31,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ token: str
      where a.portal_token = $1 and a.status = 'active'`,
     [token]
   );
-  if (!a) return back();
+  if (!a) return back('?e=oops');
   if (!canChangeBooking(a.starts_at)) return back('?e=late');
 
   try {

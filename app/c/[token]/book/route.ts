@@ -17,14 +17,14 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ token: str
      where a.portal_token = $1 and a.status = 'active'`,
     [token]
   );
-  if (!a || !a.stage_id || !slotId) return back();
+  if (!a || !a.stage_id || !slotId) return back('?e=oops');
 
   // one booking per stage: bail if already booked
   const { rowCount: existing } = await q(
     `select 1 from public.slots where application_id = $1 and stage_id = $2`,
     [a.id, a.stage_id]
   );
-  if (existing) return back();
+  if (existing) return back('?e=oops');
 
   // atomic claim — the where clause loses the slot race gracefully; the unique
   // index loses the "double-click two slots at once" race, caught below
@@ -41,7 +41,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ token: str
       [a.id, slotId, a.stage_id]
     ));
   } catch (e) {
-    if ((e as { code?: string }).code === '23505') return back(); // already booked
+    if ((e as { code?: string }).code === '23505') return back('?e=oops'); // already booked
     throw e;
   }
   if (!slot) return back('?e=taken');

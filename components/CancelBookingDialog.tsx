@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import PostForm from '@/components/PostForm';
 
 /**
  * "Cancel booking" on the candidate portal. Cancelling means one of two things:
@@ -37,9 +38,9 @@ export default function CancelBookingDialog({ role, withdrawAction }: { role: st
             >
               No, I want to reschedule
             </Button>
-            <form method="post" action={withdrawAction}>
+            <PostForm method="post" action={withdrawAction} pendingText="Withdrawing…">
               <Button type="submit" variant="destructive">Yes, withdraw my application</Button>
-            </form>
+            </PostForm>
           </DialogFooter>
         </DialogContent>
       </Dialog>
