@@ -228,13 +228,23 @@ export default async function CandidatePage({
   const navQs = new URLSearchParams({ o: String(o ?? ''), ...ctx } as Record<string, string>).toString();
   let nav: { prev?: number; next?: number; pos: number; total: number } | null = null;
   if (Number(o) === a.opening_id) {
-    const { rows: ids } = await q<{ id: number }>(
-      `select a.id from public.applications a
-       ${FEEDBACK_JOIN}
-       where ${PIPELINE_WHERE}
-       order by ${PIPELINE_SORTS[ctx.sort ?? ''] ?? PIPELINE_SORTS.score}`,
-      pipelineWhereParams(a.opening_id, ctx)
-    );
+    const { rows: ids } = ctx.task
+      ? // same membership and order as the task page table (everyone who reached the stage, latest submission first)
+        await q<{ id: number }>(
+          `select a.id from public.applications a
+           where a.opening_id = $1 and (a.current_stage_id = $2 or exists (
+             select 1 from public.stage_history h where h.application_id = a.id and h.to_stage_id = $2))
+           order by (select max(su.created_at) from public.submissions su
+                      where su.application_id = a.id and su.stage_id = $2) desc nulls last, a.name`,
+          [a.opening_id, Number(ctx.task)]
+        )
+      : await q<{ id: number }>(
+          `select a.id from public.applications a
+           ${FEEDBACK_JOIN}
+           where ${PIPELINE_WHERE}
+           order by ${PIPELINE_SORTS[ctx.sort ?? ''] ?? PIPELINE_SORTS.score}`,
+          pipelineWhereParams(a.opening_id, ctx)
+        );
     const i = ids.findIndex((r) => r.id === appId);
     if (i !== -1) {
       nav = { prev: ids[i - 1]?.id, next: ids[i + 1]?.id, pos: i + 1, total: ids.length };
@@ -318,7 +328,8 @@ export default async function CandidatePage({
     const Icon = dir === 'prev' ? ChevronLeft : ChevronRight;
     const inner = dir === 'prev' ? (<><Icon data-icon="inline-start" />{label}</>) : (<>{label}<Icon data-icon="inline-end" /></>);
     return id ? (
-      <Link href={`/app/candidates/${id}?${navQs}`} className={buttonVariants({ variant: 'outline', size: 'sm' })}>
+      // replace: stepping through profiles leaves one history entry, so browser Back returns to the list
+      <Link href={`/app/candidates/${id}?${navQs}`} replace className={buttonVariants({ variant: 'outline', size: 'sm' })}>
         {inner}
       </Link>
     ) : (

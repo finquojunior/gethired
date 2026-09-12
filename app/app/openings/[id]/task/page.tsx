@@ -64,14 +64,8 @@ export default async function TaskPage({
     brief_links: string;
     submission_fields: unknown;
     task_days: number;
-    active: number;
-    submitted: number;
   }>(
-    `select s.id, s.name, s.brief, s.brief_file_path, s.brief_links, s.submission_fields, s.task_days,
-            (select count(*)::int from public.applications a
-              where a.current_stage_id = s.id and a.status = 'active') as active,
-            (select count(distinct su.application_id)::int from public.submissions su
-              where su.stage_id = s.id) as submitted
+    `select s.id, s.name, s.brief, s.brief_file_path, s.brief_links, s.submission_fields, s.task_days
      from public.stages s where s.opening_id = $1 and s.kind = 'task' order by s.position`,
     [openingId]
   );
@@ -83,6 +77,7 @@ export default async function TaskPage({
     id: number;
     name: string;
     status: string;
+    current_stage_id: number | null;
     current_stage: string | null;
     deadline: Date | null;
     submitted_at: Date | null;
@@ -91,7 +86,7 @@ export default async function TaskPage({
     latest_rating: number | null;
     rating_count: number;
   }>(
-    `select s.id as stage_id, a.id, a.name, a.status, cs.name as current_stage,
+    `select s.id as stage_id, a.id, a.name, a.status, a.current_stage_id, cs.name as current_stage,
             case when s.task_days > 0 then
               coalesce((select max(h.created_at) from public.stage_history h
                          where h.application_id = a.id and h.to_stage_id = s.id), a.created_at)
@@ -125,6 +120,19 @@ export default async function TaskPage({
     if (!candidatesByStage.has(c.stage_id)) candidatesByStage.set(c.stage_id, []);
     candidatesByStage.get(c.stage_id)!.push(c);
   }
+  // headline counts over candidates currently active in the stage
+  const stats = (stageId: number) => {
+    const now = (candidatesByStage.get(stageId) ?? []).filter((c) => c.status === 'active' && c.current_stage_id === stageId);
+    const n = (f: (c: (typeof now)[number]) => boolean) => now.filter(f).length;
+    return [
+      ['In stage', now.length],
+      ['Said yes', n((c) => c.response === 'yes')],
+      ['Said no', n((c) => c.response === 'no')],
+      ['No response', n((c) => !c.response)],
+      ['Submitted', n((c) => !!c.submitted_at)],
+      ['Yet to submit', n((c) => !c.submitted_at && c.response !== 'no')],
+    ] as const;
+  };
 
   const { rows: allStages } = await q<{ id: number; name: string }>(
     `select id, name from public.stages where opening_id = $1 order by position`,
@@ -183,14 +191,21 @@ export default async function TaskPage({
             <input type="hidden" name="documentPath" defaultValue="" />
             <div className="flex flex-wrap items-center gap-3">
               <h2 className="font-display text-lg font-semibold">{t.name}</h2>
-              <span className="text-sm text-muted-foreground">{t.active} active in this stage</span>
               <Link
                 href={`/app/openings/${openingId}/applications?stage=${t.id}`}
                 className="text-sm text-primary underline"
               >
-                {t.submitted} submitted
+                open in pipeline
               </Link>
             </div>
+            <dl className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-sm">
+              {stats(t.id).map(([label, n]) => (
+                <div key={label} className="flex items-baseline gap-1.5">
+                  <dd className="font-display text-lg font-semibold tabular-nums">{n}</dd>
+                  <dt className="text-muted-foreground">{label}</dt>
+                </div>
+              ))}
+            </dl>
 
             <div className="mt-4 space-y-4">
               <Field>
@@ -303,7 +318,7 @@ export default async function TaskPage({
                           <input type="checkbox" name="appId" value={c.id} aria-label={`Select ${c.name}`} />
                         </TableCell>
                         <TableCell className="px-0">
-                          <Link href={`/app/candidates/${c.id}`} className="font-medium hover:underline">
+                          <Link href={`/app/candidates/${c.id}?o=${openingId}&task=${t.id}`} className="font-medium hover:underline">
                             {c.name}
                           </Link>
                         </TableCell>
@@ -357,7 +372,7 @@ export default async function TaskPage({
                   <p className="mt-2 text-sm text-muted-foreground">No candidates have reached this stage yet.</p>
                 )}
                 {(candidatesByStage.get(t.id) ?? []).length > 0 && (
-                  <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border pt-3 text-sm">
+                  <div className="sticky bottom-0 z-10 mt-3 flex flex-wrap items-center gap-2 border-t border-border bg-card py-3 text-sm">
                     <BulkProgress />
                     <SelectedCount name="appId" />
                     <span className="text-muted-foreground">·</span>

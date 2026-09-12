@@ -30,7 +30,8 @@ export const FEEDBACK_JOIN = `left join lateral (
 
 export const isDate = (s: string) => /^\d{4}-\d{2}-\d{2}$/.test(s);
 
-export type PipelineCtx = { stage?: string; status?: string; from?: string; to?: string; sort?: string; q?: string };
+// task: stage id — prev/next then walks the task page's list instead of the pipeline list
+export type PipelineCtx = { stage?: string; status?: string; from?: string; to?: string; sort?: string; q?: string; task?: string };
 
 /** Query-string carrying the list's filter context into a candidate link. */
 export function pipelineCtxParams(openingId: number, ctx: PipelineCtx): string {

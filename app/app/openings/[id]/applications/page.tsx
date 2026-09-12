@@ -366,7 +366,7 @@ export default async function ApplicationsPage({
         </Card>
 
         {apps.length > 0 && (
-          <Card size="sm" className="mt-4">
+          <Card size="sm" className="sticky bottom-2 z-10 mt-4 shadow-md">
             <CardContent className="flex flex-wrap items-center gap-2 text-sm">
             <BulkProgress />
             <SelectedCount name="appId" />
