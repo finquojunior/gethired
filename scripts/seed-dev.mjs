@@ -5,6 +5,7 @@
 // priya@example.com (hr), arjun@example.com (dept_head, Development),
 // sara@example.com (interviewer).
 import { randomBytes, scryptSync } from 'node:crypto';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import pg from 'pg';
 
 const c = new pg.Client({ host: '127.0.0.1', port: 54322, user: 'postgres', database: 'gethired' });
@@ -168,4 +169,21 @@ const sample = apps.find((a) => a.stage === 'Interview' && a.opening === 'senior
 const taskOne = apps.find((a) => a.stage === 'Task');
 console.log(`portal (interview, can book): http://localhost:3002/c/${sample?.token}`);
 console.log(`portal (task round):         http://localhost:3002/c/${taskOne?.token}`);
+// sample rows above point at these two files; a one-page PDF so the resume preview and downloads work
+const PDF = `%PDF-1.4
+1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj
+2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj
+3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 595 842]/Contents 4 0 R/Resources<</Font<</F1 5 0 R>>>>>>endobj
+4 0 obj<</Length 60>>stream
+BT /F1 24 Tf 72 760 Td (Sample document - seed-dev) Tj ET
+endstream
+endobj
+5 0 obj<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>endobj
+trailer<</Root 1 0 R>>
+%%EOF
+`;
+for (const kind of ['resumes', 'submissions']) {
+  mkdirSync(`db/files/${kind}`, { recursive: true });
+  writeFileSync(`db/files/${kind}/0123456789abcdef01234567.pdf`, PDF);
+}
 await c.end();

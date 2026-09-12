@@ -183,7 +183,6 @@ export default async function TaskPage({
             fileField="document"
             maxBytes={TASK_MAX_BYTES}
             action={updateTaskMaterials}
-            encType="multipart/form-data"
             className="rounded-xl bg-card p-4 ring-1 ring-foreground/10"
           >
             <input type="hidden" name="openingId" value={openingId} />

@@ -80,7 +80,6 @@ export default async function AddCandidatePage({
         fileField="resume"
         maxBytes={RESUME_MAX_BYTES}
         action={addCandidate}
-        encType="multipart/form-data"
         className="mt-6 space-y-4"
       >
         <input type="hidden" name="openingId" value={openingId} />
