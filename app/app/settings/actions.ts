@@ -39,3 +39,18 @@ export async function saveTemplate(formData: FormData) {
   await audit(user.id, 'edit_template', 'email_template', key);
   revalidatePath('/app/settings');
 }
+
+export async function setResendLimits(formData: FormData) {
+  const user = await requireStaff();
+  const day = Math.floor(Number(formData.get('day')));
+  const month = Math.floor(Number(formData.get('month')));
+  if (!(day >= 1 && day <= 1_000_000 && month >= 1 && month <= 1_000_000)) return;
+  await q(
+    `insert into public.app_settings (key, value) values
+       ('resend_daily_limit', $1), ('resend_monthly_limit', $2)
+     on conflict (key) do update set value = excluded.value`,
+    [String(day), String(month)]
+  );
+  await audit(user.id, 'set_resend_limits', 'app_settings', 'resend_limits', { day, month });
+  revalidatePath('/app/settings');
+}

@@ -27,6 +27,17 @@ test('sendPlan: primary twice then fallback, skipping unconfigured services', ()
   assert.deepEqual(sendPlan('resend', { resend: false, gmail: false }), []);
 });
 
+test('sendPlan: an exhausted service is skipped and the other becomes primary', () => {
+  // Resend at its free-tier limit: gmail takes the primary slot (two tries), resend never tried
+  assert.deepEqual(sendPlan('resend', { resend: true, gmail: true }, { resend: true }), ['gmail', 'gmail']);
+  // gmail already primary: resend is dropped as the fallback
+  assert.deepEqual(sendPlan('gmail', { resend: true, gmail: true }, { resend: true }), ['gmail', 'gmail']);
+  // exhausted and nothing else configured: nothing to try (row fails, cron retries later)
+  assert.deepEqual(sendPlan('resend', { resend: true, gmail: false }, { resend: true }), []);
+  // not exhausted: unchanged behaviour
+  assert.deepEqual(sendPlan('resend', { resend: true, gmail: true }, { resend: false }), ['resend', 'resend', 'gmail']);
+});
+
 test('uploadedPathRe accepts only paths shaped like our minted uploads', () => {
   assert.ok(uploadedPathRe('briefs').test('briefs/0123456789abcdef01234567.pdf'));
   assert.ok(uploadedPathRe('submissions').test('submissions/0123456789abcdef01234567.zip'));

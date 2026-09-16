@@ -1,9 +1,9 @@
 import { q } from '@/lib/db';
 import { requireStaff } from '@/lib/auth';
-import { DEFAULT_TEMPLATES, getMailService, mailConfigured } from '@/lib/email';
+import { DEFAULT_TEMPLATES, getMailService, getMailUsage, mailConfigured, resendExhausted } from '@/lib/email';
 import { fmtDateTime } from '@/lib/tz';
 import SubmitButton from '@/components/SubmitButton';
-import { saveTemplate, setMailService } from './actions';
+import { saveTemplate, setMailService, setResendLimits } from './actions';
 import { Badge } from '@/components/ui/badge';
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
 import { Input } from '@/components/ui/input';
@@ -20,6 +20,12 @@ export default async function SettingsPage() {
   const isAdmin = user.role === 'admin';
   const mailService = await getMailService();
   const configured = mailConfigured();
+  const usage = await getMailUsage();
+  const overQuota = resendExhausted(usage);
+  // Resend's counters reset at UTC midnight / the 1st (UTC); shown in org time
+  const now = new Date();
+  const dayReset = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1));
+  const monthReset = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
 
   const { rows: overrides } = await q<{ key: string; subject: string; body: string }>(
     'select key, subject, body from public.email_templates'
@@ -69,7 +75,8 @@ export default async function SettingsPage() {
         <h2 className="font-display text-lg font-semibold">Mail service</h2>
         <p className="mt-2 text-sm text-muted-foreground">
           Which service sends candidate emails. If a send fails twice on the selected service, the
-          system automatically falls back to the other one.
+          system automatically falls back to the other one. When Resend reaches its daily or monthly
+          limit, everything goes through Gmail until the limit resets.
         </p>
         <form action={setMailService} className="mt-4 flex flex-wrap items-center gap-4">
           <label className="flex items-center gap-2 text-sm">
@@ -88,6 +95,55 @@ export default async function SettingsPage() {
           </label>
           <SubmitButton pendingLabel="Saving…" doneMessage="Mail service updated">
             Save
+          </SubmitButton>
+        </form>
+
+        <h3 className="mt-6 text-sm font-semibold">Emails sent</h3>
+        {overQuota && (
+          <p className="mt-2">
+            <Badge variant="destructive">Resend limit reached — sending via Gmail until reset</Badge>
+          </p>
+        )}
+        <table className="mt-2 w-full max-w-md text-sm">
+          <thead className="text-left text-xs text-muted-foreground">
+            <tr>
+              <th className="py-1 font-medium">Service</th>
+              <th className="py-1 font-medium">Today</th>
+              <th className="py-1 font-medium">This month</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr className="border-t">
+              <td className="py-1">Resend</td>
+              <td className={`py-1 tabular-nums ${usage.resend.day >= usage.limits.day ? 'text-destructive' : ''}`}>
+                {usage.resend.day} / {usage.limits.day}
+              </td>
+              <td className={`py-1 tabular-nums ${usage.resend.month >= usage.limits.month ? 'text-destructive' : ''}`}>
+                {usage.resend.month} / {usage.limits.month}
+              </td>
+            </tr>
+            <tr className="border-t">
+              <td className="py-1">Gmail</td>
+              <td className="py-1 tabular-nums">{usage.gmail.day}</td>
+              <td className="py-1 tabular-nums">{usage.gmail.month}</td>
+            </tr>
+          </tbody>
+        </table>
+        <p className="mt-2 text-xs text-muted-foreground">
+          Counted per UTC day and month, matching Resend. Day resets {fmtDateTime(dayReset)}; month resets{' '}
+          {fmtDateTime(monthReset)}.
+        </p>
+        <form action={setResendLimits} className="mt-3 flex flex-wrap items-end gap-3">
+          <label className="text-sm">
+            <span className="block text-xs text-muted-foreground">Resend daily limit</span>
+            <Input type="number" name="day" min={1} defaultValue={usage.limits.day} className="mt-1 w-28" required />
+          </label>
+          <label className="text-sm">
+            <span className="block text-xs text-muted-foreground">Resend monthly limit</span>
+            <Input type="number" name="month" min={1} defaultValue={usage.limits.month} className="mt-1 w-28" required />
+          </label>
+          <SubmitButton pendingLabel="Saving…" doneMessage="Resend limits updated">
+            Save limits
           </SubmitButton>
         </form>
       </section>

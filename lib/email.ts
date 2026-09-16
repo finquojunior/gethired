@@ -89,6 +89,53 @@ export async function getMailService(): Promise<MailService> {
   return row?.value === 'gmail' ? 'gmail' : 'resend';
 }
 
+/** Resend free tier: 100/day, 3000/month. Overridable from Settings (app_settings). */
+export const RESEND_DEFAULT_LIMITS = { day: 100, month: 3000 };
+
+export type MailUsage = {
+  resend: { day: number; month: number };
+  gmail: { day: number; month: number };
+  limits: { day: number; month: number };
+};
+
+/**
+ * Sent counts per service for the current UTC day and month (Resend's quota
+ * windows), plus the configured Resend limits. Fallback sends count toward the
+ * service that actually delivered.
+ */
+export async function getMailUsage(): Promise<MailUsage> {
+  const {
+    rows: [r],
+  } = await q<{
+    resend_day: number;
+    resend_month: number;
+    gmail_day: number;
+    gmail_month: number;
+    day_limit: string | null;
+    month_limit: string | null;
+  }>(
+    // ponytail: full scan of this month's sent rows (~1k); index sent_at if it ever matters
+    `select
+       count(*) filter (where service like 'resend%' and sent_at >= date_trunc('day', now(), 'UTC'))::int as resend_day,
+       count(*) filter (where service like 'resend%')::int as resend_month,
+       count(*) filter (where service like 'gmail%' and sent_at >= date_trunc('day', now(), 'UTC'))::int as gmail_day,
+       count(*) filter (where service like 'gmail%')::int as gmail_month,
+       (select value from public.app_settings where key = 'resend_daily_limit') as day_limit,
+       (select value from public.app_settings where key = 'resend_monthly_limit') as month_limit
+     from public.email_log
+     where status = 'sent' and sent_at >= date_trunc('month', now(), 'UTC')`
+  );
+  const lim = (v: string | null, d: number) => (v && Number(v) > 0 ? Number(v) : d);
+  return {
+    resend: { day: r.resend_day, month: r.resend_month },
+    gmail: { day: r.gmail_day, month: r.gmail_month },
+    limits: { day: lim(r.day_limit, RESEND_DEFAULT_LIMITS.day), month: lim(r.month_limit, RESEND_DEFAULT_LIMITS.month) },
+  };
+}
+
+export const resendExhausted = (u: MailUsage): boolean =>
+  u.resend.day >= u.limits.day || u.resend.month >= u.limits.month;
+
 let gmailTransport: import('nodemailer').Transporter | undefined;
 
 async function deliver(
@@ -156,7 +203,9 @@ export async function attemptSend(id: number, force?: MailService): Promise<void
 
   const configured = mailConfigured();
   const primary = await getMailService();
-  const plan = force ? (configured[force] ? [force] : []) : sendPlan(primary, configured);
+  // over the Resend quota: route through Gmail until the UTC day/month resets
+  const exhausted = force ? {} : { resend: resendExhausted(await getMailUsage()) };
+  const plan = force ? (configured[force] ? [force] : []) : sendPlan(primary, configured, exhausted);
 
   if (plan.length === 0) {
     if (process.env.NODE_ENV === 'production') {
