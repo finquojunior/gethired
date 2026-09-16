@@ -21,7 +21,7 @@ export const ORG_NAME = process.env.ORG_NAME ?? 'Finquo Junior';
 export const SUPPORT_EMAIL =
   process.env.SUPPORT_EMAIL ??
   /[^\s<>"]+@[^\s<>"]+/.exec(process.env.EMAIL_FROM ?? '')?.[0] ??
-  'hiring@finquojunior.com';
+  'hr@finquo.ai';
 
 // non-mutating: build a copy with the always-available vars added, rather than
 // pushing into the shared RAW_TEMPLATES objects (which tests import directly).

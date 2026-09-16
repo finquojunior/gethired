@@ -13,7 +13,7 @@ screening to hire.
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Deployed on Vercel](https://img.shields.io/badge/Vercel-deployed-black?logo=vercel)](https://vercel.com)
 
-Live at **[hiring.finquojunior.com](https://hiring.finquojunior.com)**
+Live at **[hiring.finquo.ai](https://hiring.finquo.ai)**
 
 </div>
 
