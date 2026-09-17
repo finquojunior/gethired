@@ -5,7 +5,7 @@ Sentry.init({
   enabled: process.env.NODE_ENV === 'production',
   // candidate PII (name/email/phone) travels through forms — keep bodies out
   dataCollection: { userInfo: false, httpBodies: [] },
-  tracesSampleRate: 0.1,
+  tracesSampleRate: 1.0, // low traffic; every apply/server-action request is worth a trace
   replaysSessionSampleRate: 0,
   replaysOnErrorSampleRate: 1.0,
   integrations: [Sentry.replayIntegration({ maskAllText: true, blockAllMedia: true })],
