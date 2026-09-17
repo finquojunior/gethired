@@ -1,5 +1,5 @@
 import * as Sentry from '@sentry/nextjs';
-import { NextResponse, type NextRequest } from 'next/server';
+import { after, NextResponse, type NextRequest } from 'next/server';
 import { runCronWork } from '@/lib/cron-work';
 
 // The scheduled tick. Hit every 15 min by .github/workflows/cron.yml and once a
@@ -21,5 +21,8 @@ export async function GET(req: NextRequest) {
     maxRuntime: 5,
     timezone: 'Etc/UTC',
   });
+  // Vercel freezes the function once the response is sent; make sure the
+  // closing check-in leaves before that happens
+  after(() => Sentry.flush(2000));
   return NextResponse.json(result);
 }

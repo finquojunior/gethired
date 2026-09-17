@@ -5,6 +5,10 @@ Sentry.init({
   enabled: process.env.NODE_ENV === 'production',
   // candidate PII (name/email/phone) travels through forms — keep bodies out
   dataCollection: { userInfo: false, httpBodies: [] },
+  // in-app browsers (Instagram/Facebook/WebView bridges) and extensions inject
+  // their own scripts into our pages; their crashes are not ours
+  ignoreErrors: [/window\.webkit\.messageHandlers/, /sendDataToNative/, /ResizeObserver loop/],
+  denyUrls: [/extensions\//i, /^chrome:\/\//i, /^safari-extension:\/\//i],
   tracesSampleRate: 1.0, // low traffic; every apply/server-action request is worth a trace
   replaysSessionSampleRate: 0,
   replaysOnErrorSampleRate: 1.0,
