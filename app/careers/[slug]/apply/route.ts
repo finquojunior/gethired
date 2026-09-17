@@ -8,6 +8,7 @@ import { portalUrl, sendEmail } from '@/lib/email';
 import { RESUME_EXTS, RESUME_MAX_BYTES, saveUpload } from '@/lib/storage';
 import { uploadedPathRe } from '@/lib/uploads';
 import { computeMaxScore, computeScore, validateAnswers, type FormSchema } from '@/lib/form-schema';
+import { QUALIFIED_MIN_PCT, sendMetaEvent } from '@/lib/meta';
 
 const UTM_KEYS = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term'];
 
@@ -166,6 +167,24 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ slug: stri
         vars: { name, role: c.title, portal_link: portalUrl(c.portal_token) },
       }).catch((e) => console.error('application_received email failed', e))
     );
+    // Meta Conversions API: mirror the browser's SubmitApplication (same event_id),
+    // plus a server-only QualifiedApplication so ads can optimise toward good applicants
+    const eventId = String(fd.get('eventId') ?? '').slice(0, 64) || crypto.randomUUID();
+    const meta = {
+      email,
+      phone,
+      fullName: name,
+      url: new URL(`/careers/${slug}`, req.url).toString(),
+      ip: clientIp(req.headers),
+      userAgent: req.headers.get('user-agent') ?? '',
+      fbp: req.cookies.get('_fbp')?.value,
+      fbc: req.cookies.get('_fbc')?.value,
+    };
+    const qualified = maxScore > 0 && (score / maxScore) * 100 >= QUALIFIED_MIN_PCT;
+    after(async () => {
+      await sendMetaEvent({ ...meta, name: 'SubmitApplication', eventId });
+      if (qualified) await sendMetaEvent({ ...meta, name: 'QualifiedApplication', eventId: `${eventId}-q` });
+    });
   }
 
   // the portal link goes in the response too, so a lost/late email never locks the candidate out

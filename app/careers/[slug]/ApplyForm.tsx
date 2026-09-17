@@ -145,6 +145,9 @@ export default function ApplyForm({
     setServerError('');
     try {
       const fd = new FormData();
+      // shared with the server's Conversions API call so Meta dedups the two
+      const eventId = crypto.randomUUID();
+      fd.set('eventId', eventId);
       fd.set('formId', String(formId));
       fd.set('name', core.name);
       fd.set('email', core.email);
@@ -182,6 +185,9 @@ export default function ApplyForm({
         store.set(doneKey, d);
         setDone(d);
         setStatus('done');
+        if (!/@finquo\.ai$|\+test/i.test(core.email)) {
+          window.fbq?.('trackCustom', 'SubmitApplication', {}, { eventID: eventId });
+        }
         const url = new URL(window.location.href);
         url.searchParams.set('submitted', '1');
         window.history.replaceState(null, '', url);
