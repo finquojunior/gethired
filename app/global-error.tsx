@@ -1,5 +1,6 @@
 'use client';
 
+import * as Sentry from '@sentry/nextjs';
 import { useEffect } from 'react';
 // the root layout (and its stylesheet) is gone when this renders
 import './globals.css';
@@ -15,6 +16,7 @@ export default function GlobalError({
   reset: () => void;
 }) {
   useEffect(() => {
+    Sentry.captureException(error);
     fetch('/api/errlog', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },

@@ -1,4 +1,5 @@
 import type { NextConfig } from 'next';
+import { withSentryConfig } from '@sentry/nextjs/config';
 
 const nextConfig: NextConfig = {
   // pg is Node-only; keep it out of the bundler (fixes "Can't resolve 'fs'"
@@ -30,4 +31,11 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+export default withSentryConfig(nextConfig, {
+  org: 'nahyans-org',
+  project: 'gethired',
+  authToken: process.env.SENTRY_AUTH_TOKEN, // source-map upload only; build works without it
+  widenClientFileUpload: true,
+  tunnelRoute: '/monitoring',
+  silent: !process.env.CI,
+});

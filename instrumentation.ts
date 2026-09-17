@@ -1,10 +1,17 @@
 import type { Instrumentation } from 'next';
+import * as Sentry from '@sentry/nextjs';
+
+export async function register() {
+  if (process.env.NEXT_RUNTIME === 'nodejs') await import('./sentry.server.config');
+  if (process.env.NEXT_RUNTIME === 'edge') await import('./sentry.edge.config');
+}
 
 // Catches every uncaught server-side error (pages, route handlers, server
-// actions) across all users and reports it over HTTP to our own /api/errlog.
+// actions) across all users: Sentry first, then our own /api/errlog.
 // Deliberately no direct db import: this file is also compiled for the edge
 // runtime, where Node-only packages like pg cannot resolve.
 export const onRequestError: Instrumentation.onRequestError = async (err, request, context) => {
+  Sentry.captureRequestError(err, request, context);
   try {
     const e = err instanceof Error ? err : new Error(String(err));
     const base = process.env.APP_URL ?? 'http://localhost:3000';

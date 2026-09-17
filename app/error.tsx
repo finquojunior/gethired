@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import * as Sentry from '@sentry/nextjs';
 import { useEffect, useState } from 'react';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader } from '@/components/ui/empty';
@@ -16,6 +17,7 @@ export default function ErrorBoundary({
 }) {
   const [support, setSupport] = useState('');
   useEffect(() => {
+    Sentry.captureException(error);
     setSupport(document.querySelector('meta[name="support-email"]')?.getAttribute('content') ?? '');
     fetch('/api/errlog', {
       method: 'POST',
