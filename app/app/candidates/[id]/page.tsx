@@ -43,6 +43,7 @@ import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
 import { buttonVariants } from '@/components/ui/button';
 import { Field } from '@/components/ui/field';
 import { cn } from '@/lib/utils';
+import { isSilentStage } from '@/lib/stages';
 
 export const dynamic = 'force-dynamic';
 
@@ -365,6 +366,9 @@ export default async function CandidatePage({
     );
   };
 
+  const currentStage = stages.find((s) => s.id === a.current_stage_id);
+  const parked = isSilentStage(currentStage?.kind);
+
   const flash = pipelineFlash(ok, err);
   return (
     <div>
@@ -499,8 +503,19 @@ export default async function CandidatePage({
         {a.status === 'active' ? (
           <>
             <SubmitButton variant="outline" name="intent" value="hire" className="text-primary" pendingLabel="Hiring…" confirmText={`Mark ${a.name} as hired? They will get the congratulations email.`}>Mark hired</SubmitButton>
-            <SubmitButton variant="destructive" name="intent" value="reject_send" pendingLabel="Rejecting…" confirmText={`Reject ${a.name} and email them now?`}>Reject + email now</SubmitButton>
-            <SubmitButton variant="destructive" name="intent" value="reject_draft" pendingLabel="Rejecting…" confirmText={`Reject ${a.name}? The email is drafted in Emails for you to send later.`} title="Rejects and drafts the email — send it manually from the Emails tab">Reject + draft email</SubmitButton>
+            <SubmitButton variant="destructive" name="intent" value="reject_send" pendingLabel="Rejecting…"
+              confirmText={parked
+                ? `Reject ${a.name} and send the “we couldn’t reach you” email? It tells them we tried to reach them several times, could not connect, and are moving on. It goes out immediately.`
+                : `Reject ${a.name} and email them now?`}>
+              {parked ? 'Reject + no-response email' : 'Reject + email now'}
+            </SubmitButton>
+            <SubmitButton variant="destructive" name="intent" value="reject_draft" pendingLabel="Rejecting…"
+              confirmText={parked
+                ? `Reject ${a.name}? The “we couldn’t reach you” email is drafted in Emails for you to send later.`
+                : `Reject ${a.name}? The email is drafted in Emails for you to send later.`}
+              title="Rejects and drafts the email — send it manually from the Emails tab">
+              {parked ? 'Reject + draft no-response' : 'Reject + draft email'}
+            </SubmitButton>
             <SubmitButton variant="outline" name="intent" value="withdraw" pendingLabel="Updating…" confirmText={`Mark ${a.name} as withdrawn? No email is sent.`} title="For candidates who told you they are no longer interested">Mark withdrawn</SubmitButton>
           </>
         ) : (
@@ -508,8 +523,19 @@ export default async function CandidatePage({
         )}
       </form>
       <p className="mt-2 text-xs text-muted-foreground">
-        Task and interview stages email instructions; other forward moves send a short update;
-        backward moves never email. Untick the box to move silently.
+        {parked ? (
+          <>
+            {a.name} is parked in <strong>{currentStage?.name}</strong>: nothing has been emailed and
+            their status page shows no change. Try them again, and when you give up, reject above —
+            they get the &ldquo;we couldn&apos;t reach you&rdquo; email rather than the standard
+            rejection. Moving them back to a normal stage resumes the usual emails.
+          </>
+        ) : (
+          <>
+            Task and interview stages email instructions; other forward moves send a short update;
+            backward moves never email. Untick the box to move silently.
+          </>
+        )}
       </p>
 
       <div className="mt-8 grid gap-8 lg:grid-cols-2">

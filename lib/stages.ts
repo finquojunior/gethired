@@ -7,6 +7,10 @@ export const STAGE_KINDS = ['screen', 'task', 'task_review', 'interview', 'inter
  */
 export const SILENT_KINDS: readonly string[] = ['no_response'];
 
+/** Is this stage kind a silent parking stage? */
+export const isSilentStage = (kind: string | null | undefined): boolean =>
+  SILENT_KINDS.includes(kind ?? '');
+
 /**
  * What the candidate's portal track shows: the silent stages removed, and the
  * highlighted index. Parked in a silent stage, the track stays on the last
@@ -16,11 +20,11 @@ export function visibleTrack<T extends { id: number; kind: string; position: num
   all: T[],
   currentStageId: number | null
 ): { stages: T[]; at: number } {
-  const stages = all.filter((s) => !SILENT_KINDS.includes(s.kind));
+  const stages = all.filter((s) => !isSilentStage(s.kind));
   const current = all.find((s) => s.id === currentStageId);
   const at = !current
     ? 0
-    : SILENT_KINDS.includes(current.kind)
+    : isSilentStage(current.kind)
       ? Math.max(0, stages.filter((s) => s.position < current.position).length - 1)
       : Math.max(0, stages.findIndex((s) => s.id === current.id));
   return { stages, at };

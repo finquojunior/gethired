@@ -11,13 +11,19 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ token: str
 
   const {
     rows: [a],
-  } = await q<{ id: number; name: string; email: string; portal_token: string; stage_id: number | null; title: string }>(
-    `select a.id, a.name, a.email, a.portal_token, a.current_stage_id as stage_id, o.title
-     from public.applications a join public.openings o on o.id = a.opening_id
+  } = await q<{ id: number; name: string; email: string; portal_token: string; stage_id: number | null; kind: string | null; title: string }>(
+    `select a.id, a.name, a.email, a.portal_token, a.current_stage_id as stage_id, s.kind, o.title
+     from public.applications a
+     join public.openings o on o.id = a.opening_id
+     left join public.stages s on s.id = a.current_stage_id
      where a.portal_token = $1 and a.status = 'active'`,
     [token]
   );
   if (!a || !a.stage_id || !slotId) return back('?e=oops');
+  // Only an interview stage can be booked into. Parking someone in a "No response"
+  // stage must close booking for good, not merely hide the list — the form can
+  // still be posted from a stale tab. Guarded here like the task routes do.
+  if (a.kind !== 'interview') return back('?e=notopen');
 
   // one booking per stage: bail if already booked
   const { rowCount: existing } = await q(

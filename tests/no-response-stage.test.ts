@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { STAGE_KINDS, SILENT_KINDS, visibleTrack } from '../lib/stages.ts';
+import { STAGE_KINDS, SILENT_KINDS, isSilentStage, visibleTrack } from '../lib/stages.ts';
 import { DEFAULT_TEMPLATES } from '../lib/email-templates.ts';
 
 const stages = [
@@ -48,4 +48,13 @@ test('no_response_rejection covers both routes without naming a channel', () => 
 test('no stale unreachable_* names survive the rename', () => {
   assert.equal(DEFAULT_TEMPLATES.unreachable_rejection, undefined);
   assert.ok(!(STAGE_KINDS as readonly string[]).includes('unreachable'));
+});
+
+test('isSilentStage drives the parked UI and tolerates a missing stage', () => {
+  assert.equal(isSilentStage('no_response'), true);
+  assert.equal(isSilentStage('interview'), false);
+  assert.equal(isSilentStage('screen'), false);
+  // a candidate with no current stage must not read as parked
+  assert.equal(isSilentStage(null), false);
+  assert.equal(isSilentStage(undefined), false);
 });

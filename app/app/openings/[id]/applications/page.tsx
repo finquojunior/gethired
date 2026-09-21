@@ -13,7 +13,7 @@ import OpeningTabs from '@/components/OpeningTabs';
 import { bulkPipeline } from '@/app/app/candidates/actions';
 import { pipelineFlash } from '@/app/app/candidates/flash';
 import BoardView from './BoardView';
-import { AlertTriangle, CheckCircle2, Plus } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Info, Plus } from 'lucide-react';
 import {
   FEEDBACK_JOIN,
   PIPELINE_SORTS as SORTS,
@@ -33,6 +33,7 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@
 import { Field } from '@/components/ui/field';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
+import { isSilentStage } from '@/lib/stages';
 
 export const dynamic = 'force-dynamic';
 
@@ -90,6 +91,9 @@ export default async function ApplicationsPage({
   );
 
   const stageId = stage ? Number(stage) : null;
+  // Filtered to a parking stage: everyone on screen stopped responding, so the
+  // reject buttons say which mail they send instead of leaving it to guesswork.
+  const parked = isSilentStage(stages.find((s) => s.id === stageId)?.kind);
   const ctx = { stage, status, from, to, sort, q: term };
   const { rows: apps } = await q<{
     id: number;
@@ -218,6 +222,19 @@ export default async function ApplicationsPage({
           {tab(`${base}?status=withdrawn`, 'Withdrawn', status === 'withdrawn')}
         </div>
       </div>
+
+      {parked && (
+        <Alert className="mt-4">
+          <Info className="text-primary" />
+          <AlertTitle>These candidates stopped responding</AlertTitle>
+          <AlertDescription>
+            Moving someone into this stage never emails them, and it stays hidden from their status
+            page — so it is safe to park people here between attempts. Once you have given up,
+            reject from here and they get the &ldquo;we couldn&apos;t reach you&rdquo; email
+            explaining we tried several times, instead of the standard rejection.
+          </AlertDescription>
+        </Alert>
+      )}
 
       <form method="get" className="mt-4 flex flex-wrap items-end gap-2 text-sm">
         {stage && <input type="hidden" name="stage" value={stage} />}
@@ -398,8 +415,19 @@ export default async function ApplicationsPage({
             {status === 'active' ? (
               <>
                 <SubmitButton name="intent" value="hire" variant="outline" size="sm" className="text-primary" pendingLabel="Hiring…" confirmText="Mark {n} candidate(s) as hired? They will each get the congratulations email.">Mark hired</SubmitButton>
-                <SubmitButton name="intent" value="reject_send" variant="destructive" size="sm" pendingLabel="Rejecting…" confirmText="Reject {n} candidate(s) and email them now? This cannot be undone quietly — the email goes out immediately.">Reject + email now</SubmitButton>
-                <SubmitButton name="intent" value="reject_draft" variant="destructive" size="sm" pendingLabel="Rejecting…" confirmText="Reject {n} candidate(s)? The rejection email is drafted in Emails for you to send later." title="Rejects and drafts the email — send it manually from the Emails tab">Reject + draft email</SubmitButton>
+                <SubmitButton name="intent" value="reject_send" variant="destructive" size="sm" pendingLabel="Rejecting…"
+                  confirmText={parked
+                    ? 'Reject {n} candidate(s) and send the “we couldn’t reach you” email? It tells them we tried to reach them several times, could not connect, and are moving on. It goes out immediately.'
+                    : 'Reject {n} candidate(s) and email them now? This cannot be undone quietly — the email goes out immediately.'}>
+                  {parked ? 'Reject + no-response email' : 'Reject + email now'}
+                </SubmitButton>
+                <SubmitButton name="intent" value="reject_draft" variant="destructive" size="sm" pendingLabel="Rejecting…"
+                  confirmText={parked
+                    ? 'Reject {n} candidate(s)? The “we couldn’t reach you” email is drafted in Emails for you to send later.'
+                    : 'Reject {n} candidate(s)? The rejection email is drafted in Emails for you to send later.'}
+                  title="Rejects and drafts the email — send it manually from the Emails tab">
+                  {parked ? 'Reject + draft no-response' : 'Reject + draft email'}
+                </SubmitButton>
                 <SubmitButton name="intent" value="withdraw" variant="outline" size="sm" pendingLabel="Updating…" confirmText="Mark {n} candidate(s) as withdrawn? No email is sent." title="For candidates who told you they are no longer interested">Mark withdrawn</SubmitButton>
               </>
             ) : (

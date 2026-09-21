@@ -48,6 +48,7 @@ const OK_TEXT: Record<string, string> = {
 
 const ERROR_TEXT: Record<string, string> = {
   taken: 'That slot was just taken — pick another one.',
+  notopen: 'Interview booking is not open for your application right now.',
   file: `Submission failed — check what the task asks for: a file (${TASK_TYPE_HELP}) and/or a valid link starting with http.`,
   required: 'A required item is missing — attach every item marked "required" before submitting.',
   link: 'That link is not valid — it must start with http:// or https://.',
