@@ -5,6 +5,7 @@ import * as Sentry from '@sentry/nextjs';
 import { useEffect, useState } from 'react';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader } from '@/components/ui/empty';
+import { reloadIfStaleBundle } from '@/lib/stale-bundle';
 
 // Route-level error boundary: shows a friendly recovery UI and reports the
 // error (any user, staff or candidate) to the admin error log.
@@ -18,6 +19,8 @@ export default function ErrorBoundary({
   const [support, setSupport] = useState('');
   useEffect(() => {
     Sentry.captureException(error);
+    // a tab left open across a deploy: the new bundle fixes it, so reload rather than show this page
+    if (reloadIfStaleBundle(error)) return;
     setSupport(document.querySelector('meta[name="support-email"]')?.getAttribute('content') ?? '');
     fetch('/api/errlog', {
       method: 'POST',

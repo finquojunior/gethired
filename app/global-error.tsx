@@ -6,6 +6,7 @@ import { useEffect } from 'react';
 import './globals.css';
 import { Button } from '@/components/ui/button';
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader } from '@/components/ui/empty';
+import { reloadIfStaleBundle } from '@/lib/stale-bundle';
 
 // Last-resort boundary (errors in the root layout itself).
 export default function GlobalError({
@@ -17,6 +18,7 @@ export default function GlobalError({
 }) {
   useEffect(() => {
     Sentry.captureException(error);
+    if (reloadIfStaleBundle(error)) return;
     fetch('/api/errlog', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
