@@ -386,6 +386,15 @@ export async function importCsv(formData: FormData) {
     `select id from public.forms where opening_id = $1 order by is_published desc, version desc limit 1`,
     [openingId]
   );
+  // Imported candidates start in the first stage, exactly as the public form and
+  // the manual add do. Without this they land with no stage at all: no feedback
+  // form on their profile, no stage tab, and a blank track in their portal.
+  const {
+    rows: [first],
+  } = await q<{ id: number }>(
+    `select id from public.stages where opening_id = $1 order by position limit 1`,
+    [openingId]
+  );
   const VALID = new Set(['active', 'hired', 'rejected', 'withdrawn']);
   let imported = 0;
   let skipped = 0;
@@ -401,10 +410,17 @@ export async function importCsv(formData: FormData) {
       const {
         rows: [app],
       } = await q<{ id: number }>(
-        `insert into public.applications (opening_id, form_id, name, email, phone, status, utm)
-         values ($1, $2, $3, $4, $5, $6, '{"utm_source":"import"}') returning id`,
-        [openingId, form.id, name, email, col(r, 'phone').slice(0, 50), status]
+        `insert into public.applications
+           (opening_id, form_id, name, email, phone, status, utm, current_stage_id)
+         values ($1, $2, $3, $4, $5, $6, '{"utm_source":"import"}', $7) returning id`,
+        [openingId, form.id, name, email, col(r, 'phone').slice(0, 50), status, first?.id ?? null]
       );
+      if (first) {
+        await q(
+          `insert into public.stage_history (application_id, to_stage_id, changed_by) values ($1, $2, $3)`,
+          [app.id, first.id, user.id]
+        );
+      }
       const note = col(r, 'notes').slice(0, 2000);
       if (note) {
         await q(`insert into public.notes (application_id, author_id, body) values ($1, $2, $3)`, [

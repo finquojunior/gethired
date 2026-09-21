@@ -465,6 +465,16 @@ export async function deleteStage(formData: FormData) {
   if (!owned) return;
   if (active > 0) redirect(`/app/openings/${openingId}/stages?e=hasCandidates`);
   if (booked > 0) redirect(`/app/openings/${openingId}/stages?e=hasBookings`);
+  // An opening with no stages still accepts applications, and every applicant
+  // then lands with no stage — no feedback form, no stage tab, blank portal
+  // track. The re-parent below has nowhere to move people to either.
+  const {
+    rows: [{ remaining }],
+  } = await q<{ remaining: number }>(
+    `select count(*)::int - 1 as remaining from public.stages where opening_id = $1`,
+    [openingId]
+  );
+  if (remaining < 1) redirect(`/app/openings/${openingId}/stages?e=lastStage`);
   const {
     rows: [old],
   } = await q<{ brief_file_path: string }>(

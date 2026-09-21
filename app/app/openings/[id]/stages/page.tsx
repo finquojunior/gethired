@@ -30,6 +30,7 @@ const KIND_HELP: Record<string, string> = {
 const ERRORS: Record<string, string> = {
   hasCandidates: 'That stage still has active candidates — move them out first.',
   hasBookings: 'That stage has booked future interviews — cancel them from the candidate pages first.',
+  lastStage: 'An opening needs at least one stage — add another before deleting this one. Without stages, anyone who applies lands with no stage at all.',
 };
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
