@@ -12,6 +12,7 @@ import DownloadLink from '@/components/DownloadLink';
 import OpeningTabs from '@/components/OpeningTabs';
 import { bulkPipeline } from '@/app/app/candidates/actions';
 import { pipelineFlash } from '@/app/app/candidates/flash';
+import ResultForm from '@/components/ResultForm';
 import BoardView from './BoardView';
 import { AlertTriangle, CheckCircle2, Info, Plus } from 'lucide-react';
 import {
@@ -135,7 +136,6 @@ export default async function ApplicationsPage({
     const qs = p.toString();
     return qs ? `${base}?${qs}` : base;
   };
-  const backHref = withView(board ? 'board' : undefined);
   const flash =
     pipelineFlash(ok, e) ??
     (imported != null
@@ -286,9 +286,8 @@ export default async function ApplicationsPage({
           }))}
         />
       ) : (
-      <form action={bulkPipeline} className="mt-6">
+      <ResultForm action={bulkPipeline} className="mt-6">
         <input type="hidden" name="openingId" value={openingId} />
-        <input type="hidden" name="back" value={backHref} />
         <Card className="py-0">
         <Table>
           <TableHeader>
@@ -446,7 +445,7 @@ export default async function ApplicationsPage({
             send it; &quot;Mark withdrawn&quot; never emails.
           </p>
         )}
-      </form>
+      </ResultForm>
       )}
     </div>
   );

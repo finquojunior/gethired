@@ -14,6 +14,7 @@ import OpeningTabs from '@/components/OpeningTabs';
 import TaskSortSelect from '@/components/TaskSortSelect';
 import { updateTaskMaterials } from '../../actions';
 import { bulkPipeline } from '@/app/app/candidates/actions';
+import ResultForm from '@/components/ResultForm';
 import { pipelineFlash } from '@/app/app/candidates/flash';
 import SelectAll, { SelectedCount } from '@/components/SelectAll';
 import BulkProgress from '@/components/BulkProgress';
@@ -316,9 +317,8 @@ export default async function TaskPage({
               </div>
             </CardHeader>
             <CardContent>
-              <form action={bulkPipeline}>
+              <ResultForm action={bulkPipeline}>
                 <input type="hidden" name="openingId" value={openingId} />
-                <input type="hidden" name="back" value={`/app/openings/${openingId}/task`} />
                 <Table>
                   <TableHeader>
                     <TableRow className="text-xs uppercase tracking-wide text-muted-foreground hover:bg-transparent">
@@ -411,7 +411,7 @@ export default async function TaskPage({
                     </label>
                   </div>
                 )}
-              </form>
+              </ResultForm>
             </CardContent>
           </Card>
           </div>

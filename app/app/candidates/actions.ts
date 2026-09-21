@@ -14,6 +14,7 @@ import { BOOKED_SLOT_COLS, freeFutureSlots, notifyBooking, type BookedSlot } fro
 import { RESUME_EXTS, RESUME_MAX_BYTES, saveUpload } from '@/lib/storage';
 import { uploadedPathRe } from '@/lib/uploads';
 import { nextReviewStage } from '@/lib/advance';
+import type { ActionResult } from '@/components/useActionResult';
 import { SILENT_KINDS } from '@/lib/stages';
 
 /** Only paths starting with /app/ may be used as a post-action redirect target. */
@@ -178,22 +179,22 @@ export async function moveOne(openingId: number, applicationId: number, stageId:
 }
 
 /**
- * Bulk pipeline action from the applications table and the candidate page
- * (move / reject / restore / hire / withdraw). Redirects back to `back` with
- * `?ok=<intent>:<n>` or `?e=nothing` so the page can report what happened.
+ * Bulk pipeline action from the applications table, the candidate page and the
+ * task page (move / reject / restore / hire / withdraw). Returns its outcome
+ * rather than redirecting, so a lost response cannot take the page with it —
+ * the caller toasts the result and refreshes in place. See useActionResult.
  */
-export async function bulkPipeline(formData: FormData) {
+export async function bulkPipeline(formData: FormData): Promise<ActionResult> {
   const openingId = Number(formData.get('openingId'));
   const user = await requireOpeningAccess(openingId);
   const ids = formData.getAll('appId').map(Number).filter(Boolean);
   const intent = String(formData.get('intent'));
-  const back = safeBack(formData.get('back'), `/app/openings/${openingId}/applications`);
-  if (ids.length === 0) redirect(withParam(back, 'e', 'nothing'));
+  if (ids.length === 0) return { error: 'nothing' };
 
   let n = 0;
   if (intent === 'move') {
     const stageId = Number(formData.get('stageId'));
-    if (!stageId) redirect(withParam(back, 'e', 'nothing'));
+    if (!stageId) return { error: 'nothing' };
     n = await moveApplications(user.id, openingId, ids, stageId, formData.get('notify') != null);
   } else if (intent === 'reject_send' || intent === 'reject_draft') {
     const { rows: apps } = await q<{ id: number; name: string; email: string; title: string; stage_kind: string | null }>(
@@ -263,9 +264,9 @@ export async function bulkPipeline(formData: FormData) {
     n = hired.length;
     await audit(user.id, 'hire', 'application', ids.join(','));
   } else {
-    redirect(withParam(back, 'e', 'nothing'));
+    return { error: 'nothing' };
   }
-  redirect(n === 0 ? withParam(back, 'e', 'nothing') : withParam(back, 'ok', `${intent}:${n}`));
+  return n === 0 ? { error: 'nothing' } : { ok: `${intent}:${n}` };
 }
 
 /** Staff edits a candidate's contact details (typos from walk-in entry). */

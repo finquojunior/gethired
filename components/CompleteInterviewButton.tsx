@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import StarRating from '@/components/StarRating';
-import { useDialogAction, type ActionResult } from '@/components/useDialogAction';
+import { useDialogAction, type ActionResult } from '@/components/useActionResult';
 
 /**
  * "Mark completed" for a held interview: opens a prompt for the star rating and

@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Field } from '@/components/ui/field';
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select';
-import { useDialogAction, type ActionResult } from '@/components/useDialogAction';
+import { useDialogAction, type ActionResult } from '@/components/useActionResult';
 
 export type RescheduleRequestView = {
   id: number;

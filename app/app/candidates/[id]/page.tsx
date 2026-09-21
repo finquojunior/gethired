@@ -31,6 +31,7 @@ import {
   updateTags,
 } from '../actions';
 import { pipelineFlash } from '../flash';
+import ResultForm from '@/components/ResultForm';
 import { AlertTriangle, ChevronLeft, ChevronRight, ExternalLink } from 'lucide-react';
 import { Badge, badgeVariants } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -478,10 +479,9 @@ export default async function CandidatePage({
         </form>
       </div>
 
-      <form action={bulkPipeline} className="mt-6 flex flex-wrap items-center gap-2 rounded-xl bg-card px-4 py-3 text-sm ring-1 ring-foreground/10">
+      <ResultForm action={bulkPipeline} className="mt-6 flex flex-wrap items-center gap-2 rounded-xl bg-card px-4 py-3 text-sm ring-1 ring-foreground/10">
         <input type="hidden" name="openingId" value={a.opening_id} />
         <input type="hidden" name="appId" value={a.id} />
-        <input type="hidden" name="back" value={`${selfHref}?${navQs}`} />
         <label className="sr-only" htmlFor="stageId">Stage to move to</label>
         <NativeSelect className="w-44" id="stageId" name="stageId" size="sm" defaultValue={a.current_stage_id ?? undefined}>
           {stages.map((s) => (
@@ -515,7 +515,7 @@ export default async function CandidatePage({
         ) : (
           <SubmitButton variant="outline" name="intent" value="restore" pendingLabel="Restoring…">Restore to active</SubmitButton>
         )}
-      </form>
+      </ResultForm>
       <p className="mt-2 text-xs text-muted-foreground">
         {parked ? (
           <>
