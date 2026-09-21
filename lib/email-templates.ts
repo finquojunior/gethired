@@ -46,6 +46,11 @@ export const DEFAULT_TEMPLATES: Record<string, { subject: string; body: string; 
     body: `Hi {{name}},\n\nThank you for applying for {{role}}. After careful review we won't be moving forward with your application this time.\n\nWe'd love to see you apply again for future roles — see what's open at {{careers_link}}\n` + SIGN,
     vars: ['name', 'role', 'careers_link'],
   },
+  no_response_rejection: {
+    subject: 'Update on your application — {{role}} at {{org}}',
+    body: `Hi {{name}},\n\nThank you for your interest in the {{role}} role at {{org}}.\n\nWe've tried to reach you several times to take your application forward, but we haven't been able to connect or hear back from you. As we need to keep this role moving, we have decided to progress with other candidates.\n\nThis is in no way a reflection of your application — we simply weren't able to get in touch. If the timing wasn't right for you, we'd be glad to hear from you again; you can see what's currently open at {{careers_link}}\n\nThank you for the time you gave us.\n` + SIGN,
+    vars: ['name', 'role', 'careers_link'],
+  },
   booking_cancelled: {
     subject: 'Interview cancelled — {{role}} at {{org}}',
     body: `Hi {{name}},\n\nYour interview for {{role}} on {{when}} has been cancelled by our team.\n\nIf there are open slots you can pick a new time on your status page:\n{{portal_link}}\n\nOtherwise we'll be in touch to reschedule.\n` + SIGN,

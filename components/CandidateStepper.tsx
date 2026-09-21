@@ -2,6 +2,7 @@ import { Check } from 'lucide-react';
 import { q } from '@/lib/db';
 import { Alert, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
+import { visibleTrack } from '@/lib/stages';
 
 const OUTCOME: Record<string, { text: string; cls: string }> = {
   hired: { text: 'Outcome: offer', cls: 'border-primary bg-secondary text-primary' },
@@ -31,12 +32,12 @@ export default async function CandidateStepper({
       </Alert>
     );
   }
-  const { rows: stages } = await q<{ id: number; name: string }>(
-    `select id, name from public.stages where opening_id = $1 order by position, id`,
+  const { rows: all } = await q<{ id: number; name: string; kind: string; position: number }>(
+    `select id, name, kind, position from public.stages where opening_id = $1 order by position, id`,
     [openingId]
   );
+  const { stages, at } = visibleTrack(all, currentStageId);
   if (stages.length === 0) return null;
-  const at = Math.max(0, stages.findIndex((s) => s.id === currentStageId));
   return (
     <ol className="mt-6 flex flex-wrap items-center gap-y-2" aria-label="Application progress">
       {stages.map((s, i) => (

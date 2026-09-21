@@ -14,6 +14,7 @@ import { BOOKED_SLOT_COLS, freeFutureSlots, notifyBooking, type BookedSlot } fro
 import { RESUME_EXTS, RESUME_MAX_BYTES, saveUpload } from '@/lib/storage';
 import { uploadedPathRe } from '@/lib/uploads';
 import { nextReviewStage } from '@/lib/advance';
+import { SILENT_KINDS } from '@/lib/stages';
 
 /** Only paths starting with /app/ may be used as a post-action redirect target. */
 function safeBack(raw: unknown, fallback: string): string {
@@ -121,9 +122,16 @@ async function moveApplications(
   });
   if (moved.length > 0) {
     const movedIds = moved.map((m) => m.id);
-    await freeFutureSlots(movedIds, stageId, { notifyCandidate: email });
-    if (email) await notifyStage(moved, stageId);
-    await audit(userId, 'move_stage', 'application', movedIds.join(','), { stageId, email });
+    // A move into a silent stage ("No response") is an internal mark: no stage
+    // update, and no booking-cancelled mail either when it frees a booked slot.
+    // The interviewer is still told their slot was released.
+    const {
+      rows: [target],
+    } = await q<{ kind: string }>(`select kind from public.stages where id = $1`, [stageId]);
+    const notify = email && !SILENT_KINDS.includes(target?.kind ?? '');
+    await freeFutureSlots(movedIds, stageId, { notifyCandidate: notify });
+    if (notify) await notifyStage(moved, stageId);
+    await audit(userId, 'move_stage', 'application', movedIds.join(','), { stageId, email: notify });
   }
   return moved.length;
 }
@@ -188,18 +196,22 @@ export async function bulkPipeline(formData: FormData) {
     if (!stageId) redirect(withParam(back, 'e', 'nothing'));
     n = await moveApplications(user.id, openingId, ids, stageId, formData.get('notify') != null);
   } else if (intent === 'reject_send' || intent === 'reject_draft') {
-    const { rows: apps } = await q<{ id: number; name: string; email: string; title: string }>(
+    const { rows: apps } = await q<{ id: number; name: string; email: string; title: string; stage_kind: string | null }>(
       `update public.applications a set status = 'rejected'
        from public.openings o
        where a.id = any($1) and a.opening_id = $2 and o.id = a.opening_id and a.status = 'active'
-       returning a.id, a.name, a.email, o.title`,
+       returning a.id, a.name, a.email, o.title,
+         (select s.kind from public.stages s where s.id = a.current_stage_id) as stage_kind`,
       [ids, openingId]
     );
     await freeFutureSlots(apps.map((a) => a.id), null);
     for (const a of apps) {
       await sendEmail({
         applicationId: a.id,
-        template: 'rejection',
+        // rejecting from a "No response" stage means they never came back to us —
+        // unanswered calls or an interview invite they never booked. That mail
+        // says so instead of the generic "after careful review".
+        template: SILENT_KINDS.includes(a.stage_kind ?? '') ? 'no_response_rejection' : 'rejection',
         to: a.email,
         vars: { name: a.name, role: a.title },
         // drafts sit in the Emails tab until staff send them manually

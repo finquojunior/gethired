@@ -25,6 +25,7 @@ const KIND_HELP: Record<string, string> = {
   interview: 'enables Interview slots; moving a candidate here emails an invite to pick a slot',
   interview_review: 'where candidates land automatically once the interview is marked completed and rated; emails "thanks for interviewing"',
   offer: 'feeds the "At offer stage" dashboard count',
+  no_response: 'silent parking stage for candidates who stopped responding — calls they never answered, or an interview invite they never booked. Moving someone here emails nothing and stays hidden from their portal; reject from here to send the "we could not reach you" mail.',
 };
 const ERRORS: Record<string, string> = {
   hasCandidates: 'That stage still has active candidates — move them out first.',

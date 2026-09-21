@@ -27,9 +27,18 @@ test('review_stages migration is idempotent and every task/interview stage is fo
   }
   try {
     const sql = fs.readFileSync(MIGRATION_PATH, 'utf8');
+    // Replay the backfill block only. The migration's leading DDL re-declares
+    // stages_kind_check with the kind list as of its own date, so replaying it
+    // verbatim against head would reject kinds that later migrations added
+    // (e.g. 'no_response'). The backfill is what this test is about.
+    const start = sql.indexOf('do $$');
+    assert.notEqual(start, -1, 'backfill block not found in the migration');
+    const backfill = sql.slice(start);
 
+    // In a transaction we roll back, so the test never mutates the dev database.
+    await c.query('begin');
     const before = await c.query('select count(*)::int as n from public.stages');
-    await c.query(sql);
+    await c.query(backfill);
     const after = await c.query('select count(*)::int as n from public.stages');
     assert.equal(
       after.rows[0].n,
@@ -63,6 +72,7 @@ test('review_stages migration is idempotent and every task/interview stage is fo
       `task/interview stages not immediately followed by their review stage: ${JSON.stringify(badPairs)}`
     );
   } finally {
+    await c.query('rollback').catch(() => {});
     await c.end();
   }
 });

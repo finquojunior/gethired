@@ -3,7 +3,8 @@ import BackButton from '@/components/BackButton';
 import { notFound } from 'next/navigation';
 import { q } from '@/lib/db';
 import { canAccessOpening, currentUser } from '@/lib/auth';
-import { ORG_TZ, fmtDate, fmtDateTime, fmtDay } from '@/lib/tz';
+import { ORG_TZ, daysUntil, fmtDate, fmtDateTime, fmtDay } from '@/lib/tz';
+import { cn } from '@/lib/utils';
 import SubmitButton from '@/components/SubmitButton';
 import Flash from '@/components/Flash';
 import OpeningTabs from '@/components/OpeningTabs';
@@ -20,6 +21,9 @@ import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from '@/components/u
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
 
 export const dynamic = 'force-dynamic';
+
+/** Days in an interview stage without booking before the wait is worth acting on. */
+const NUDGE_DAYS = 3;
 
 const TZ_LABEL = ORG_TZ === 'Asia/Kolkata' ? 'IST' : `org local time, ${ORG_TZ}`;
 const ERRORS: Record<string, string> = {
@@ -162,6 +166,9 @@ export default async function SlotsPage({
             <h2 className="font-display text-lg font-semibold">Waiting to book</h2>
             <p className="mt-1 text-sm text-muted-foreground">
               Invited to an interview stage but no slot booked yet — worth a nudge if slots are open.
+              If they never book, move them to <strong>No response</strong> (which emails nothing)
+              and reject from there; they get the &ldquo;we couldn&apos;t reach you&rdquo; mail rather
+              than a plain rejection.
             </p>
             <Card className="mt-2 py-0">
               <Table>
@@ -170,11 +177,14 @@ export default async function SlotsPage({
                     <TableHead className="px-4">Candidate</TableHead>
                     <TableHead className="px-4">Stage</TableHead>
                     <TableHead className="px-4">In stage since</TableHead>
+                    <TableHead className="px-4">Waiting</TableHead>
                     <TableHead className="px-4">Open slots</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {waiting.map((w) => (
+                  {waiting.map((w) => {
+                    const days = -daysUntil(w.since);
+                    return (
                     <TableRow key={w.id}>
                       <TableCell className="px-4">
                         <Link href={`/app/candidates/${w.id}`} className="text-primary underline">{w.name}</Link>
@@ -182,11 +192,15 @@ export default async function SlotsPage({
                       </TableCell>
                       <TableCell className="px-4">{w.stage}</TableCell>
                       <TableCell className="px-4">{fmtDateTime(w.since)}</TableCell>
+                      <TableCell className={cn('px-4 tabular-nums', days >= NUDGE_DAYS ? 'font-medium' : 'text-muted-foreground')}>
+                        {days <= 0 ? 'today' : `${days} day${days === 1 ? '' : 's'}`}
+                      </TableCell>
                       <TableCell className="px-4">
                         {w.open > 0 ? w.open : <Badge variant="destructive">none</Badge>}
                       </TableCell>
                     </TableRow>
-                  ))}
+                    );
+                  })}
                 </TableBody>
               </Table>
             </Card>

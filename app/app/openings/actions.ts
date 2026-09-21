@@ -21,6 +21,9 @@ const DEFAULT_STAGES: Array<[string, string]> = [
   ['Interview', 'interview'],
   ['Interview review', 'interview_review'],
   ['Offer', 'offer'],
+  // parking stage for candidates who stopped responding — unanswered calls and
+  // unbooked interview invites alike; entering it is silent
+  ['No response', 'no_response'],
 ];
 
 function slugify(title: string): string {

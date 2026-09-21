@@ -58,7 +58,7 @@ for (const [slug, title, department, status, location, type, salary, desc] of op
     [slug, title, department, status, location, type, salary, desc, ADMIN]);
   const { rows: [f] } = await c.query(`insert into public.forms (opening_id, schema, is_published, version) values ($1, $2, true, 1) returning id`, [o.id, JSON.stringify(schema)]);
   await c.query(`insert into public.forms (opening_id, schema, is_published, version) values ($1, $2, false, 2)`, [o.id, JSON.stringify(schema)]);
-  const stageRows = [['Applied', 'screen'], ['Shortlist', 'screen'], ['Task', 'task'], ['Task review', 'task_review'], ['Interview', 'interview'], ['Interview review', 'interview_review'], ['Offer', 'offer']];
+  const stageRows = [['Applied', 'screen'], ['Shortlist', 'screen'], ['Task', 'task'], ['Task review', 'task_review'], ['Interview', 'interview'], ['Interview review', 'interview_review'], ['Offer', 'offer'], ['No response', 'no_response']];
   const S = {};
   for (const [i, [name, kind]] of stageRows.entries()) {
     const { rows: [s] } = await c.query(
