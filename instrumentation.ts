@@ -14,22 +14,25 @@ export const onRequestError: Instrumentation.onRequestError = async (err, reques
   Sentry.captureRequestError(err, request, context);
   try {
     const e = err instanceof Error ? err : new Error(String(err));
+    const ctx = {
+      path: request.path,
+      method: request.method,
+      routeType: context.routeType,
+      routePath: context.routePath,
+      digest: (e as { digest?: string }).digest ?? '',
+    };
+    if (process.env.NEXT_RUNTIME === 'nodejs') {
+      // straight to the table: the HTTP route below rate-limits per IP and would
+      // drop our own reports after 20 in five minutes
+      const { logError } = await import('@/lib/log');
+      await logError('server', e, ctx);
+      return;
+    }
     const base = process.env.APP_URL ?? 'http://localhost:3000';
     await fetch(`${base}/api/errlog`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        source: 'server',
-        message: e.message,
-        stack: e.stack ?? '',
-        context: {
-          path: request.path,
-          method: request.method,
-          routeType: context.routeType,
-          routePath: context.routePath,
-          digest: (e as { digest?: string }).digest ?? '',
-        },
-      }),
+      body: JSON.stringify({ source: 'server', message: e.message, stack: e.stack ?? '', context: ctx }),
     });
   } catch (reportErr) {
     console.error('error reporting failed', reportErr, 'original:', err);

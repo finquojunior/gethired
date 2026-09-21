@@ -198,14 +198,11 @@ export default async function CandidatePage({
   const reqIds = new Set(requirements.map((r) => r.id));
   const extraSubs = subs.filter((s) => !reqIds.has(s.field_id));
 
-  const {
-    rows: [stageInfo],
-  } = await q<{ kind: string; name: string } | never>(
-    `select kind, name from public.stages where id = $1`,
-    [a.current_stage_id]
-  );
+  const currentStage = stages.find((s) => s.id === a.current_stage_id);
+  // booked in *this* interview stage — an earlier stage's completed slot must not hide the picker
+  const bookedHere = slots.some((s) => Number(s.stage_id) === Number(a.current_stage_id));
   const openSlots =
-    a.status === 'active' && stageInfo?.kind === 'interview' && slots.length === 0
+    a.status === 'active' && currentStage?.kind === 'interview' && !bookedHere
       ? (
           await q<{ id: number; starts_at: Date; interviewer: string }>(
             `select sl.id, sl.starts_at, p.full_name as interviewer
@@ -220,7 +217,7 @@ export default async function CandidatePage({
   if (moreSlots) openSlots.pop();
   // invited to interview but nothing to book — the invite email already went out
   const noOpenSlots =
-    a.status === 'active' && stageInfo?.kind === 'interview' && slots.length === 0 && openSlots.length === 0;
+    a.status === 'active' && currentStage?.kind === 'interview' && !bookedHere && openSlots.length === 0;
 
   const scoreForms = feedbackForms(
     stages.map((s) => ({ id: Number(s.id), name: s.name, kind: s.kind })),
@@ -361,7 +358,6 @@ export default async function CandidatePage({
     );
   };
 
-  const currentStage = stages.find((s) => s.id === a.current_stage_id);
   const parked = isSilentStage(currentStage?.kind);
 
   const flash = pipelineFlash(ok, err);
@@ -687,7 +683,7 @@ export default async function CandidatePage({
             {noOpenSlots && (
               <Alert variant="destructive" className="mt-3">
                 <AlertTriangle />
-                <AlertTitle>No open slots for {stageInfo?.name ?? 'this stage'}.</AlertTitle>
+                <AlertTitle>No open slots for {currentStage?.name ?? 'this stage'}.</AlertTitle>
                 <AlertDescription>
                   {a.name} has the interview invite but nothing to book.{' '}
                   <Link href={`/app/openings/${a.opening_id}/slots`}>Create slots</Link>
@@ -852,7 +848,7 @@ export default async function CandidatePage({
                       />
                       <SubmitButton
                         pendingLabel="Saving…"
-                        doneMessage={my ? 'Feedback updated' : 'Feedback saved'}
+                        doneMessage={willAutoMove ? undefined : my ? 'Feedback updated' : 'Feedback saved'}
                         {...(willAutoMove
                           ? {
                               confirmText: `Saving a rating moves ${a.name} to the ${sf.kind === 'task' ? 'Task review' : 'Interview review'} stage and emails them. Continue?`,

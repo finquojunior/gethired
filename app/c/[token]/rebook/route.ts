@@ -1,4 +1,4 @@
-import { NextResponse, type NextRequest } from 'next/server';
+import { after, NextResponse, type NextRequest } from 'next/server';
 import { q, tx } from '@/lib/db';
 import { audit } from '@/lib/audit';
 import { BOOKED_SLOT_COLS, notifyBooking, type BookedSlot } from '@/lib/slots';
@@ -47,14 +47,20 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ token: str
   if (!slot) return back('?e=taken');
 
   await audit(null, 'rebooked_slot', 'application', a.id, { from: a.old_id, to: slotId });
-  if (a.old_interviewer_email) {
-    await sendEmail({
-      applicationId: a.id,
-      template: 'interviewer_cancelled',
-      to: a.old_interviewer_email,
-      vars: { name: a.name, role: a.title, when: fmtDateTimeFull(a.old_starts) },
-    });
-  }
-  await notifyBooking(a, slot);
+  after(async () => {
+    try {
+      if (a.old_interviewer_email) {
+        await sendEmail({
+          applicationId: a.id,
+          template: 'interviewer_cancelled',
+          to: a.old_interviewer_email,
+          vars: { name: a.name, role: a.title, when: fmtDateTimeFull(a.old_starts) },
+        });
+      }
+      await notifyBooking(a, slot);
+    } catch (e) {
+      console.error('rebook emails failed', e);
+    }
+  });
   return back('?ok=rebooked');
 }

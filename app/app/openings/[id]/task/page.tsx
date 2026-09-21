@@ -15,10 +15,8 @@ import TaskSortSelect from '@/components/TaskSortSelect';
 import { updateTaskMaterials } from '../../actions';
 import { bulkPipeline } from '@/app/app/candidates/actions';
 import ResultForm from '@/components/ResultForm';
-import { pipelineFlash } from '@/app/app/candidates/flash';
 import SelectAll, { SelectedCount } from '@/components/SelectAll';
 import BulkProgress from '@/components/BulkProgress';
-import Flash from '@/components/Flash';
 import { AlertTriangle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -46,10 +44,10 @@ export default async function TaskPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ ok?: string; e?: string; sort?: string }>;
+  searchParams: Promise<{ e?: string; sort?: string }>;
 }) {
   const { id } = await params;
-  const { ok, e: errorCode, sort } = await searchParams;
+  const { e: errorCode, sort } = await searchParams;
   // fixed order-by fragments only — never user input. Default clusters deadlines
   // yet to come at the top (soonest first), then candidates with no deadline,
   // then overdue ones at the bottom (most recently overdue first).
@@ -63,7 +61,6 @@ export default async function TaskPage({
     rating: 'latest_rating desc nulls last, lower(name)',
   };
   const sortKey = Object.hasOwn(TASK_SORTS, sort ?? '') ? sort! : 'deadline';
-  const flash = pipelineFlash(ok, errorCode);
   const openingId = Number(id);
   const {
     rows: [opening],
@@ -158,7 +155,6 @@ export default async function TaskPage({
 
   return (
     <div>
-      <Flash kind={flash?.kind ?? 'success'} message={flash?.message} />
       <BackButton fallback={`/app/openings/${openingId}`} />
       <h1 className="track font-display text-3xl font-bold">
         <Link href={`/app/openings/${openingId}`} className="text-muted-foreground hover:underline">
@@ -205,6 +201,7 @@ export default async function TaskPage({
             <input type="hidden" name="openingId" value={openingId} />
             <input type="hidden" name="stageId" value={t.id} />
             <input type="hidden" name="documentPath" defaultValue="" />
+            <input type="hidden" name="documentSig" defaultValue="" />
             <div className="flex flex-wrap items-center gap-3">
               <h2 className="font-display text-lg font-semibold">{t.name}</h2>
               <Link

@@ -27,6 +27,8 @@ const ERR_TEXT: Record<string, string> = {
   time: 'Enter a date and time in the future.',
   link: 'Paste the meeting link or location for the new slot.',
   interviewer: 'Pick an interviewer.',
+  stale: 'That form was out of date — the page has been refreshed, please try again.',
+  csv: 'CSV must be under 2 MB with at least name and email columns.',
 };
 
 export function pipelineFlash(ok?: string, e?: string): { kind: 'success' | 'error'; message: string } | null {

@@ -25,7 +25,8 @@ export default async function FormBuilderPage({ params }: { params: Promise<{ id
     rows: [opening],
   } = await q<{ title: string }>('select title from public.openings where id = $1', [openingId]);
   if (!opening) notFound();
-  if (!(await canAccessOpening(await currentUser(), openingId))) notFound();
+  const user = await currentUser();
+  if (!(await canAccessOpening(user, openingId))) notFound();
 
   const {
     rows: [draft],
@@ -35,6 +36,7 @@ export default async function FormBuilderPage({ params }: { params: Promise<{ id
      order by version desc limit 1`,
     [openingId]
   );
+  if (!draft) notFound(); // every opening keeps a draft row; without one there is nothing to edit
   const {
     rows: [published],
   } = await q<{ version: number }>(
@@ -43,7 +45,7 @@ export default async function FormBuilderPage({ params }: { params: Promise<{ id
   );
   const { rows: otherOpenings } = await q<{ id: number; title: string }>(
     `select id, title from public.openings where id <> $1 and ${scopeSql('id', 2)} order by created_at desc limit 31`,
-    [openingId, await openingScope(await currentUser())]
+    [openingId, await openingScope(user)]
   );
   const moreOpenings = otherOpenings.length > 30;
   if (moreOpenings) otherOpenings.pop();

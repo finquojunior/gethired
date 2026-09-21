@@ -241,9 +241,9 @@ export async function attemptSend(id: number, force?: MailService): Promise<void
     }
   }
   await q(
-    `update public.email_log set status = 'failed', attempts = attempts + $2,
-       error = $3, service = $4 where id = $1`,
-    [id, plan.length, lastError, plan[plan.length - 1]]
+    `update public.email_log set status = 'failed', attempts = attempts + 1,
+       error = $2, service = $3 where id = $1`,
+    [id, lastError, plan[plan.length - 1]]
   );
 }
 
@@ -283,6 +283,8 @@ export function icsEvent(opts: {
   location?: string;
 }): string {
   const fmt = (d: Date) => d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+  // RFC 5545 TEXT: backslash, semicolon, comma and newline must be escaped
+  const esc = (s: string) => s.replace(/\\/g, '\\\\').replace(/[;,]/g, (m) => `\\${m}`).replace(/\r?\n/g, '\\n');
   const end = new Date(opts.startsAt.getTime() + opts.durationMins * 60_000);
   return [
     'BEGIN:VCALENDAR',
@@ -293,10 +295,10 @@ export function icsEvent(opts: {
     `DTSTAMP:${fmt(new Date())}`,
     `DTSTART:${fmt(opts.startsAt)}`,
     `DTEND:${fmt(end)}`,
-    `SUMMARY:${opts.title}`,
-    opts.description ? `DESCRIPTION:${opts.description.replace(/\n/g, '\\n')}` : '',
+    `SUMMARY:${esc(opts.title)}`,
+    opts.description ? `DESCRIPTION:${esc(opts.description)}` : '',
     opts.url ? `URL:${opts.url}` : '',
-    opts.location ? `LOCATION:${opts.location.replace(/,/g, '\\,')}` : '',
+    opts.location ? `LOCATION:${esc(opts.location)}` : '',
     'END:VEVENT',
     'END:VCALENDAR',
   ]

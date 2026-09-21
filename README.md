@@ -184,9 +184,10 @@ and the post-deploy smoke test.
 
 - Migrations in `supabase/migrations/` apply unchanged to hosted Supabase via
   `supabase db push`
-- The scheduled tick (email outbox, reminders, auto-close) runs from
-  [`.github/workflows/cron.yml`](.github/workflows/cron.yml) every 15 minutes,
-  with a daily `vercel.json` cron as a fallback
+- The scheduled tick (email outbox, reminders, auto-close) runs every 15 minutes
+  from pg_cron inside Supabase (URL and token in Vault, see the deploy checklist),
+  with [`.github/workflows/cron.yml`](.github/workflows/cron.yml) and a daily
+  `vercel.json` cron as fallbacks
 - `GET /api/health` reports `ok`, `email_configured`, `storage_configured`
 
 ## Docs

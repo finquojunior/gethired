@@ -54,7 +54,7 @@ export async function tx<T>(fn: (c: import('pg').PoolClient) => Promise<T>): Pro
     await c.query('commit');
     return out;
   } catch (e) {
-    await c.query('rollback');
+    await c.query('rollback').catch(() => {}); // keep the original error if the connection is gone
     throw e;
   } finally {
     c.release();

@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import StarRating from '@/components/StarRating';
-import { useDialogAction, type ActionResult } from '@/components/useActionResult';
+import { useActionResult, type ActionResult } from '@/components/useActionResult';
 
 /**
  * "Mark completed" for a held interview: opens a prompt for the star rating and
@@ -26,7 +26,7 @@ export default function CompleteInterviewButton({
   when: string;
 }) {
   const [open, setOpen] = useState(false);
-  const { submit, pending } = useDialogAction(action, () => setOpen(false));
+  const { submit, pending } = useActionResult(action, () => setOpen(false));
 
   return (
     <>

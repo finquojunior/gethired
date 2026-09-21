@@ -44,10 +44,10 @@ export default async function OpeningsPage({
     title: string;
     department: string;
     status: string;
-    applications: string;
+    applications: number;
   }>(
     `select o.id, o.title, o.department, o.status,
-            count(a.id) as applications
+            count(a.id)::int as applications
      from public.openings o
      left join public.applications a on a.opening_id = o.id
      where (o.status = 'closed') = $1 and ${scopeSql('o.id', 2)}
@@ -116,7 +116,7 @@ export default async function OpeningsPage({
                 <div className="text-sm text-muted-foreground">{o.department || '—'}</div>
               </div>
               <div className="flex items-center gap-4 text-sm">
-                <span className="text-muted-foreground">{o.applications} candidate{o.applications === '1' ? '' : 's'}</span>
+                <span className="text-muted-foreground">{o.applications} candidate{o.applications === 1 ? '' : 's'}</span>
                 <Badge variant={STATUS_BADGE[o.status]?.variant ?? 'outline'} className={STATUS_BADGE[o.status]?.className}>
                   {o.status}
                 </Badge>

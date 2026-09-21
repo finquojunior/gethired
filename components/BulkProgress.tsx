@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { useFormStatus } from 'react-dom';
 import { usePathname, useSearchParams } from 'next/navigation';
 
 // Indeterminate progress bar shown while a bulk form action is in flight.
@@ -12,8 +13,9 @@ import { usePathname, useSearchParams } from 'next/navigation';
 // never showed for exactly the multi-candidate moves that take the longest.
 // The submit event fires for both the direct and the confirmed path.
 //
-// The bar clears when the action's redirect lands (pathname/search change), with
-// a safety timeout for the rare redirect back to an identical URL.
+// The bar clears when the form stops being pending (ResultForm actions return
+// in place), when a redirect lands (pathname/search change), or after a safety
+// timeout.
 const MAX_MS = 30_000;
 
 export default function BulkProgress() {
@@ -21,8 +23,11 @@ export default function BulkProgress() {
   const [n, setN] = useState<number | null>(null);
   const pathname = usePathname();
   const search = useSearchParams().toString();
+  const { pending } = useFormStatus();
 
-  // the bulk action redirects on completion; hide once that navigation settles
+  useEffect(() => {
+    if (!pending) setN(null);
+  }, [pending]);
   useEffect(() => {
     setN(null);
   }, [pathname, search]);

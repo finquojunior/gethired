@@ -84,6 +84,7 @@ export async function runCronWork() {
        and not exists (
          select 1 from public.email_log e
          where e.application_id = t.application_id and e.template = 'task_reminder'
+           and e.created_at > t.deadline - interval '2 days'
        )`
   );
   for (const r of dueTasks) {

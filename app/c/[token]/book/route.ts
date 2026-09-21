@@ -1,6 +1,7 @@
-import { NextResponse, type NextRequest } from 'next/server';
+import { after, NextResponse, type NextRequest } from 'next/server';
 import { q } from '@/lib/db';
 import { audit } from '@/lib/audit';
+import { clientIp, rateLimit } from '@/lib/ratelimit';
 import { BOOKED_SLOT_COLS, notifyBooking, type BookedSlot } from '@/lib/slots';
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ token: string }> }) {
@@ -8,6 +9,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ token: str
   const fd = await req.formData();
   const slotId = Number(fd.get('slotId'));
   const back = (suffix = '') => NextResponse.redirect(new URL(`/c/${token}${suffix}`, req.url), 303);
+  if (!rateLimit(`book:${clientIp(req.headers)}`, 10, 5 * 60_000)) return back();
 
   const {
     rows: [a],
@@ -53,6 +55,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ token: str
   if (!slot) return back('?e=taken');
 
   await audit(null, 'booked_slot', 'application', a.id, { slotId });
-  await notifyBooking(a, slot);
+  // the booking is committed; the emails must not hold the response (see apply/route.ts)
+  after(() => notifyBooking(a, slot).catch((e) => console.error('booking emails failed', e)));
   return back('?ok=booked');
 }

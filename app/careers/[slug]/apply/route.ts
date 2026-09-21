@@ -5,8 +5,8 @@ import { audit } from '@/lib/audit';
 import { verifyUploadPath } from '@/lib/auth';
 import { clientIp, rateLimit } from '@/lib/ratelimit';
 import { portalUrl, sendEmail } from '@/lib/email';
-import { RESUME_EXTS, RESUME_MAX_BYTES, saveUpload } from '@/lib/storage';
-import { uploadedPathRe } from '@/lib/uploads';
+import { saveUpload } from '@/lib/storage';
+import { RESUME_EXTS, RESUME_MAX_BYTES, uploadedPathRe } from '@/lib/uploads';
 import { computeMaxScore, computeScore, validateAnswers, type FormSchema } from '@/lib/form-schema';
 
 const UTM_KEYS = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term'];

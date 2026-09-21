@@ -32,13 +32,23 @@
 | `ORG_TZ` | optional — IANA zone for all candidate-facing times (default: Asia/Kolkata) |
 | `SUPPORT_EMAIL` | optional — candidate support address shown on the candidate side |
 
-Scheduled work (`/api/cron`: outbox delivery, reminders, feedback nudges,
-auto-close) runs two ways. `vercel.json` schedules a **daily** call at 03:00
-UTC as a fallback (Vercel Hobby allows no more). The real tick is
-[`.github/workflows/cron.yml`](../.github/workflows/cron.yml) every **15
-minutes**; give the repo two Actions secrets, `CRON_URL`
-(`https://hiring.yourdomain.com/api/cron`) and `CRON_SECRET` (same value as
-the Vercel env var). Without `CRON_URL` the workflow exits without calling.
+Scheduled work (`/api/cron`: outbox retries, reminders, feedback nudges,
+auto-close) ticks every **15 minutes from pg_cron inside Supabase** (migration
+`20260921120000_mail_cron_pg_cron.sql`). It reads the target and the bearer
+token from Vault, so after `supabase db push` run once, in the SQL editor or
+via `supabase db query --linked`:
+
+```sql
+select vault.create_secret('https://hiring.yourdomain.com/api/cron', 'cron_url');
+select vault.create_secret('<the CRON_SECRET value from Vercel>', 'cron_secret');
+```
+
+Check it with `select * from cron.job_run_details order by start_time desc limit 5;`
+(status `succeeded`) and the Sentry `mail-cron` monitor going green. `vercel.json`
+still schedules a **daily** call at 03:00 UTC, and
+[`.github/workflows/cron.yml`](../.github/workflows/cron.yml) (Actions secrets
+`CRON_URL`, `CRON_SECRET`) stays as a second fallback — GitHub's schedule alone
+proved to fire only every 2–5 hours.
 
 ## 3. Platform hardening (do these in the dashboards)
 - Vercel: enable **Bot Protection / WAF** (app-level rate limits are

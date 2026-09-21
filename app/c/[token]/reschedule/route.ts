@@ -1,4 +1,4 @@
-import { NextResponse, type NextRequest } from 'next/server';
+import { after, NextResponse, type NextRequest } from 'next/server';
 import { q } from '@/lib/db';
 import { audit } from '@/lib/audit';
 import { appUrl, portalUrl, sendEmail } from '@/lib/email';
@@ -47,19 +47,25 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ token: str
   await audit(null, 'reschedule_requested', 'application', a.id, { slotId: a.slot_id, requestedAt: requestedAt.toISOString() });
 
   const vars = { name: a.name, role: a.title, when: fmtDateTimeFull(a.starts_at), requested: fmtDateTimeFull(requestedAt) };
-  await sendEmail({
-    applicationId: a.id,
-    template: 'reschedule_requested',
-    to: a.email,
-    vars: { ...vars, portal_link: portalUrl(a.portal_token) },
+  after(async () => {
+    try {
+      await sendEmail({
+        applicationId: a.id,
+        template: 'reschedule_requested',
+        to: a.email,
+        vars: { ...vars, portal_link: portalUrl(a.portal_token) },
+      });
+      if (a.interviewer_email) {
+        await sendEmail({
+          applicationId: a.id,
+          template: 'interviewer_reschedule_requested',
+          to: a.interviewer_email,
+          vars: { ...vars, note: note || '(none)', requests_link: appUrl('/app/interviews') },
+        });
+      }
+    } catch (e) {
+      console.error('reschedule emails failed', e);
+    }
   });
-  if (a.interviewer_email) {
-    await sendEmail({
-      applicationId: a.id,
-      template: 'interviewer_reschedule_requested',
-      to: a.interviewer_email,
-      vars: { ...vars, note: note || '(none)', requests_link: appUrl('/app/interviews') },
-    });
-  }
   return back('?ok=requested');
 }

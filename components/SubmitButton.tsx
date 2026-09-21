@@ -10,29 +10,10 @@ import { toast } from '@/components/Toaster';
 type Variant = NonNullable<VariantProps<typeof buttonVariants>['variant']>;
 type Size = NonNullable<VariantProps<typeof buttonVariants>['size']>;
 
-// Older call sites pass the legacy utility classes; map them to variants so
-// every submit button renders the same shadcn Button.
-const LEGACY: Record<string, Variant> = {
-  'btn-primary': 'default',
-  'btn-quiet': 'outline',
-  'btn-danger': 'destructive',
-};
-const STALL_MS = 15_000;
-
-function splitLegacy(className = ''): { variant?: Variant; rest: string } {
-  let variant: Variant | undefined;
-  const rest = className
-    .split(/\s+/)
-    .filter((c) => {
-      if (c in LEGACY) {
-        variant = LEGACY[c];
-        return false;
-      }
-      return c.length > 0;
-    })
-    .join(' ');
-  return { variant, rest };
-}
+// Longer than useActionResult's RESPONSE_TIMEOUT_MS on purpose: inside a
+// ResultForm that hook gives up first and clears pending, so this reload never
+// fires on top of its toast.
+const STALL_MS = 20_000;
 
 // Shared submit button for server-action forms: disables and shows a working
 // label while the enclosing form is pending, so actions can't double-fire.
@@ -64,8 +45,7 @@ export default function SubmitButton({
   size?: Size;
 }) {
   const { pending, data } = useFormStatus();
-  const legacy = splitLegacy(className);
-  const resolvedVariant = variant ?? legacy.variant ?? 'default';
+  const resolvedVariant = variant ?? 'default';
   // pending is form-wide; only the button that actually submitted shows its
   // pending label and fires the toast. The submitted FormData carries just the
   // clicked button's name/value, which is how we tell.
@@ -107,7 +87,7 @@ export default function SubmitButton({
         type="submit"
         variant={resolvedVariant}
         size={size}
-        className={legacy.rest}
+        className={className}
         {...domProps}
         disabled={pending || disabled}
         onClick={(e) => {

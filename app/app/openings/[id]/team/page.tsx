@@ -31,7 +31,6 @@ export default async function TeamPage({ params }: { params: Promise<{ id: strin
   if (!opening) notFound();
   const user = await currentUser();
   if (!(await canAccessOpening(user, openingId))) notFound();
-  const staff = true; // anyone who can work in the opening may manage its team
 
   const { rows: members } = await q<{
     user_id: string;
@@ -73,7 +72,7 @@ export default async function TeamPage({ params }: { params: Promise<{ id: strin
             </div>
             <div className="flex items-center gap-3">
               <Badge variant="secondary">{m.member_role}</Badge>
-              {staff && (
+              {(
               <form action={removeMember}>
                 <input type="hidden" name="openingId" value={openingId} />
                 <input type="hidden" name="userId" value={m.user_id} />
@@ -95,7 +94,7 @@ export default async function TeamPage({ params }: { params: Promise<{ id: strin
         )}
       </ul>
 
-      {staff && (
+      {(
       <form action={addMember} className="mt-6 flex flex-wrap items-end gap-2">
         <input type="hidden" name="openingId" value={openingId} />
         <Field className="min-w-56 flex-1">
@@ -113,7 +112,7 @@ export default async function TeamPage({ params }: { params: Promise<{ id: strin
         <SubmitButton pendingLabel="Adding…" doneMessage="Added to opening">Add to opening</SubmitButton>
       </form>
       )}
-      {staff && people.length === members.length && (
+      {people.length === members.length && (
         <p className="mt-2 text-xs text-muted-foreground">Everyone is already on this opening. Add new people from the Team page.</p>
       )}
     </div>

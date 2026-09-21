@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { canAccessOpening, currentUserOrNull } from '@/lib/auth';
+import { canAccessOpening, currentUserOrNull, signUploadPath } from '@/lib/auth';
 import { createSignedUpload } from '@/lib/storage';
 import { taskExt } from '@/lib/uploads';
 
@@ -9,11 +9,11 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const { id } = await ctx.params;
   if (!user || !(await canAccessOpening(user, Number(id)))) return new NextResponse('Forbidden', { status: 403 });
 
-  const { name } = await req.json().catch(() => ({ name: '' }));
+  const { name } = (await req.json().catch(() => null)) ?? { name: '' };
   const ext = taskExt(String(name ?? ''));
   if (ext === null) return new NextResponse('Bad file type', { status: 400 });
 
   const signed = await createSignedUpload('briefs', ext);
   if (!signed) return new NextResponse('Direct upload unavailable', { status: 404 });
-  return NextResponse.json(signed);
+  return NextResponse.json({ ...signed, sig: signUploadPath(Number(id), signed.path) });
 }

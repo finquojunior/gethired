@@ -18,6 +18,7 @@ export async function POST(req: NextRequest) {
   } catch {
     return new NextResponse(null, { status: 400 });
   }
+  if (!body || typeof body !== 'object') return new NextResponse(null, { status: 400 });
   const err = new Error(String(body.message ?? 'Unknown error').slice(0, 2000));
   err.stack = String(body.stack ?? '').slice(0, 8000);
   await logError(String(body.source ?? 'unknown').slice(0, 50), err, {

@@ -4,7 +4,7 @@ import path from 'node:path';
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { q, tx } from '@/lib/db';
-import { canUseDepartment, currentUser, forbidden, requireAdmin, requireOpeningAccess, requireStaff } from '@/lib/auth';
+import { canUseDepartment, currentUser, forbidden, requireAdmin, requireOpeningAccess, requireStaff, verifyUploadPath } from '@/lib/auth';
 import { audit } from '@/lib/audit';
 import { orgTimeToUtc } from '@/lib/tz';
 import { EMPTY_SCHEMA, type FormSchema } from '@/lib/form-schema';
@@ -380,8 +380,12 @@ export async function updateTaskMaterials(formData: FormData) {
   const doc = formData.get('document');
   const preUploaded = String(formData.get('documentPath') ?? '');
   if (preUploaded) {
-    // browser already uploaded straight to storage (Vercel body-size cap)
-    if (!uploadedPathRe('briefs').test(preUploaded)) redirect(`/app/openings/${openingId}/task?e=file`);
+    // browser already uploaded straight to storage (Vercel body-size cap); the
+    // path must be one this opening's upload-url route minted, proven by its signature
+    const sig = String(formData.get('documentSig') ?? '');
+    if (!uploadedPathRe('briefs').test(preUploaded) || !sig || !verifyUploadPath(openingId, preUploaded, sig)) {
+      redirect(`/app/openings/${openingId}/task?e=file`);
+    }
     docPath = preUploaded;
   } else if (doc instanceof File && doc.size > 0) {
     if (doc.size > TASK_MAX_BYTES || taskExt(doc.name) === null) {
@@ -424,6 +428,9 @@ export async function updateTaskMaterials(formData: FormData) {
   if (docPath !== null && stage.brief_file_path) await deleteFile(stage.brief_file_path);
 
   await audit(user.id, 'update_task_materials', 'stage', stageId);
+  // no redirect here, so the page must be told to re-render with the new brief
+  revalidatePath(`/app/openings/${openingId}/task`);
+  revalidatePath('/app/tasks');
 }
 
 // bound with (openingId, stageId, dir) — submitter name/value is not
@@ -575,7 +582,6 @@ export async function createSlots(formData: FormData) {
     params
   );
   await audit(user.id, 'create_slots', 'opening', openingId, { count: values.length, date });
-  revalidatePath(back);
   redirect(`${back}?ok=slots:${values.length}`);
 }
 

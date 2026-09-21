@@ -10,7 +10,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const { id } = await ctx.params;
   if (!user || !(await canAccessOpening(user, Number(id)))) return new NextResponse('Forbidden', { status: 403 });
 
-  const { name } = await req.json().catch(() => ({ name: '' }));
+  const { name } = (await req.json().catch(() => null)) ?? { name: '' };
   const ext = path.extname(String(name ?? '')).toLowerCase();
   if (!RESUME_EXTS.has(ext)) return new NextResponse('Bad file type', { status: 400 });
 

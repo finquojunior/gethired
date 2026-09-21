@@ -8,7 +8,7 @@
  * feature, so the error boundaries reload once instead.
  */
 const STALE_RE =
-  /ChunkLoadError|Loading chunk|Loading CSS chunk|is not a function|Failed to find Server Action|dynamically imported module|Importing a module script failed/i;
+  /ChunkLoadError|Loading (CSS )?chunk|\b[\w$]{1,2}\[[\w$]{1,2}\] is not a function|Failed to find Server Action|dynamically imported module|Importing a module script failed/i;
 
 export function isStaleBundleError(err: { name?: string; message?: string }): boolean {
   return err.name === 'ChunkLoadError' || STALE_RE.test(err.message ?? '');

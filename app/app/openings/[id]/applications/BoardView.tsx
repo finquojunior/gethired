@@ -58,8 +58,9 @@ export default function BoardView({
     setPlacement((p) => ({ ...p, [card.id]: stageId }));
     startTransition(async () => {
       try {
-        await moveOne(openingId, card.id, stageId);
-        toast('success', `Moved ${card.name} to ${stage} — candidate emailed`);
+        const n = await moveOne(openingId, card.id, stageId);
+        if (n === 0) throw new Error('nothing moved'); // not active any more, or already there
+        toast('success', `Moved ${card.name} to ${stage}`);
       } catch {
         // put the card back where it was
         setPlacement((p) => {

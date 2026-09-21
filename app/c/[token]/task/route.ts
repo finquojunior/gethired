@@ -1,10 +1,10 @@
-import { NextResponse, type NextRequest } from 'next/server';
+import { after, NextResponse, type NextRequest } from 'next/server';
 import { q } from '@/lib/db';
 import { audit } from '@/lib/audit';
 import { clientIp, rateLimit } from '@/lib/ratelimit';
 import { verifyUploadPath } from '@/lib/auth';
-import { saveUpload, TASK_MAX_BYTES } from '@/lib/storage';
-import { taskExt, uploadedPathRe } from '@/lib/uploads';
+import { saveUpload } from '@/lib/storage';
+import { TASK_MAX_BYTES, taskExt, uploadedPathRe } from '@/lib/uploads';
 import { parseSubmissionFields, FALLBACK_REQUIREMENT } from '@/lib/brief';
 import { portalUrl, sendEmail } from '@/lib/email';
 
@@ -111,18 +111,20 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ token: str
     params
   );
   await audit(null, 'submitted_task', 'application', a.id);
-  await sendEmail({
-    applicationId: a.id,
-    template: 'task_received',
-    to: a.email,
-    vars: {
-      name: a.name,
-      role: a.title,
-      items: rows
-        .map((r) => `• ${r.title}: ${[r.fileName || (r.filePath && 'file'), r.link].filter(Boolean).join(' + ')}`)
-        .join('\n'),
-      portal_link: portalUrl(token),
-    },
-  }).catch((e) => console.error('task_received email failed', e));
+  after(() =>
+    sendEmail({
+      applicationId: a.id,
+      template: 'task_received',
+      to: a.email,
+      vars: {
+        name: a.name,
+        role: a.title,
+        items: rows
+          .map((r) => `• ${r.title}: ${[r.fileName || (r.filePath && 'file'), r.link].filter(Boolean).join(' + ')}`)
+          .join('\n'),
+        portal_link: portalUrl(token),
+      },
+    }).catch((e) => console.error('task_received email failed', e))
+  );
   return back('?ok=task');
 }

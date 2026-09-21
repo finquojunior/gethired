@@ -6,13 +6,12 @@ import { revalidatePath } from 'next/cache';
 import { q, tx } from '@/lib/db';
 import { forbidden, requireApplicationAccess, requireOpeningAccess, verifyUploadPath } from '@/lib/auth';
 import { appUrl, attemptSend, portalUrl, sendCustomEmail, sendEmail } from '@/lib/email';
-import { fmtDateTimeFull, fmtDay, orgTimeToUtc } from '@/lib/tz';
-const fmtWhen = fmtDateTimeFull;
+import { fmtDateTimeFull as fmtWhen, fmtDay, orgTimeToUtc } from '@/lib/tz';
 import { audit } from '@/lib/audit';
 import { composeBriefEmail } from '@/lib/brief';
 import { BOOKED_SLOT_COLS, freeFutureSlots, notifyBooking, type BookedSlot } from '@/lib/slots';
-import { RESUME_EXTS, RESUME_MAX_BYTES, saveUpload } from '@/lib/storage';
-import { uploadedPathRe } from '@/lib/uploads';
+import { saveUpload } from '@/lib/storage';
+import { RESUME_EXTS, RESUME_MAX_BYTES, uploadedPathRe } from '@/lib/uploads';
 import { nextReviewStage } from '@/lib/advance';
 import type { ActionResult } from '@/components/useActionResult';
 import { SILENT_KINDS } from '@/lib/stages';
@@ -171,11 +170,12 @@ async function maybeAutoAdvance(userId: string, applicationId: number, stageId: 
 }
 
 /** Single-candidate move for the board view's drag-drop (always emails; the board confirms first). */
-export async function moveOne(openingId: number, applicationId: number, stageId: number) {
+export async function moveOne(openingId: number, applicationId: number, stageId: number): Promise<number> {
   const user = await requireOpeningAccess(openingId);
-  await moveApplications(user.id, openingId, [applicationId], stageId, true);
+  const n = await moveApplications(user.id, openingId, [applicationId], stageId, true);
   revalidatePath(`/app/openings/${openingId}/applications`);
   revalidatePath(`/app/candidates/${applicationId}`);
+  return n;
 }
 
 /**
@@ -300,7 +300,7 @@ export async function addCandidate(formData: FormData) {
   const name = String(formData.get('name') ?? '').trim().slice(0, 200);
   const email = String(formData.get('email') ?? '').trim().toLowerCase();
   const phone = String(formData.get('phone') ?? '').trim().slice(0, 50);
-  const stageId = Number(formData.get('stageId')) || null;
+  const requestedStage = Number(formData.get('stageId')) || null;
   const note = String(formData.get('note') ?? '').trim().slice(0, 2000);
   const resume = formData.get('resume');
   const back = `/app/openings/${openingId}/applications/new`;
@@ -331,6 +331,10 @@ export async function addCandidate(formData: FormData) {
     [openingId]
   );
   if (!form) redirect(back);
+  // a stale or crafted form must not park the candidate in another opening's stage
+  const stageId = requestedStage
+    ? ((await q<{ id: number }>(`select id from public.stages where id = $1 and opening_id = $2`, [requestedStage, openingId])).rows[0]?.id ?? null)
+    : null;
 
   let appId: number;
   try {
@@ -387,6 +391,7 @@ export async function importCsv(formData: FormData) {
     `select id from public.forms where opening_id = $1 order by is_published desc, version desc limit 1`,
     [openingId]
   );
+  if (!form) redirect(`${back}?e=csv`);
   // Imported candidates start in the first stage, exactly as the public form and
   // the manual add do. Without this they land with no stage at all: no feedback
   // form on their profile, no stage tab, and a blank track in their portal.
@@ -604,7 +609,8 @@ export async function addFeedback(formData: FormData) {
      from public.applications a where a.id = $1`,
     [applicationId, requested]
   );
-  if (requested && !app?.stage_id) forbidden();
+  // the form is from before a stage was deleted or re-created — nothing to score against
+  if (requested && !app?.stage_id) redirect(`/app/candidates/${applicationId}?e=stale`);
   await q(
     `insert into public.feedback (application_id, stage_id, author_id, rating, comment)
      values ($1, $2, $3, $4, $5)

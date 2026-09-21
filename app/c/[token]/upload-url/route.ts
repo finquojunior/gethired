@@ -8,7 +8,7 @@ import { taskExt } from '@/lib/uploads';
 /** Candidate: mint a direct upload URL for a task submission. */
 export async function POST(req: NextRequest, ctx: { params: Promise<{ token: string }> }) {
   const { token } = await ctx.params;
-  if (!rateLimit(`upload-url:${clientIp(req.headers)}`, 40, 5 * 60_000)) {
+  if (!rateLimit(`task-url:${clientIp(req.headers)}`, 40, 5 * 60_000)) {
     return new NextResponse('Too many requests', { status: 429 });
   }
 
@@ -23,7 +23,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ token: str
   );
   if (!a || a.kind !== 'task') return new NextResponse('Not found', { status: 404 });
 
-  const { name } = await req.json().catch(() => ({ name: '' }));
+  const { name } = (await req.json().catch(() => null)) ?? { name: '' };
   const ext = taskExt(String(name ?? ''));
   if (ext === null) return new NextResponse('Bad file type', { status: 400 });
 

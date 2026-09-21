@@ -120,7 +120,9 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         `select count(*)::int as n from public.slots sl
          join public.applications a on a.id = sl.application_id and a.status = 'active' and a.current_stage_id = sl.stage_id
          join public.openings o on o.id = a.opening_id
-         where sl.completed_at is null and sl.starts_at <= now() and sl.starts_at > now() - interval '30 days' and ${scopeSql('o.id', 1)}`,
+         where sl.completed_at is null and sl.no_show_at is null and sl.starts_at <= now() and sl.starts_at > now() - interval '30 days'
+           and not exists (select 1 from public.reschedule_requests r where r.slot_id = sl.id and r.status = 'pending')
+           and ${scopeSql('o.id', 1)}`,
         [scope]
       ),
     ]);

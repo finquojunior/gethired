@@ -44,6 +44,9 @@ export function useActionResult(
       } catch {
         result = { error: 'timeout' };
       }
+      // a redirect thrown inside the action (forbidden, login) resolves with nothing:
+      // Next has already navigated, there is no outcome to toast
+      if (!result) return;
       if (result.error === 'timeout') {
         // The work usually went through even when the response is lost; show the truth.
         toast('error', 'No response from the server — refreshing to show the current state.');
@@ -64,6 +67,3 @@ export function useActionResult(
 
   return { submit, pending };
 }
-
-/** Back-compat name for the dialog call sites, where `onDone` closes the dialog. */
-export const useDialogAction = useActionResult;

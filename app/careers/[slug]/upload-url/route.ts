@@ -9,7 +9,7 @@ import { RESUME_EXTS } from '@/lib/uploads';
 /** Public: mint a browser-direct upload URL for a resume (Vercel caps request bodies at 4.5MB). */
 export async function POST(req: NextRequest, ctx: { params: Promise<{ slug: string }> }) {
   const { slug } = await ctx.params;
-  if (!rateLimit(`upload-url:${clientIp(req.headers)}`, 20, 5 * 60_000)) {
+  if (!rateLimit(`resume-url:${clientIp(req.headers)}`, 20, 5 * 60_000)) {
     return new NextResponse('Too many requests', { status: 429 });
   }
   const {
@@ -17,7 +17,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ slug: stri
   } = await q(`select 1 from public.openings where slug = $1 and status = 'open'`, [slug]);
   if (!o) return new NextResponse('Not found', { status: 404 });
 
-  const { name } = await req.json().catch(() => ({ name: '' }));
+  const { name } = (await req.json().catch(() => null)) ?? { name: '' };
   const ext = path.extname(String(name ?? '')).toLowerCase();
   if (!RESUME_EXTS.has(ext)) return new NextResponse('Bad file type', { status: 400 });
 

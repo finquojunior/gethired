@@ -7,11 +7,9 @@ import { fmtDate } from '@/lib/tz';
 import SubmitButton from '@/components/SubmitButton';
 import SelectAll, { SelectedCount } from '@/components/SelectAll';
 import BulkProgress from '@/components/BulkProgress';
-import Flash from '@/components/Flash';
 import DownloadLink from '@/components/DownloadLink';
 import OpeningTabs from '@/components/OpeningTabs';
 import { bulkPipeline } from '@/app/app/candidates/actions';
-import { pipelineFlash } from '@/app/app/candidates/flash';
 import ResultForm from '@/components/ResultForm';
 import BoardView from './BoardView';
 import { AlertTriangle, CheckCircle2, Info, Plus } from 'lucide-react';
@@ -53,11 +51,11 @@ export default async function ApplicationsPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{
     stage?: string; status?: string; from?: string; to?: string; view?: string; sort?: string; q?: string;
-    ok?: string; e?: string; imported?: string; skipped?: string;
+    imported?: string; skipped?: string;
   }>;
 }) {
   const { id } = await params;
-  const { stage, status = 'active', from = '', to = '', view, sort = 'score', q: term = '', ok, e, imported, skipped } =
+  const { stage, status = 'active', from = '', to = '', view, sort = 'score', q: term = '', imported, skipped } =
     await searchParams;
   const board = view === 'board';
   const openingId = Number(id);
@@ -136,17 +134,6 @@ export default async function ApplicationsPage({
     const qs = p.toString();
     return qs ? `${base}?${qs}` : base;
   };
-  const flash =
-    pipelineFlash(ok, e) ??
-    (imported != null
-      ? {
-          kind: 'success' as const,
-          message: `Imported ${imported} candidate${imported === '1' ? '' : 's'}${
-            Number(skipped) > 0 ? `; skipped ${skipped} (bad email or already in this pipeline)` : ''
-          }`,
-        }
-      : null);
-
   const tab = (href: string, label: string, active: boolean, count?: number) => (
     <Link
       key={href}
@@ -165,7 +152,6 @@ export default async function ApplicationsPage({
 
   return (
     <div>
-      <Flash kind={flash?.kind ?? 'success'} message={flash?.message} cleanParams={['ok', 'e', 'imported', 'skipped']} />
       <BackButton fallback={`/app/openings/${openingId}`} />
       <div className="track flex flex-wrap items-end justify-between gap-3">
         <h1 className="font-display text-3xl font-bold">
