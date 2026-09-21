@@ -863,7 +863,7 @@ export default async function CandidatePage({
                         {my ? 'Update' : 'Save'}
                       </SubmitButton>
                     </div>
-                    {sf.kind !== 'screen' && sf.kind !== 'offer' && Number(a.current_stage_id) === sf.id && (
+                    {(sf.kind === 'task' || sf.kind === 'interview') && Number(a.current_stage_id) === sf.id && (
                       <p className="mt-2 text-xs text-muted-foreground">
                         {sf.kind === 'task'
                           ? 'Saving a star rating moves the candidate to the review stage and emails them.'
