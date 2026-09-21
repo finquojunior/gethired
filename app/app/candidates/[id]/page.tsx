@@ -44,6 +44,7 @@ import { buttonVariants } from '@/components/ui/button';
 import { Field } from '@/components/ui/field';
 import { cn } from '@/lib/utils';
 import { isSilentStage } from '@/lib/stages';
+import { feedbackForms } from '@/lib/feedback';
 
 export const dynamic = 'force-dynamic';
 
@@ -220,19 +221,12 @@ export default async function CandidatePage({
   const noOpenSlots =
     a.status === 'active' && stageInfo?.kind === 'interview' && slots.length === 0 && openSlots.length === 0;
 
-  // one feedback form per stage that can be scored: task stages reached, interview
-  // stages with a completed slot (the "Mark completed" prompt takes the first rating;
-  // this form is for edits and other panel members), plus the current stage if it is neither
-  const reachedIds = new Set([...reached.map((r) => Number(r.stage_id)), ...(a.current_stage_id ? [Number(a.current_stage_id)] : [])]);
-  const completedStageIds = new Set(slots.filter((s) => s.completed_at).map((s) => Number(s.stage_id)));
-  const scoreForms = stages
-    .filter((s) => (s.kind === 'task' && reachedIds.has(Number(s.id))) || (s.kind === 'interview' && completedStageIds.has(Number(s.id))))
-    .map((s) => ({ id: Number(s.id), name: s.name, kind: s.kind, title: s.kind === 'task' ? `Task score · ${s.name}` : `Interview feedback · ${s.name}` }));
-  const cur = stages.find((s) => Number(s.id) === Number(a.current_stage_id));
-  // an interview stage that hasn't been completed is rated through "Mark completed", not here
-  if (cur && cur.kind !== 'interview' && !scoreForms.some((f) => f.id === Number(cur.id))) {
-    scoreForms.push({ id: Number(cur.id), name: cur.name, kind: cur.kind, title: `Feedback · ${cur.name}` });
-  }
+  const scoreForms = feedbackForms(
+    stages.map((s) => ({ id: Number(s.id), name: s.name, kind: s.kind })),
+    a.current_stage_id != null ? Number(a.current_stage_id) : null,
+    reached.map((r) => Number(r.stage_id)),
+    slots.map((s) => ({ stageId: Number(s.stage_id), completed: s.completed_at != null }))
+  );
   const mine = (stageId: number) => feedback.find((f) => f.author_id === user.id && Number(f.stage_id) === stageId);
   const latestFor = (kind: string) =>
     feedback.find((f) => f.rating && stages.some((s) => Number(s.id) === Number(f.stage_id) && s.kind === kind));
