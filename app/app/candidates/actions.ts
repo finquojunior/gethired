@@ -15,6 +15,7 @@ import { RESUME_EXTS, RESUME_MAX_BYTES, uploadedPathRe } from '@/lib/uploads';
 import { nextReviewStage } from '@/lib/advance';
 import type { ActionResult } from '@/components/useActionResult';
 import { SILENT_KINDS } from '@/lib/stages';
+import { ASSIGNABLE_SQL, type Person } from '@/lib/assignee';
 
 /** Only paths starting with /app/ may be used as a post-action redirect target. */
 function safeBack(raw: unknown, fallback: string): string {
@@ -221,6 +222,20 @@ export async function bulkPipeline(formData: FormData): Promise<ActionResult> {
     }
     n = apps.length;
     await audit(user.id, 'reject', 'application', ids.join(','));
+  } else if (intent === 'assign') {
+    // '' unassigns; anyone else must be assignable in this opening (staff or Team tab)
+    const assigneeId = String(formData.get('assigneeId') ?? '');
+    if (assigneeId) {
+      const { rows: people } = await q<Person>(ASSIGNABLE_SQL, [openingId]);
+      if (!people.some((p) => p.id === assigneeId)) return { error: 'assignee' };
+    }
+    const { rowCount } = await q(
+      `update public.applications set assignee_id = $3
+       where id = any($1) and opening_id = $2 and assignee_id is distinct from $3`,
+      [ids, openingId, assigneeId || null]
+    );
+    n = rowCount ?? 0;
+    await audit(user.id, 'assign', 'application', ids.join(','), { assignee_id: assigneeId || null });
   } else if (intent === 'withdraw') {
     // staff records a withdrawal the candidate made by phone/mail — no email
     const { rowCount } = await q(

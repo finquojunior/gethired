@@ -33,6 +33,8 @@ import { Field } from '@/components/ui/field';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 import { isSilentStage } from '@/lib/stages';
+import AssignMenu from '@/components/AssignMenu';
+import { ASSIGNABLE_SQL, assigneeTint, type Person } from '@/lib/assignee';
 
 export const dynamic = 'force-dynamic';
 
@@ -109,18 +111,23 @@ export default async function ApplicationsPage({
     fb_stage: string | null;
     fb_author: string | null;
     fb_comment: string | null;
+    assignee_id: string | null;
+    assignee: string | null;
   }>(
     `select a.id, a.name, a.email, a.score, a.max_score, f.version, s.name as stage,
             a.current_stage_id as stage_id, a.status, a.created_at,
-            fb.rating as fb_rating, fb.stage as fb_stage, fb.author as fb_author, fb.comment as fb_comment
+            fb.rating as fb_rating, fb.stage as fb_stage, fb.author as fb_author, fb.comment as fb_comment,
+            a.assignee_id, ap.full_name as assignee
      from public.applications a
      join public.forms f on f.id = a.form_id
      left join public.stages s on s.id = a.current_stage_id
+     left join public.profiles ap on ap.id = a.assignee_id
      ${FEEDBACK_JOIN}
      where ${PIPELINE_WHERE}
      order by ${SORTS[sort] ?? SORTS.score}`,
     pipelineWhereParams(openingId, ctx)
   );
+  const { rows: people } = await q<Person>(ASSIGNABLE_SQL, [openingId]);
   const ctxQs = pipelineCtxParams(openingId, ctx);
   const base = `/app/openings/${openingId}/applications`;
   // this page's own query string, for the view toggle and the post-action redirect
@@ -288,7 +295,7 @@ export default async function ApplicationsPage({
           </TableHeader>
           <TableBody>
             {apps.map((a) => (
-              <TableRow key={a.id}>
+              <TableRow key={a.id} style={a.assignee_id ? { backgroundColor: assigneeTint(a.assignee_id) } : undefined}>
                 <TableCell className="px-4 py-3">
                   <input type="checkbox" name="appId" value={a.id} />
                 </TableCell>
@@ -300,6 +307,7 @@ export default async function ApplicationsPage({
                   >
                     <span className="font-medium text-primary hover:underline">{a.name} →</span>
                     <span className="block text-muted-foreground">{a.email}</span>
+                    {a.assignee && <span className="block text-xs text-muted-foreground">assigned to {a.assignee}</span>}
                   </Link>
                 </TableCell>
                 <TableCell className="px-4 py-3">
@@ -396,6 +404,7 @@ export default async function ApplicationsPage({
               <input type="checkbox" name="notify" value="1" defaultChecked />
               Email the candidate about this move
             </label>
+            <AssignMenu people={people} />
             <Separator orientation="vertical" className="mx-2 h-5!" />
             {status === 'active' ? (
               <>

@@ -7,6 +7,7 @@ const OK_TEXT: Record<string, (n: number) => string> = {
   hire: (n) => `Marked ${n} hired — congratulations email sent`,
   restore: (n) => `Restored ${n} to active`,
   withdraw: (n) => `Marked ${n} withdrawn — no email sent`,
+  assign: (n) => `Updated the assignee on ${n} candidate${n === 1 ? '' : 's'}`,
   added: () => 'Candidate added',
   saved: () => 'Saved',
   booked: () => 'Interview booked — candidate and interviewer emailed',
@@ -20,6 +21,7 @@ const OK_TEXT: Record<string, (n: number) => string> = {
 };
 const ERR_TEXT: Record<string, string> = {
   rating_required: 'Pick a star rating to mark the interview completed.',
+  assignee: 'That person is not on this opening — add them on the Team tab first.',
   nothing: 'Nothing changed — no candidates were selected or they were already in that state.',
   taken: 'That slot was just booked by someone else — pick another.',
   invalid: 'Enter a name and a valid email.',

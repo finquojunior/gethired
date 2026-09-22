@@ -46,6 +46,8 @@ import { Field } from '@/components/ui/field';
 import { cn } from '@/lib/utils';
 import { isSilentStage } from '@/lib/stages';
 import { feedbackForms } from '@/lib/feedback';
+import AssignMenu from '@/components/AssignMenu';
+import { ASSIGNABLE_SQL, assigneeTint, type Person } from '@/lib/assignee';
 
 export const dynamic = 'force-dynamic';
 
@@ -106,8 +108,11 @@ export default async function CandidatePage({
     created_at: Date;
     opening_title: string;
     schema: FormSchema;
+    assignee_id: string | null;
+    assignee: string | null;
   }>(
-    `select a.*, o.title as opening_title, f.schema
+    `select a.*, o.title as opening_title, f.schema,
+            (select full_name from public.profiles where id = a.assignee_id) as assignee
      from public.applications a
      join public.openings o on o.id = a.opening_id
      join public.forms f on f.id = a.form_id
@@ -116,7 +121,7 @@ export default async function CandidatePage({
   );
   if (!a || !(await canAccessOpening(user, Number(a.opening_id)))) notFound();
 
-  const [{ rows: stages }, { rows: history }, { rows: feedback }, { rows: notes }, { rows: subs }, { rows: slots }, { rows: emails }, { rows: taskStages }, { rows: responses }, { rows: reached }, { rows: requests }, { rows: people }] =
+  const [{ rows: stages }, { rows: history }, { rows: feedback }, { rows: notes }, { rows: subs }, { rows: slots }, { rows: emails }, { rows: taskStages }, { rows: responses }, { rows: reached }, { rows: requests }, { rows: people }, { rows: assignable }] =
     await Promise.all([
       q<{ id: number; name: string; kind: string }>(
         `select id, name, kind from public.stages where opening_id = $1 order by position`,
@@ -187,6 +192,7 @@ export default async function CandidatePage({
         [appId]
       ),
       q<{ id: string; full_name: string }>(`select id, full_name from public.profiles order by full_name`),
+      q<Person>(ASSIGNABLE_SQL, [a.opening_id]),
     ]);
   const pendingRequest = requests.find((r) => r.status === 'pending');
   const pendingSlot = pendingRequest ? slots.find((s) => Number(s.id) === Number(pendingRequest.slot_id)) : undefined;
@@ -393,6 +399,11 @@ export default async function CandidatePage({
           <Badge variant={STATUS_BADGE[a.status]?.variant ?? 'outline'} className={cn('h-6 px-3 text-sm', STATUS_BADGE[a.status]?.className)}>
             {a.status}
           </Badge>
+          {a.assignee_id && (
+            <Badge variant="outline" className="h-6 border-transparent px-3 text-sm" style={{ backgroundColor: assigneeTint(a.assignee_id) }}>
+              assigned to {a.assignee}
+            </Badge>
+          )}
           {a.score != null && (
             <Badge variant="outline" className="h-6 border-transparent bg-amber/15 px-3 text-sm text-amber">
               score {a.score}
@@ -489,6 +500,7 @@ export default async function CandidatePage({
           <input type="checkbox" name="notify" value="1" defaultChecked  />
           Email the candidate about this move
         </label>
+        <AssignMenu people={assignable} />
         <Separator orientation="vertical" className="mx-2 h-5!" />
         {a.status === 'active' ? (
           <>
