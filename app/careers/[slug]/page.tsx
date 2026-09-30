@@ -51,12 +51,14 @@ export default async function OpeningPublicPage({
     form_id: number | null;
     schema: FormSchema | null;
     accepting: boolean;
+    passive: boolean;
   }>(
     // no status filter: a closed/paused role renders a "no longer accepting"
     // page (with a way back) instead of a bare 404
     `select o.title, o.department, o.description, o.location, o.employment_type,
             o.salary_range, o.notes, o.consent_text, o.poster_path, f.id as form_id, f.schema,
-            (o.status = 'open' and (o.close_at is null or o.close_at > now()) and f.id is not null) as accepting
+            (o.status in ('open', 'passive') and (o.close_at is null or o.close_at > now()) and f.id is not null) as accepting,
+            o.status = 'passive' as passive
      from public.openings o
      left join public.forms f on f.opening_id = o.id and f.is_published
      where o.slug = $1
@@ -108,6 +110,15 @@ export default async function OpeningPublicPage({
           className="mt-6 max-w-prose space-y-2 text-muted-foreground"
           dangerouslySetInnerHTML={{ __html: renderRich(o.description) }}
         />
+      )}
+      {o.passive && (
+        <Alert className="mt-6">
+          <AlertTitle>Not hiring immediately</AlertTitle>
+          <AlertDescription>
+            We&apos;re collecting applications for this role ahead of time. You can apply now, but it may be a while
+            before we process your application — we&apos;ll email you when hiring opens.
+          </AlertDescription>
+        </Alert>
       )}
       {o.notes && (
         <Alert className="mt-6 border-amber/40 bg-amber/15">

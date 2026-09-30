@@ -8,6 +8,8 @@ const OUTCOME: Record<string, { text: string; cls: string }> = {
   hired: { text: 'Outcome: offer', cls: 'border-primary bg-secondary text-primary' },
   rejected: { text: 'Outcome: not selected', cls: 'text-muted-foreground' },
   withdrawn: { text: 'Outcome: withdrawn', cls: 'text-muted-foreground' },
+  pooled: { text: 'Outcome: role filled — profile kept on file', cls: 'text-muted-foreground' },
+  on_hold: { text: 'Status: on hold — this role is not hiring immediately', cls: 'border-transparent bg-amber/15 text-amber' },
 };
 
 // Compact pipeline track for the portal: every stage of the opening in order,

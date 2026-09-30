@@ -40,7 +40,7 @@ export default async function ReportsPage() {
               count(a.id) filter (where a.status = 'active')::int as active,
               count(a.id) filter (where a.status = 'hired')::int as hired,
               count(a.id) filter (where a.status = 'rejected')::int as rejected,
-              count(a.id) filter (where a.status = 'withdrawn')::int as withdrawn
+              count(a.id) filter (where a.status in ('withdrawn', 'pooled'))::int as withdrawn
        from public.openings o
        left join public.applications a on a.opening_id = o.id
        group by o.id having count(a.id) > 0
@@ -111,7 +111,7 @@ export default async function ReportsPage() {
       `select a.updated_at as when, a.name, a.id as app_id, a.status, o.title
        from public.applications a
        join public.openings o on o.id = a.opening_id
-       where a.status in ('hired', 'rejected')
+       where a.status in ('hired', 'rejected', 'pooled')
        order by a.updated_at desc limit 8`
     ),
     q<{ id: number; title: string }>(

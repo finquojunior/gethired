@@ -15,6 +15,8 @@ import { RESUME_EXTS, RESUME_MAX_BYTES, uploadedPathRe } from '@/lib/uploads';
 import { nextReviewStage } from '@/lib/advance';
 import type { ActionResult } from '@/components/useActionResult';
 import { SILENT_KINDS } from '@/lib/stages';
+import { CLOSING_TEMPLATES } from '@/lib/email-templates';
+import { releaseOnHold } from '@/lib/hold';
 import { ASSIGNABLE_SQL, type Person } from '@/lib/assignee';
 
 /** Only paths starting with /app/ may be used as a post-action redirect target. */
@@ -201,7 +203,7 @@ export async function bulkPipeline(formData: FormData): Promise<ActionResult> {
     const { rows: apps } = await q<{ id: number; name: string; email: string; title: string; stage_kind: string | null }>(
       `update public.applications a set status = 'rejected'
        from public.openings o
-       where a.id = any($1) and a.opening_id = $2 and o.id = a.opening_id and a.status = 'active'
+       where a.id = any($1) and a.opening_id = $2 and o.id = a.opening_id and a.status in ('active', 'on_hold')
        returning a.id, a.name, a.email, o.title,
          (select s.kind from public.stages s where s.id = a.current_stage_id) as stage_kind`,
       [ids, openingId]
@@ -222,6 +224,22 @@ export async function bulkPipeline(formData: FormData): Promise<ActionResult> {
     }
     n = apps.length;
     await audit(user.id, 'reject', 'application', ids.join(','));
+  } else if (intent === 'pool') {
+    // the requirement is filled for now: close the application without rejecting,
+    // keep the profile for future roles, and tell the candidate so (sent immediately)
+    const { rows: apps } = await q<{ id: number; name: string; email: string; title: string }>(
+      `update public.applications a set status = 'pooled'
+       from public.openings o
+       where a.id = any($1) and a.opening_id = $2 and o.id = a.opening_id and a.status in ('active', 'on_hold')
+       returning a.id, a.name, a.email, o.title`,
+      [ids, openingId]
+    );
+    await freeFutureSlots(apps.map((a) => a.id), null);
+    for (const a of apps) {
+      await sendEmail({ applicationId: a.id, template: 'kept_on_file', to: a.email, vars: { name: a.name, role: a.title } });
+    }
+    n = apps.length;
+    await audit(user.id, 'pool', 'application', ids.join(','));
   } else if (intent === 'assign') {
     // '' unassigns; anyone else must be assignable in this opening (staff or Team tab)
     const assigneeId = String(formData.get('assigneeId') ?? '');
@@ -240,22 +258,26 @@ export async function bulkPipeline(formData: FormData): Promise<ActionResult> {
     // staff records a withdrawal the candidate made by phone/mail — no email
     const { rowCount } = await q(
       `update public.applications set status = 'withdrawn'
-       where id = any($1) and opening_id = $2 and status = 'active'`,
+       where id = any($1) and opening_id = $2 and status in ('active', 'on_hold')`,
       [ids, openingId]
     );
     await freeFutureSlots(ids, null);
     n = rowCount ?? 0;
     await audit(user.id, 'withdraw', 'application', ids.join(','));
+  } else if (intent === 'release') {
+    // pull on-hold candidates into the active pipeline ahead of the opening reopening
+    n = await releaseOnHold(openingId, ids);
+    await audit(user.id, 'release', 'application', ids.join(','));
   } else if (intent === 'restore') {
     const { rowCount } = await q(
       `update public.applications set status = 'active' where id = any($1) and opening_id = $2 and status <> 'active'`,
       [ids, openingId]
     );
-    // cancel rejection emails not yet delivered (drafts or queued retries); undo a no-show mark
+    // cancel closing emails not yet delivered (drafts or queued retries); undo a no-show mark
     await q(
       `update public.email_log set status = 'cancelled'
-       where application_id = any($1) and template in ('rejection', 'no_show') and status in ('draft', 'pending', 'failed')`,
-      [ids]
+       where application_id = any($1) and template = any($2) and status in ('draft', 'pending', 'failed')`,
+      [ids, CLOSING_TEMPLATES]
     );
     await q(`update public.slots set no_show_at = null where application_id = any($1) and no_show_at is not null`, [ids]);
     n = rowCount ?? 0;
@@ -264,7 +286,7 @@ export async function bulkPipeline(formData: FormData): Promise<ActionResult> {
     const { rows: hired } = await q<{ id: number; name: string; email: string; title: string }>(
       `update public.applications a set status = 'hired'
        from public.openings o
-       where a.id = any($1) and a.opening_id = $2 and o.id = a.opening_id and a.status = 'active'
+       where a.id = any($1) and a.opening_id = $2 and o.id = a.opening_id and a.status in ('active', 'on_hold')
        returning a.id, a.name, a.email, o.title`,
       [ids, openingId]
     );
@@ -416,7 +438,7 @@ export async function importCsv(formData: FormData) {
     `select id from public.stages where opening_id = $1 order by position limit 1`,
     [openingId]
   );
-  const VALID = new Set(['active', 'hired', 'rejected', 'withdrawn']);
+  const VALID = new Set(['active', 'hired', 'rejected', 'withdrawn', 'pooled', 'on_hold']);
   let imported = 0;
   let skipped = 0;
   for (const r of rows.slice(0, 1000)) {

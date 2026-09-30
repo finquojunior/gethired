@@ -144,7 +144,7 @@ export async function runCronWork() {
   // 4. auto-close openings past their close date
   const { rowCount: closed } = await q(
     `update public.openings set status = 'closed'
-     where status = 'open' and close_at is not null and close_at <= now()`
+     where status in ('open', 'passive') and close_at is not null and close_at <= now()`
   );
 
   return {

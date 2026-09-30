@@ -91,7 +91,7 @@ export default async function ReportPrintPage({
               where a.opening_id = o.id and a.status = 'rejected'
                 and a.updated_at >= $2 and a.updated_at < $3) as rejected,
             (select count(*)::int from public.applications a
-              where a.opening_id = o.id and a.status = 'withdrawn'
+              where a.opening_id = o.id and a.status in ('withdrawn', 'pooled')
                 and a.updated_at >= $2 and a.updated_at < $3) as withdrawn
      from public.openings o
      where ($1::bigint is null or o.id = $1)`,
@@ -155,7 +155,7 @@ export default async function ReportPrintPage({
      union all
      select a.updated_at, a.name, o.title, a.status, null
      from public.applications a join public.openings o on o.id = a.opening_id
-     where ($1::bigint is null or a.opening_id = $1) and a.status in ('hired', 'rejected', 'withdrawn')
+     where ($1::bigint is null or a.opening_id = $1) and a.status in ('hired', 'rejected', 'withdrawn', 'pooled')
        and a.updated_at >= $2 and a.updated_at < $3
      order by 1 limit ${EVENT_LIMIT + 1}`,
     [openingId, start.toISOString(), end.toISOString()]
@@ -175,6 +175,7 @@ export default async function ReportPrintPage({
     hired: 'text-primary',
     rejected: 'text-destructive',
     withdrawn: 'text-muted-foreground',
+    pooled: 'text-muted-foreground',
   };
 
   return (
@@ -215,7 +216,7 @@ export default async function ReportPrintPage({
                 ['To offer', c.to_offer],
                 ['Hired', c.hired],
                 ['Rejected', c.rejected],
-                ['Withdrawn', c.withdrawn],
+                ['Withdrawn / talent pool', c.withdrawn],
               ].map(([label2, n]) => (
                 <div key={label2} className="rounded border border-border p-2">
                   <div className="font-display text-lg font-bold">{n}</div>

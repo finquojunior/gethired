@@ -12,6 +12,7 @@ import { parseSubmissionFields } from '@/lib/brief';
 import { deleteFile, saveUpload } from '@/lib/storage';
 import { POSTER_EXTS, POSTER_MAX_BYTES, TASK_MAX_BYTES, taskExt, uploadedPathRe } from '@/lib/uploads';
 import { STAGE_KINDS } from '@/lib/stages';
+import { releaseOnHold } from '@/lib/hold';
 
 const DEFAULT_STAGES: Array<[string, string]> = [
   ['Applied', 'screen'],
@@ -106,7 +107,7 @@ export async function updateOpening(formData: FormData) {
     }
   }
   const status = String(formData.get('status') ?? 'draft');
-  if (!['draft', 'open', 'paused', 'closed'].includes(status)) return;
+  if (!['draft', 'open', 'paused', 'closed', 'passive'].includes(status)) return;
   const newSlug = slugify(String(formData.get('slug') ?? ''));
   if (!newSlug) redirect(`/app/openings/${id}?e=slug`);
   try {
@@ -142,6 +143,13 @@ export async function updateOpening(formData: FormData) {
   );
   await audit(user.id, 'update', 'opening', id, { status });
   revalidatePath('/careers');
+
+  // back to actively hiring: candidates parked on hold while the opening was
+  // passive join the pipeline and are told (with a way to withdraw)
+  if (status === 'open') {
+    const released = await releaseOnHold(id, null);
+    if (released > 0) await audit(user.id, 'hiring_resumed', 'opening', id, { released });
+  }
 
   // poster: a new file replaces it, the checkbox removes it, otherwise unchanged
   const poster = formData.get('poster');

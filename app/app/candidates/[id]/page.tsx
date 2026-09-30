@@ -74,6 +74,8 @@ const STATUS_BADGE: Record<string, BadgeStyle> = {
   hired: { variant: 'default' },
   rejected: { variant: 'destructive' },
   withdrawn: { variant: 'outline' },
+  pooled: { variant: 'secondary' },
+  on_hold: { variant: 'outline', className: 'border-transparent bg-amber/15 text-amber' },
 };
 
 export default async function CandidatePage({
@@ -502,8 +504,15 @@ export default async function CandidatePage({
         </label>
         <AssignMenu people={assignable} />
         <Separator orientation="vertical" className="mx-2 h-5!" />
-        {a.status === 'active' ? (
+        {a.status === 'active' || a.status === 'on_hold' ? (
           <>
+            {a.status === 'on_hold' && (
+              <SubmitButton variant="outline" name="intent" value="release" className="text-primary" pendingLabel="Releasing…"
+                confirmText={`Start processing ${a.name} now? They join the active pipeline and get the “we're now hiring” email with a withdraw link.`}
+                title="They applied while this opening was passive — this pulls them in ahead of reopening it">
+                Start processing + email
+              </SubmitButton>
+            )}
             <SubmitButton variant="outline" name="intent" value="hire" className="text-primary" pendingLabel="Hiring…" confirmText={`Mark ${a.name} as hired? They will get the congratulations email.`}>Mark hired</SubmitButton>
             <SubmitButton variant="destructive" name="intent" value="reject_send" pendingLabel="Rejecting…"
               confirmText={parked
@@ -517,6 +526,11 @@ export default async function CandidatePage({
                 : `Reject ${a.name}? The email is drafted in Emails for you to send later.`}
               title="Rejects and drafts the email — send it manually from the Emails tab">
               {parked ? 'Reject + draft no-response' : 'Reject + draft email'}
+            </SubmitButton>
+            <SubmitButton variant="outline" name="intent" value="pool" pendingLabel="Closing…"
+              confirmText={`Close ${a.name}'s application and keep their profile for future roles? They are emailed now that the position is filled for the moment and that we'll reach out when a matching requirement opens.`}
+              title="Not a rejection: the requirement is filled for now and the profile stays on file">
+              Talent pool + email
             </SubmitButton>
             <SubmitButton variant="outline" name="intent" value="withdraw" pendingLabel="Updating…" confirmText={`Mark ${a.name} as withdrawn? No email is sent.`} title="For candidates who told you they are no longer interested">Mark withdrawn</SubmitButton>
           </>

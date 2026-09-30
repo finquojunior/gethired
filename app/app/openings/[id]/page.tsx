@@ -92,7 +92,7 @@ export default async function OpeningPage({
       ok: !!o.published_version,
       text: o.published_version ? `Application form published (v${o.published_version})` : 'Application form not published — candidates cannot apply',
       href: href('form'),
-      warn: !o.published_version && o.status === 'open',
+      warn: !o.published_version && (o.status === 'open' || o.status === 'passive'),
     },
     { ok: o.stage_count > 0, text: `${o.stage_count} stage${o.stage_count === 1 ? '' : 's'}`, href: href('stages') },
     ...(o.task_stages > 0
@@ -130,7 +130,7 @@ export default async function OpeningPage({
       </div>
       <OpeningTabs openingId={o.id} current="overview" />
 
-      {o.status === 'open' && (
+      {(o.status === 'open' || o.status === 'passive') && (
         <p className="mt-4 text-sm text-muted-foreground">
           Public link:{' '}
           <a href={`/careers/${o.slug}`} target="_blank" rel="noopener" className="font-medium text-primary underline">
@@ -153,7 +153,7 @@ export default async function OpeningPage({
               </li>
             ))}
           </ul>
-          {o.status === 'open' && !o.published_version && (
+          {(o.status === 'open' || o.status === 'passive') && !o.published_version && (
             <Alert variant="destructive" className="mt-3">
               <AlertTriangle />
               <AlertTitle>This opening is open but has no published form</AlertTitle>
@@ -165,8 +165,9 @@ export default async function OpeningPage({
           {o.status === 'draft' && (
             <p className="mt-2 text-xs text-muted-foreground">
               Order of play: publish the form, check the stages, set the task brief and interview slots if you use those
-              stages, then set the status to <strong>open</strong> below. Paused hides the public page but keeps the
-              pipeline; closed ends applications for good.
+              stages, then set the status to <strong>open</strong> below. Passive keeps the page public but tells
+              applicants hiring is not immediate and parks them on hold until you set it back to open (they are
+              emailed then). Paused hides the public page but keeps the pipeline; closed ends applications for good.
             </p>
           )}
         </CardContent>
@@ -210,6 +211,7 @@ export default async function OpeningPage({
             <NativeSelect className="w-full" id="status" name="status" defaultValue={o.status}>
               <NativeSelectOption value="draft">draft — not public yet</NativeSelectOption>
               <NativeSelectOption value="open">open — accepting applications</NativeSelectOption>
+              <NativeSelectOption value="passive">passive — not immediate: collecting applications for later</NativeSelectOption>
               <NativeSelectOption value="paused">paused — hidden, pipeline continues</NativeSelectOption>
               <NativeSelectOption value="closed">closed — no more applications</NativeSelectOption>
             </NativeSelect>

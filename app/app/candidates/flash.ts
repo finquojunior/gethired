@@ -4,6 +4,8 @@ const OK_TEXT: Record<string, (n: number) => string> = {
   move: (n) => `Moved ${n} candidate${n === 1 ? '' : 's'}`,
   reject_send: (n) => `Rejected ${n} — email sent`,
   reject_draft: (n) => `Rejected ${n} — email drafted in Emails`,
+  pool: (n) => `Moved ${n} to the talent pool — kept-on-file email sent`,
+  release: (n) => `Now processing ${n} — hiring-resumed email sent`,
   hire: (n) => `Marked ${n} hired — congratulations email sent`,
   restore: (n) => `Restored ${n} to active`,
   withdraw: (n) => `Marked ${n} withdrawn — no email sent`,

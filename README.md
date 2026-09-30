@@ -70,6 +70,13 @@ offer, hired, rejection.
 - Manual add-candidate + CSV import for walk-ins/referrals
 - Rejections: "Reject + email now" or "Reject + draft email" (drafts sit in
   the Emails tab until sent manually)
+- Talent pool: "Talent pool + email" closes an application without rejecting
+  when the requirement is filled — the profile is kept on file and the
+  candidate is told we'll reach out for future roles
+- Passive openings: an opening set to "passive" stays public and accepts
+  applications but tells applicants hiring is not immediate; they sit "on
+  hold" (a status, not a stage) until the opening is set back to open, when
+  they join the pipeline and get a "hiring resumed" email with a withdraw link
 - Emails: full outbox with per-mail service badge, drafts, cancel, and manual
   resend via either service for failures
 - Dual mail service: Resend primary with Gmail/Workspace SMTP fallback (app

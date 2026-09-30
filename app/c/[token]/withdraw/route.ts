@@ -15,7 +15,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ token: str
   } = await q<{ id: number; name: string; email: string; title: string }>(
     `update public.applications a set status = 'withdrawn'
      from public.openings o
-     where a.portal_token = $1 and a.status = 'active' and o.id = a.opening_id
+     where a.portal_token = $1 and a.status in ('active', 'on_hold') and o.id = a.opening_id
      returning a.id, a.name, a.email, o.title`,
     [token]
   );

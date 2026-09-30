@@ -210,6 +210,8 @@ export default async function ApplicationsPage({
           )}
         </div>
         <div className={segment}>
+          {tab(`${base}?status=on_hold`, 'On hold', status === 'on_hold')}
+          {tab(`${base}?status=pooled`, 'Talent pool', status === 'pooled')}
           {tab(`${base}?status=rejected`, 'Rejected', status === 'rejected')}
           {tab(`${base}?status=hired`, 'Hired', status === 'hired')}
           {tab(`${base}?status=withdrawn`, 'Withdrawn', status === 'withdrawn')}
@@ -406,8 +408,15 @@ export default async function ApplicationsPage({
             </label>
             <AssignMenu people={people} />
             <Separator orientation="vertical" className="mx-2 h-5!" />
-            {status === 'active' ? (
+            {status === 'active' || status === 'on_hold' ? (
               <>
+                {status === 'on_hold' && (
+                  <SubmitButton name="intent" value="release" variant="outline" size="sm" className="text-primary" pendingLabel="Releasing…"
+                    confirmText="Start processing {n} candidate(s) now? They join the active pipeline and each get the “we're now hiring” email with a withdraw link."
+                    title="They applied while this opening was passive — this pulls them in ahead of reopening it">
+                    Start processing + email
+                  </SubmitButton>
+                )}
                 <SubmitButton name="intent" value="hire" variant="outline" size="sm" className="text-primary" pendingLabel="Hiring…" confirmText="Mark {n} candidate(s) as hired? They will each get the congratulations email.">Mark hired</SubmitButton>
                 <SubmitButton name="intent" value="reject_send" variant="destructive" size="sm" pendingLabel="Rejecting…"
                   confirmText={parked
@@ -421,6 +430,11 @@ export default async function ApplicationsPage({
                     : 'Reject {n} candidate(s)? The rejection email is drafted in Emails for you to send later.'}
                   title="Rejects and drafts the email — send it manually from the Emails tab">
                   {parked ? 'Reject + draft no-response' : 'Reject + draft email'}
+                </SubmitButton>
+                <SubmitButton name="intent" value="pool" variant="outline" size="sm" pendingLabel="Closing…"
+                  confirmText="Close {n} application(s) and keep the profiles for future roles? Each candidate is emailed now that the position is filled for the moment and that we'll reach out when a matching requirement opens."
+                  title="Not a rejection: the requirement is filled for now and the profile stays on file">
+                  Talent pool + email
                 </SubmitButton>
                 <SubmitButton name="intent" value="withdraw" variant="outline" size="sm" pendingLabel="Updating…" confirmText="Mark {n} candidate(s) as withdrawn? No email is sent." title="For candidates who told you they are no longer interested">Mark withdrawn</SubmitButton>
               </>
@@ -437,7 +451,9 @@ export default async function ApplicationsPage({
             short progress update. Moves backwards or sideways never email. Untick the box to move
             silently. &quot;Reject + email now&quot; sends immediately; &quot;Reject + draft email&quot;
             parks the mail in <Link href="/app/emails" className="underline">Emails</Link> until you
-            send it; &quot;Mark withdrawn&quot; never emails.
+            send it; &quot;Talent pool + email&quot; closes the application without rejecting and tells the
+            candidate the position is filled for now and their profile is kept for future roles;
+            &quot;Mark withdrawn&quot; never emails.
           </p>
         )}
       </ResultForm>

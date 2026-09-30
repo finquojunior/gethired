@@ -5,6 +5,13 @@
 // candidate-facing sign-off, appended to every template a candidate receives
 const SIGN = `\n\n— The {{org}} hiring team\nQuestions? Reply to this email or write to {{support_email}}.`;
 
+/**
+ * Templates that break a closing outcome to the candidate. While one of these
+ * is still a draft the portal keeps showing the application as active (C15),
+ * and restoring the candidate cancels it.
+ */
+export const CLOSING_TEMPLATES = ['rejection', 'no_response_rejection', 'no_show', 'kept_on_file'];
+
 export const DEFAULT_TEMPLATES: Record<string, { subject: string; body: string; vars: string[] }> = {
   application_received: {
     subject: 'Application received — {{role}} at {{org}}',
@@ -45,6 +52,21 @@ export const DEFAULT_TEMPLATES: Record<string, { subject: string; body: string; 
     subject: 'Update on your application — {{role}} at {{org}}',
     body: `Hi {{name}},\n\nThank you for applying for {{role}}. After careful review we won't be moving forward with your application this time.\n\nWe'd love to see you apply again for future roles — see what's open at {{careers_link}}\n` + SIGN,
     vars: ['name', 'role', 'careers_link'],
+  },
+  kept_on_file: {
+    subject: 'Update on your application — {{role}} at {{org}}',
+    body: `Hi {{name}},\n\nThank you for applying for {{role}} and for the time you put into the process.\n\nThe position has now been filled, so we're closing this opening for the moment. We were impressed by your profile, and we'd like to keep it on file: when a matching requirement comes up, we'll reach out to you directly.\n\nYou don't need to do anything now. If your contact details or availability change, reply to this email so we have the latest.\n\nIn the meantime, you can see what else is open at {{careers_link}}\n` + SIGN,
+    vars: ['name', 'role', 'careers_link'],
+  },
+  application_received_passive: {
+    subject: 'Application received — {{role}} at {{org}}',
+    body: `Hi {{name}},\n\nThanks for applying for {{role}}. We've received your application.\n\nOne thing to know up front: we're not hiring for this role immediately. We're collecting applications now so we can move quickly when hiring opens, so it may be some time before you hear more from us. You don't need to do anything in the meantime.\n\nWhen hiring resumes, we'll email you and start processing your application.\n\nTrack your application any time:\n{{portal_link}}\n` + SIGN,
+    vars: ['name', 'role', 'portal_link'],
+  },
+  hiring_resumed: {
+    subject: "We're now hiring — {{role}} at {{org}}",
+    body: `Hi {{name}},\n\nGood news: hiring for {{role}} is now active, and we're starting to process your application.\n\nIf you're still interested, there's nothing to do. You'll get updates from us at each step.\n\nIf you're no longer interested, you can withdraw your application from your status page:\n{{portal_link}}\n` + SIGN,
+    vars: ['name', 'role', 'portal_link'],
   },
   no_response_rejection: {
     subject: 'Update on your application — {{role}} at {{org}}',

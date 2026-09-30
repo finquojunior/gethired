@@ -14,7 +14,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ slug: stri
   }
   const {
     rows: [o],
-  } = await q(`select 1 from public.openings where slug = $1 and status = 'open'`, [slug]);
+  } = await q(`select 1 from public.openings where slug = $1 and status in ('open', 'passive')`, [slug]);
   if (!o) return new NextResponse('Not found', { status: 404 });
 
   const { name } = (await req.json().catch(() => null)) ?? { name: '' };

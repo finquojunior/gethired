@@ -6,6 +6,7 @@ import { daysUntil, fmtDate, fmtDay, fmtSlot, fmtTime, gcalUrl } from '@/lib/tz'
 import { TASK_MAX_BYTES, TASK_TYPE_HELP } from '@/lib/uploads';
 import { allFields, type FormSchema } from '@/lib/form-schema';
 import { ORG_NAME } from '@/lib/email';
+import { CLOSING_TEMPLATES } from '@/lib/email-templates';
 import LinkifyText from '@/components/LinkifyText';
 import TaskSubmitForm from '@/components/TaskSubmitForm';
 import Toaster from '@/components/Toaster';
@@ -35,6 +36,8 @@ const STATUS_TEXT: Record<string, string> = {
   hired: 'You got the role — congratulations! Our team will contact you with next steps.',
   rejected: 'Thanks for your interest. We are not moving forward with your application this time.',
   withdrawn: 'This application has been withdrawn.',
+  pooled: "This opening has been closed — the position has been filled for now. We've kept your profile on file and will get in touch when a matching requirement opens up.",
+  on_hold: "We've received your application. This role isn't hiring immediately, so we'll process it when hiring resumes and email you then.",
 };
 
 const OK_TEXT: Record<string, string> = {
@@ -99,9 +102,9 @@ export default async function PortalPage({
     created_at: Date;
   }>(
     `select a.id, a.name, a.status, o.title, o.id as opening_id, s.id as stage_id, s.kind as stage_kind,
-            (a.status = 'rejected' and exists (
+            (a.status in ('rejected', 'pooled') and exists (
               select 1 from public.email_log e
-              where e.application_id = a.id and e.template = 'rejection' and e.status = 'draft'
+              where e.application_id = a.id and e.template = any($2) and e.status = 'draft'
             )) as rejection_pending,
             s.brief as stage_brief, s.brief_file_path as stage_brief_file,
             s.brief_links as stage_brief_links, s.submission_fields,
@@ -116,7 +119,7 @@ export default async function PortalPage({
      join public.forms f on f.id = a.form_id
      left join public.stages s on s.id = a.current_stage_id
      where a.portal_token = $1`,
-    [token]
+    [token, CLOSING_TEMPLATES]
   );
   if (!a) notFound();
   const labels = new Map(allFields(a.schema).map((f) => [f.id, f.label || f.id]));
@@ -252,7 +255,7 @@ export default async function PortalPage({
       {outcome ? (
         <Alert className={`mt-6 ${shownStatus === 'hired' ? 'border-primary bg-secondary' : ''}`}>
           <AlertTitle className="text-base">{outcome}</AlertTitle>
-          {(shownStatus === 'rejected' || shownStatus === 'withdrawn') && (
+          {(shownStatus === 'rejected' || shownStatus === 'withdrawn' || shownStatus === 'pooled') && (
             <AlertDescription>
               <Link href="/careers">See other open roles →</Link>
             </AlertDescription>
@@ -591,7 +594,7 @@ export default async function PortalPage({
         </Card>
       )}
 
-      {a.status === 'active' && (
+      {(a.status === 'active' || a.status === 'on_hold') && (
         <Card className="mt-10">
           <details>
             <summary className="cursor-pointer px-(--card-spacing) text-sm text-muted-foreground">

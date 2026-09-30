@@ -15,6 +15,7 @@ import { cn } from '@/lib/utils';
 const STATUS_BADGE: Record<string, { variant: 'outline' | 'secondary' | 'destructive'; className?: string }> = {
   draft: { variant: 'outline' },
   open: { variant: 'secondary' },
+  passive: { variant: 'outline', className: 'border-transparent bg-amber/15 text-amber' },
   paused: { variant: 'outline', className: 'border-transparent bg-amber/15 text-amber' },
   closed: { variant: 'destructive' },
 };

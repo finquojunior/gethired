@@ -28,10 +28,11 @@ export default async function CareersPage() {
     location: string;
     employment_type: string;
     poster_path: string;
+    status: string;
   }>(
-    `select o.slug, o.title, o.department, o.location, o.employment_type, o.poster_path
+    `select o.slug, o.title, o.department, o.location, o.employment_type, o.poster_path, o.status
      from public.openings o
-     where o.status = 'open'
+     where o.status in ('open', 'passive')
        and (o.close_at is null or o.close_at > now())
        and exists (select 1 from public.forms f where f.opening_id = o.id and f.is_published)
      order by o.created_at desc`
@@ -64,6 +65,7 @@ export default async function CareersPage() {
                     <CardDescription className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
                       {[o.department, o.location].filter(Boolean).join(' · ')}
                       {o.employment_type && <Badge variant="secondary">{o.employment_type}</Badge>}
+                      {o.status === 'passive' && <Badge variant="outline">Not hiring immediately</Badge>}
                     </CardDescription>
                   </div>
                 </div>

@@ -125,7 +125,7 @@ export default async function AddCandidatePage({
         <div className="rounded-b-lg border border-t-0 bg-card px-4 pb-4">
         <p className="mt-3 text-muted-foreground">
           Save your sheet as CSV with a header row: <code>name,email,phone,status,notes</code>.
-          Status can be active, hired, rejected, or withdrawn (defaults to active). Duplicate
+          Status can be active, hired, rejected, withdrawn, pooled, or on_hold (defaults to active). Duplicate
           emails are skipped. Imported candidates are tagged with source “import”.
         </p>
         <form action={importCsv} className="mt-3 flex flex-wrap items-end gap-2">

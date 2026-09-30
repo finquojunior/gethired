@@ -24,11 +24,11 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ slug: stri
 
   const {
     rows: [form],
-  } = await q<{ opening_id: number; form_id: number; schema: FormSchema }>(
-    `select o.id as opening_id, f.id as form_id, f.schema
+  } = await q<{ opening_id: number; form_id: number; schema: FormSchema; passive: boolean }>(
+    `select o.id as opening_id, f.id as form_id, f.schema, o.status = 'passive' as passive
      from public.openings o
      join public.forms f on f.opening_id = o.id and f.is_published
-     where o.slug = $1 and o.status = 'open'
+     where o.slug = $1 and o.status in ('open', 'passive')
        and (o.close_at is null or o.close_at > now())`,
     [slug]
   );
@@ -115,8 +115,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ slug: stri
         rows: [app],
       } = await c.query(
         `insert into public.applications
-           (opening_id, form_id, name, email, phone, resume_path, answers, score, max_score, utm, current_stage_id, consented_at)
-         values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, now())
+           (opening_id, form_id, name, email, phone, resume_path, answers, score, max_score, utm, current_stage_id, consented_at, status)
+         values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, now(), $12)
          returning id, portal_token`,
         [
           form.opening_id,
@@ -130,6 +130,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ slug: stri
           maxScore,
           JSON.stringify(utm),
           stage?.id ?? null,
+          // a passive opening collects applications for later: parked on hold, told so
+          form.passive ? 'on_hold' : 'active',
         ]
       );
       if (stage) {
@@ -161,7 +163,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ slug: stri
     after(() =>
       sendEmail({
         applicationId: c.id,
-        template: 'application_received',
+        template: form.passive ? 'application_received_passive' : 'application_received',
         to: email,
         vars: { name, role: c.title, portal_link: portalUrl(c.portal_token) },
       }).catch((e) => console.error('application_received email failed', e))
