@@ -4,12 +4,9 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from '@/components/Toaster';
 import { pipelineFlash } from '@/app/app/candidates/flash';
+import { BATCH, runBatched, type ActionResult } from '@/lib/batch-action';
 
-export type ActionResult = { ok?: string; error?: string };
-
-// How long we wait for the server before giving up on the response and
-// refreshing anyway — the actions themselves finish in about a second.
-const RESPONSE_TIMEOUT_MS = 15_000;
+export type { ActionResult } from '@/lib/batch-action';
 
 /**
  * Runs a server action that returns its outcome instead of redirecting: toasts
@@ -35,15 +32,7 @@ export function useActionResult(
   const submit = async (formData: FormData) => {
     setPending(true);
     try {
-      const timeout = new Promise<ActionResult>((resolve) =>
-        setTimeout(() => resolve({ error: 'timeout' }), RESPONSE_TIMEOUT_MS)
-      );
-      let result: ActionResult;
-      try {
-        result = await Promise.race([action(formData), timeout]);
-      } catch {
-        result = { error: 'timeout' };
-      }
+      const result = await runBatched(action, formData);
       // a redirect thrown inside the action (forbidden, login) resolves with nothing:
       // Next has already navigated, there is no outcome to toast
       if (!result) return;
@@ -56,7 +45,8 @@ export function useActionResult(
       }
       const flash = pipelineFlash(result.ok, result.error);
       if (flash) toast(flash.kind, flash.message);
-      if (result.ok) {
+      // refresh on any error too when batches ran: the earlier ones went through
+      if (result.ok || formData.getAll('appId').length > BATCH) {
         onDone?.();
         router.refresh();
       }

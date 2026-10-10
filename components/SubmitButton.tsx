@@ -6,6 +6,7 @@ import type { VariantProps } from 'class-variance-authority';
 import { Button, buttonVariants } from '@/components/ui/button';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import { toast } from '@/components/Toaster';
+import { PROGRESS_EVENT } from '@/lib/batch-action';
 
 type Variant = NonNullable<VariantProps<typeof buttonVariants>['variant']>;
 type Size = NonNullable<VariantProps<typeof buttonVariants>['size']>;
@@ -70,13 +71,24 @@ export default function SubmitButton({
   // response occasionally never reaches the browser and the button would sit on
   // its pending label forever. After STALL_MS reload so the page shows what the
   // server actually did.
+  // A batched bulk action is pending for its whole run; each finished batch
+  // proves the server is answering, so it restarts the clock.
   useEffect(() => {
     if (!pending) return;
-    const t = setTimeout(() => {
-      toast('error', 'The save is taking too long to come back — reloading to show the current state.');
-      setTimeout(() => window.location.reload(), 1500);
-    }, STALL_MS);
-    return () => clearTimeout(t);
+    let t: ReturnType<typeof setTimeout>;
+    const arm = () => {
+      clearTimeout(t);
+      t = setTimeout(() => {
+        toast('error', 'The save is taking too long to come back — reloading to show the current state.');
+        setTimeout(() => window.location.reload(), 1500);
+      }, STALL_MS);
+    };
+    arm();
+    window.addEventListener(PROGRESS_EVENT, arm);
+    return () => {
+      clearTimeout(t);
+      window.removeEventListener(PROGRESS_EVENT, arm);
+    };
   }, [pending]);
 
   const [confirm, setConfirm] = useState<{ text: string; el: HTMLButtonElement } | null>(null);

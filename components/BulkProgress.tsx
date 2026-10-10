@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { usePathname, useSearchParams } from 'next/navigation';
+import { PROGRESS_EVENT, type Progress } from '@/lib/batch-action';
 
 // Indeterminate progress bar shown while a bulk form action is in flight.
 //
@@ -15,12 +16,14 @@ import { usePathname, useSearchParams } from 'next/navigation';
 //
 // The bar clears when the form stops being pending (ResultForm actions return
 // in place), when a redirect lands (pathname/search change), or after a safety
-// timeout.
+// timeout. Selections big enough to be sent in batches (useActionResult) report
+// each finished batch, and the bar fills to match.
 const MAX_MS = 30_000;
 
 export default function BulkProgress() {
   const ref = useRef<HTMLDivElement>(null);
   const [n, setN] = useState<number | null>(null);
+  const [done, setDone] = useState<Progress | null>(null);
   const pathname = usePathname();
   const search = useSearchParams().toString();
   const { pending } = useFormStatus();
@@ -31,6 +34,14 @@ export default function BulkProgress() {
   useEffect(() => {
     setN(null);
   }, [pathname, search]);
+  useEffect(() => {
+    if (n === null) setDone(null);
+  }, [n]);
+  useEffect(() => {
+    const onProgress = (e: Event) => setDone((e as CustomEvent<Progress>).detail);
+    window.addEventListener(PROGRESS_EVENT, onProgress);
+    return () => window.removeEventListener(PROGRESS_EVENT, onProgress);
+  }, []);
 
   useEffect(() => {
     const form = ref.current?.closest('form');
@@ -41,21 +52,37 @@ export default function BulkProgress() {
   }, []);
 
   // belt-and-suspenders: never leave the bar stuck if the redirect URL is unchanged
+  // (restarted by each batch, so a long batched run isn't cut off)
   useEffect(() => {
     if (n === null) return;
     const t = setTimeout(() => setN(null), MAX_MS);
     return () => clearTimeout(t);
-  }, [n]);
+  }, [n, done]);
 
   return (
     <div ref={ref} className="w-full basis-full">
       {n !== null && (
         <>
-          <p className="text-xs text-muted-foreground">
-            Processing{n > 0 ? ` ${n} candidate${n > 1 ? 's' : ''}` : ''}…
+          <p className="text-xs text-muted-foreground" aria-live="polite">
+            {done
+              ? `Processed ${done.done} of ${done.total} candidates — please keep this tab open…`
+              : `Processing${n > 0 ? ` ${n} candidate${n > 1 ? 's' : ''}` : ''}…`}
           </p>
-          <div className="mt-1 h-1.5 w-full overflow-hidden rounded bg-muted">
-            <div className="h-full w-1/3 rounded bg-primary animate-progress" />
+          <div
+            className="mt-1 h-1.5 w-full overflow-hidden rounded bg-muted"
+            role="progressbar"
+            aria-valuemin={0}
+            aria-valuemax={done?.total}
+            aria-valuenow={done?.done}
+          >
+            {done ? (
+              <div
+                className="h-full rounded bg-primary transition-[width] duration-300"
+                style={{ width: `${Math.max(4, (done.done / done.total) * 100)}%` }}
+              />
+            ) : (
+              <div className="h-full w-1/3 rounded bg-primary animate-progress" />
+            )}
           </div>
         </>
       )}
