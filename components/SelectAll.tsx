@@ -52,10 +52,14 @@ export default function SelectAll({ name }: { name: string }) {
 
     form.addEventListener('mousedown', onMouseDown);
     form.addEventListener('click', onClick);
+    // rows leave without a click when a bulk action refreshes the list
+    const rows = new MutationObserver(sync);
+    rows.observe(form, { childList: true, subtree: true });
     sync();
     return () => {
       form.removeEventListener('mousedown', onMouseDown);
       form.removeEventListener('click', onClick);
+      rows.disconnect();
     };
   }, [name]);
 
@@ -95,10 +99,14 @@ export function SelectedCount({ name }: { name: string }) {
     };
     form.addEventListener('change', count);
     form.addEventListener('click', count);
+    // rows leave without a click when a bulk action refreshes the list
+    const rows = new MutationObserver(count);
+    rows.observe(form, { childList: true, subtree: true });
     count();
     return () => {
       form.removeEventListener('change', count);
       form.removeEventListener('click', count);
+      rows.disconnect();
     };
   }, [name]);
   return (
