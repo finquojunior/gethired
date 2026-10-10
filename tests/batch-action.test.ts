@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { runBatched } from '../lib/batch-action.ts';
+import { BATCH, runBatched } from '../lib/batch-action.ts';
 
 const form = (n: number) => {
   const fd = new FormData();
@@ -11,9 +11,9 @@ const form = (n: number) => {
 
 test('small selections go in one call, untouched', async () => {
   const calls: FormData[] = [];
-  const fd = form(5);
-  const r = await runBatched(async (f) => (calls.push(f), { ok: 'pool:5' }), fd);
-  assert.deepEqual(r, { ok: 'pool:5' });
+  const fd = form(BATCH);
+  const r = await runBatched(async (f) => (calls.push(f), { ok: `pool:${BATCH}` }), fd);
+  assert.deepEqual(r, { ok: `pool:${BATCH}` });
   assert.equal(calls.length, 1);
   assert.equal(calls[0], fd);
 });
@@ -26,9 +26,10 @@ test('large selections are batched and their counts summed', async () => {
     // the middle batch was already pooled by someone else
     return seen.length === 2 ? { error: 'nothing' } : { ok: `pool:${f.getAll('appId').length}` };
   }, form(12));
-  assert.deepEqual(seen.map((s) => s.length), [5, 5, 2]);
+  const sizes = Array.from({ length: Math.ceil(12 / BATCH) }, (_, i) => Math.min(BATCH, 12 - i * BATCH));
+  assert.deepEqual(seen.map((s) => s.length), sizes);
   assert.deepEqual(seen.flat(), Array.from({ length: 12 }, (_, i) => String(i + 1)));
-  assert.deepEqual(r, { ok: 'pool:7' });
+  assert.deepEqual(r, { ok: `pool:${12 - sizes[1]}` });
 });
 
 test('a real error stops the run; all-nothing stays nothing', async () => {

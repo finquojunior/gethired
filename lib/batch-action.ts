@@ -5,9 +5,11 @@ export type ActionResult = { ok?: string; error?: string };
 const RESPONSE_TIMEOUT_MS = 15_000;
 
 // Bulk actions email each candidate in turn (~1s apiece), so a big selection in
-// one request outruns the timeout above. Larger selections go in batches of this
-// size, one request each; every batch dispatches PROGRESS_EVENT for BulkProgress.
-export const BATCH = 5;
+// one request outruns the timeout above. Multi-candidate selections go one
+// candidate per request instead, which also lets BulkProgress tick per candidate
+// (each finished request dispatches PROGRESS_EVENT).
+// ponytail: serial, ~1-2s per candidate; run 2-3 at once if big batches feel slow
+export const BATCH = 1;
 export const PROGRESS_EVENT = 'action-progress';
 export type Progress = { done: number; total: number };
 
@@ -24,6 +26,8 @@ function batches(formData: FormData): FormData[] {
   return out;
 }
 
+// Only ever sent after an await: before the first one we are still inside the
+// form action's transition, and React would hold the update until the run ends.
 function progress(done: number, total: number) {
   if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent<Progress>(PROGRESS_EVENT, { detail: { done, total } }));
 }
@@ -55,7 +59,6 @@ export async function runBatched(action: (fd: FormData) => Promise<ActionResult>
   let intent = '';
   let n = 0;
   let done = 0;
-  progress(0, total);
   for (const fd of parts) {
     const r = await call(action, fd);
     if (!r) return r; // redirected (forbidden, login)
