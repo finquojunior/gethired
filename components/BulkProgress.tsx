@@ -1,10 +1,9 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { useFormStatus } from 'react-dom';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { CheckCircle2 } from 'lucide-react';
-import { PROGRESS_EVENT, type Progress } from '@/lib/batch-action';
+import { END_EVENT, PROGRESS_EVENT, type Progress } from '@/lib/batch-action';
 
 // Progress bar shown while a bulk form action is in flight.
 //
@@ -13,7 +12,8 @@ import { PROGRESS_EVENT, type Progress } from '@/lib/batch-action';
 // that re-submits the form programmatically, and React does not report a
 // programmatic submit as pending — so useFormStatus stayed false and the bar
 // never showed for exactly the multi-candidate moves that take the longest.
-// The submit event fires for both the direct and the confirmed path.
+// The submit event fires for both the direct and the confirmed path, and the
+// run ends on useActionResult's END_EVENT.
 //
 // Multi-candidate selections run one candidate per request (useActionResult),
 // and each finished one ticks the bar. When the run completes the bar stays
@@ -41,13 +41,15 @@ export default function BulkProgress() {
   const [run, setRun] = useState<Run | null>(null);
   const pathname = usePathname();
   const search = useSearchParams().toString();
-  const { pending } = useFormStatus();
 
-  // the action returned: hold a completed run on "Done", clear anything else
+  // the action returned: hold a completed run on "Done", clear anything else.
+  // Not useFormStatus: after the confirm dialog's requestSubmit it reports
+  // pending → not pending within the same frame, seconds before the run ends.
   useEffect(() => {
-    if (pending) return;
-    setRun((r) => (r && r.total > 1 && r.done >= r.total ? { ...r, finished: true } : null));
-  }, [pending]);
+    const onEnd = () => setRun((r) => (r && r.total > 1 && r.done >= r.total ? { ...r, finished: true } : null));
+    window.addEventListener(END_EVENT, onEnd);
+    return () => window.removeEventListener(END_EVENT, onEnd);
+  }, []);
   useEffect(() => {
     if (!run?.finished) return;
     const t = setTimeout(() => setRun(null), DONE_MS);
@@ -101,7 +103,7 @@ export default function BulkProgress() {
               </>
             ) : many ? (
               <>
-                {run.verb}… {Math.min(run.done + 1, run.total)} of {run.total}
+                {run.verb}… {Math.min(run.done + 1, run.total)} of {run.total}{' '}
                 <span className="font-normal text-muted-foreground">— please keep this tab open</span>
               </>
             ) : (

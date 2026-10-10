@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from '@/components/Toaster';
 import { pipelineFlash } from '@/app/app/candidates/flash';
-import { BATCH, runBatched, type ActionResult } from '@/lib/batch-action';
+import { BATCH, END_EVENT, runBatched, type ActionResult } from '@/lib/batch-action';
 
 export type { ActionResult } from '@/lib/batch-action';
 
@@ -52,8 +52,14 @@ export function useActionResult(
       }
     } finally {
       setPending(false);
+      window.dispatchEvent(new Event(END_EVENT));
     }
   };
 
-  return { submit, pending };
+  // setPending(true) inside submit runs in the form action's transition, and
+  // React holds it until the action ends; a form's onSubmit calls this instead
+  // so `pending` is true from the click.
+  const start = () => setPending(true);
+
+  return { submit, pending, start };
 }

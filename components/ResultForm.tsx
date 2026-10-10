@@ -15,10 +15,22 @@ export default function ResultForm({
 }: Omit<React.ComponentProps<'form'>, 'action'> & {
   action: (fd: FormData) => Promise<ActionResult>;
 }) {
-  const { submit } = useActionResult(action);
+  const { submit, pending, start } = useActionResult(action);
+  // useFormStatus can drop back to idle mid-run (see BulkProgress), which would
+  // re-enable SubmitButton; the disabled fieldset holds every control until the
+  // run really ends. `contents` keeps it out of the layout.
   return (
-    <form {...props} action={submit}>
-      {children}
+    <form
+      {...props}
+      action={submit}
+      onSubmit={(e) => {
+        props.onSubmit?.(e);
+        if (!e.defaultPrevented) start();
+      }}
+    >
+      <fieldset disabled={pending} className="contents">
+        {children}
+      </fieldset>
     </form>
   );
 }

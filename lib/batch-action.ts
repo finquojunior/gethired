@@ -11,6 +11,8 @@ const RESPONSE_TIMEOUT_MS = 15_000;
 // ponytail: serial, ~1-2s per candidate; run 2-3 at once if big batches feel slow
 export const BATCH = 1;
 export const PROGRESS_EVENT = 'action-progress';
+/** Sent by useActionResult once the whole run is over, whatever the outcome. */
+export const END_EVENT = 'action-end';
 export type Progress = { done: number; total: number };
 
 function batches(formData: FormData): FormData[] {
