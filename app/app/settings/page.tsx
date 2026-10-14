@@ -22,7 +22,7 @@ const nextDay = (s: string) => new Date(Date.parse(`${s}T00:00Z`) + 86_400_000).
 export default async function SettingsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ from?: string; to?: string }>;
+  searchParams: Promise<{ from?: string; to?: string; page?: string }>;
 }) {
   // activity log date filter: one day set = that day only; both = inclusive range (org-local days)
   const sp = await searchParams;
@@ -30,6 +30,15 @@ export default async function SettingsPage({
   const to = isDay(sp.to) ? sp.to! : from;
   const [lo, hi] = from <= to ? [from, to] : [to, from];
   const filtered = !!lo;
+  const page = Math.max(1, Math.floor(Number(sp.page)) || 1);
+  // ponytail: offset paging; fine at audit-log scale, switch to keyset on id if deep pages get slow
+  const pageHref = (n: number) => {
+    const p = new URLSearchParams();
+    if (filtered) p.set('from', lo);
+    if (filtered && hi !== lo) p.set('to', hi);
+    if (n > 1) p.set('page', String(n));
+    return `/app/settings${p.size ? `?${p}` : ''}#activity`;
+  };
   const user = await requireStaff();
   const isAdmin = user.role === 'admin';
   const mailService = await getMailService();
@@ -60,7 +69,7 @@ export default async function SettingsPage({
         `select l.action, l.entity, l.entity_id, l.detail, l.actor_id, p.full_name as actor, l.created_at
          from public.audit_log l left join public.profiles p on p.id = l.actor_id
          ${filtered ? 'where l.created_at >= $1 and l.created_at < $2' : ''}
-         order by l.id desc limit ${AUDIT_LIMIT + 1}`,
+         order by l.id desc limit ${AUDIT_LIMIT + 1} offset ${(page - 1) * AUDIT_LIMIT}`,
         filtered ? [orgTimeToUtc(lo, '00:00'), orgTimeToUtc(nextDay(hi), '00:00')] : undefined
       )
     : { rows: [] };
@@ -260,13 +269,13 @@ export default async function SettingsPage({
       )}
 
       {isAdmin && (
-        <section className="mt-10">
+        <section id="activity" className="mt-10">
           <h2 className="font-display text-lg font-semibold">Activity log</h2>
           <p className="mt-2 text-sm text-muted-foreground">
             Who did what, when — every action by staff and candidates across the system.
             Admins only.
           </p>
-          <form className="mt-4 flex flex-wrap items-end gap-3">
+          <form action="/app/settings#activity" className="mt-4 flex flex-wrap items-end gap-3">
             <label className="text-sm">
               <span className="block text-xs text-muted-foreground">From</span>
               <Input type="date" name="from" defaultValue={lo} className="mt-1 w-40" />
@@ -277,7 +286,7 @@ export default async function SettingsPage({
             </label>
             <Button type="submit" variant="secondary">Filter</Button>
             {filtered && (
-              <a href="/app/settings" className="text-sm text-muted-foreground underline">Clear</a>
+              <a href="/app/settings#activity" className="text-sm text-muted-foreground underline">Clear</a>
             )}
           </form>
           <ul className="mt-4 divide-y divide-border rounded-xl bg-card text-sm ring-1 ring-foreground/10">
@@ -308,12 +317,20 @@ export default async function SettingsPage({
                 </Empty>
               </li>
             )}
-            {moreAudit && (
-              <li className="px-4 py-2 text-center text-xs text-muted-foreground">Showing the most recent {AUDIT_LIMIT}
-                {filtered ? ' in this period — narrow the dates to see older entries.' : '. Filter by date to see older entries.'}
-              </li>
-            )}
           </ul>
+          {(page > 1 || moreAudit) && (
+            <nav className="mt-3 flex items-center justify-between text-sm">
+              {page > 1 ? (
+                <a href={pageHref(page - 1)} className="underline">← Newer</a>
+              ) : <span />}
+              <span className="text-xs text-muted-foreground">
+                Page {page} · entries {(page - 1) * AUDIT_LIMIT + 1}–{(page - 1) * AUDIT_LIMIT + auditRows.length}
+              </span>
+              {moreAudit ? (
+                <a href={pageHref(page + 1)} className="underline">Older →</a>
+              ) : <span />}
+            </nav>
+          )}
         </section>
       )}
     </div>
