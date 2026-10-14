@@ -134,17 +134,19 @@ export default async function TaskPage({
     if (!candidatesByStage.has(c.stage_id)) candidatesByStage.set(c.stage_id, []);
     candidatesByStage.get(c.stage_id)!.push(c);
   }
-  // headline counts over candidates currently active in the stage
+  // yes/no/submitted count everyone who reached the stage (submitters usually move on to
+  // review); "waiting" counts only those still active in it
   const stats = (stageId: number) => {
-    const now = (candidatesByStage.get(stageId) ?? []).filter((c) => c.status === 'active' && c.current_stage_id === stageId);
-    const n = (f: (c: (typeof now)[number]) => boolean) => now.filter(f).length;
+    const all = candidatesByStage.get(stageId) ?? [];
+    const now = all.filter((c) => c.status === 'active' && c.current_stage_id === stageId);
+    const n = (list: typeof all, f: (c: (typeof all)[number]) => boolean) => list.filter(f).length;
     return [
       ['In stage', now.length],
-      ['Said yes', n((c) => c.response === 'yes')],
-      ['Said no', n((c) => c.response === 'no')],
-      ['No response', n((c) => !c.response)],
-      ['Submitted', n((c) => !!c.submitted_at)],
-      ['Yet to submit', n((c) => !c.submitted_at && c.response !== 'no')],
+      ['Said yes', n(all, (c) => c.response === 'yes')],
+      ['Said no', n(all, (c) => c.response === 'no')],
+      ['No response', n(now, (c) => !c.response)],
+      ['Submitted', n(all, (c) => !!c.submitted_at)],
+      ['Yet to submit', n(now, (c) => !c.submitted_at && c.response !== 'no')],
     ] as const;
   };
 
