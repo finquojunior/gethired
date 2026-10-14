@@ -196,11 +196,11 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
           <CardContent>
             <ul className="space-y-2 text-sm">
               {newApps.map((n) => (
-                <li key={n.opening_id} className="flex justify-between">
-                  <Link href={`/app/openings/${n.opening_id}/applications`} className="hover:underline">
+                <li key={n.opening_id} className="flex justify-between gap-4">
+                  <Link href={`/app/openings/${n.opening_id}/applications`} className="min-w-0 truncate hover:underline">
                     {n.title}
                   </Link>
-                  <span className="font-medium">{n.count}</span>
+                  <span className="shrink-0 font-medium tabular-nums">{n.count}</span>
                 </li>
               ))}
               {newApps.length === 0 && <li className="text-muted-foreground">No new applications this week.</li>}
@@ -215,13 +215,13 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
           <CardContent>
             <ul className="space-y-2 text-sm">
               {pendingFeedback.map((f) => (
-                <li key={f.id} className="flex justify-between">
-                  <Link href={`/app/candidates/${f.id}`} className="font-medium hover:underline">
+                <li key={f.id} className="min-w-0">
+                  <Link href={`/app/candidates/${f.id}`} className="block truncate font-medium hover:underline">
                     {f.name}
                   </Link>
-                  <span className="text-muted-foreground">
+                  <p className="truncate text-xs text-muted-foreground">
                     {f.title} · interviewed {fmtSlot(f.starts_at)} · {f.interviewer}
-                  </span>
+                  </p>
                 </li>
               ))}
               {pendingFeedback.length === 0 && <li className="text-muted-foreground">All caught up.</li>}
@@ -236,11 +236,11 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
           <CardContent>
             <ul className="space-y-2 text-sm">
               {taskRound.map((t) => (
-                <li key={t.opening_id} className="flex justify-between">
-                  <Link href={`/app/openings/${t.opening_id}/task`} className="hover:underline">
+                <li key={t.opening_id} className="flex justify-between gap-4">
+                  <Link href={`/app/openings/${t.opening_id}/task`} className="min-w-0 truncate hover:underline">
                     {t.title}
                   </Link>
-                  <span>
+                  <span className="shrink-0 whitespace-nowrap tabular-nums">
                     <span className="font-medium text-primary">{t.submitted} submitted</span>
                     <span className="text-muted-foreground"> · {t.in_stage - t.submitted} awaiting</span>
                   </span>
@@ -259,13 +259,16 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
           <CardContent>
             <ul className="space-y-2 text-sm">
               {stale.map((s) => (
-                <li key={s.id} className="flex justify-between">
-                  <Link href={`/app/candidates/${s.id}`} className="font-medium hover:underline">
-                    {s.name}
-                  </Link>
-                  <span className="text-muted-foreground">
-                    {s.title} · {s.stage ?? '—'} · since {fmtDay(s.last_move)}
-                  </span>
+                <li key={s.id} className="flex items-baseline justify-between gap-4">
+                  <div className="min-w-0">
+                    <Link href={`/app/candidates/${s.id}`} className="block truncate font-medium hover:underline">
+                      {s.name}
+                    </Link>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {s.title} · {s.stage ?? '—'}
+                    </p>
+                  </div>
+                  <span className="shrink-0 whitespace-nowrap text-xs text-muted-foreground tabular-nums">since {fmtDay(s.last_move)}</span>
                 </li>
               ))}
               {stale.length === 0 && <li className="text-muted-foreground">Nobody stuck — pipeline is moving.</li>}
@@ -302,9 +305,9 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
                   <div className="font-medium">{f.title}</div>
                   <div className="mt-2 flex gap-1">
                     {f.stages.map((s) => (
-                      <div key={s.stage} className="flex-1 text-center">
+                      <div key={s.stage} className="min-w-0 flex-1 text-center" title={s.stage}>
                         <div className="rounded bg-secondary py-1 text-sm font-semibold text-secondary-foreground tabular-nums">{s.count}</div>
-                        <div className="mt-1 truncate text-xs text-muted-foreground">{s.stage}</div>
+                        <div className="mt-1 text-[11px] leading-tight text-balance break-words text-muted-foreground">{s.stage}</div>
                       </div>
                     ))}
                   </div>

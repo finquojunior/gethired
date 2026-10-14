@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { q } from '@/lib/db';
 import { requireStaff } from '@/lib/auth';
-import { fmtDate, fmtDateTime } from '@/lib/tz';
+import { fmtDate, fmtDateTime, fmtDay } from '@/lib/tz';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Label } from '@/components/ui/label';
@@ -189,7 +189,7 @@ export default async function ReportsPage() {
             <CardDescription>Candidates who ever reached each kind of stage, with conversion from applied.</CardDescription>
           </CardHeader>
           <CardContent>
-          <Table>
+          <Table className="tabular-nums">
             <TableHeader>
               <TableRow className="text-xs uppercase tracking-wide text-muted-foreground hover:bg-transparent">
                 <TableHead className="px-0">Opening</TableHead>
@@ -203,12 +203,12 @@ export default async function ReportsPage() {
             <TableBody>
               {reach.map((r) => (
                 <TableRow key={r.opening_id}>
-                  <TableCell className="px-0 whitespace-normal">{r.title}</TableCell>
-                  <TableCell className="text-right font-medium whitespace-nowrap">{r.applied}</TableCell>
-                  <TableCell className="text-right whitespace-nowrap">{r.task} <span className="text-xs text-muted-foreground">({pct(r.task, r.applied)})</span></TableCell>
-                  <TableCell className="text-right whitespace-nowrap">{r.interview} <span className="text-xs text-muted-foreground">({pct(r.interview, r.applied)})</span></TableCell>
-                  <TableCell className="text-right whitespace-nowrap">{r.offer}</TableCell>
-                  <TableCell className="text-right text-primary whitespace-nowrap">{r.hired} <span className="text-xs text-muted-foreground">({pct(r.hired, r.applied)})</span></TableCell>
+                  <TableCell className="px-0 align-top whitespace-normal">{r.title}</TableCell>
+                  <TableCell className="text-right align-top font-medium whitespace-nowrap">{r.applied}</TableCell>
+                  <TableCell className="text-right align-top whitespace-nowrap">{r.task}<span className="block text-xs text-muted-foreground">{pct(r.task, r.applied)}</span></TableCell>
+                  <TableCell className="text-right align-top whitespace-nowrap">{r.interview}<span className="block text-xs text-muted-foreground">{pct(r.interview, r.applied)}</span></TableCell>
+                  <TableCell className="text-right align-top whitespace-nowrap">{r.offer}<span className="block text-xs text-muted-foreground">{pct(r.offer, r.applied)}</span></TableCell>
+                  <TableCell className="text-right align-top text-primary whitespace-nowrap">{r.hired}<span className="block text-xs text-muted-foreground">{pct(r.hired, r.applied)}</span></TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -219,51 +219,10 @@ export default async function ReportsPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle className={h2}>Recent hiring activity</CardTitle>
-          </CardHeader>
-          <CardContent>
-          <ul className="space-y-2 text-sm">
-            {activity.map((ev, i) => (
-              <li key={i} className="flex justify-between gap-3">
-                <span>
-                  <Link href={`/app/candidates/${ev.app_id}`} className="font-medium hover:underline">
-                    {ev.name}
-                  </Link>{' '}
-                  <span className="text-muted-foreground">{ev.text}</span>
-                </span>
-                <span className="shrink-0 text-xs text-muted-foreground">{fmtDateTime(ev.when)}</span>
-              </li>
-            ))}
-            {activity.length === 0 && <li className="text-muted-foreground">No activity yet.</li>}
-          </ul>
-        </CardContent>
-      </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className={h2}>Interview feedback by role</CardTitle>
-          </CardHeader>
-          <CardContent>
-          <ul className="space-y-2 text-sm">
-            {ratings.map((r) => (
-              <li key={r.title} className="flex justify-between">
-                <span>{r.title}</span>
-                <span>
-                  <span className="font-medium">★ {r.avg_rating}</span>
-                  <span className="text-muted-foreground"> · {r.n} rating(s)</span>
-                </span>
-              </li>
-            ))}
-            {ratings.length === 0 && <li className="text-muted-foreground">No feedback recorded yet.</li>}
-          </ul>
-        </CardContent>
-      </Card>
-        <Card>
-          <CardHeader>
             <CardTitle className={h2}>Funnel by opening</CardTitle>
           </CardHeader>
           <CardContent>
-          <Table>
+          <Table className="tabular-nums">
             <TableHeader>
               <TableRow className="text-xs uppercase tracking-wide text-muted-foreground hover:bg-transparent">
                 <TableHead className="px-0">Opening</TableHead>
@@ -285,35 +244,6 @@ export default async function ReportsPage() {
                   <TableCell className="text-right">{f.active}</TableCell>
                   <TableCell className="text-right text-primary">{f.hired}</TableCell>
                   <TableCell className="text-right text-muted-foreground">{f.rejected + f.withdrawn}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className={h2}>Where candidates come from</CardTitle>
-            <CardDescription>From utm_source on apply links — tag your Meta ads with ?utm_source=…&utm_campaign=…</CardDescription>
-          </CardHeader>
-          <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow className="text-xs uppercase tracking-wide text-muted-foreground hover:bg-transparent">
-                <TableHead className="px-0">Source</TableHead>
-                <TableHead className="text-right">Applications</TableHead>
-                <TableHead className="text-right">Interviewed</TableHead>
-                <TableHead className="text-right">Hired</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {sources.map((s) => (
-                <TableRow key={s.source}>
-                  <TableCell className="font-medium">{s.source}</TableCell>
-                  <TableCell className="text-right">{s.total}</TableCell>
-                  <TableCell className="text-right">{s.interviews}</TableCell>
-                  <TableCell className="text-right text-primary">{s.hired}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -361,7 +291,7 @@ export default async function ReportsPage() {
                       <text x={p.cx} y={p.cy - 9} textAnchor="middle" fontSize="10"
                         fill="var(--muted-foreground)">{p.count}</text>
                       <text x={p.cx} y={H - padBottom + 14} textAnchor="middle" fontSize="9"
-                        fill="var(--muted-foreground)">{fmtDate(p.week).slice(5)}</text>
+                        fill="var(--muted-foreground)">{fmtDay(p.week).replace(/ \d{4}$/, '')}</text>
                     </g>
                   ))}
                 </svg>
@@ -373,17 +303,88 @@ export default async function ReportsPage() {
 
         <Card>
           <CardHeader>
+            <CardTitle className={h2}>Where candidates come from</CardTitle>
+            <CardDescription>From utm_source on apply links — tag your Meta ads with <code className="whitespace-nowrap">?utm_source=…&amp;utm_campaign=…</code></CardDescription>
+          </CardHeader>
+          <CardContent>
+          <Table className="tabular-nums">
+            <TableHeader>
+              <TableRow className="text-xs uppercase tracking-wide text-muted-foreground hover:bg-transparent">
+                <TableHead className="px-0">Source</TableHead>
+                <TableHead className="text-right">Applications</TableHead>
+                <TableHead className="text-right">Interviewed</TableHead>
+                <TableHead className="text-right">Hired</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {sources.map((s) => (
+                <TableRow key={s.source}>
+                  <TableCell className="px-0 font-medium">{s.source}</TableCell>
+                  <TableCell className="text-right">{s.total}</TableCell>
+                  <TableCell className="text-right">{s.interviews}</TableCell>
+                  <TableCell className="text-right text-primary">{s.hired}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className={h2}>Interview feedback by role</CardTitle>
+          </CardHeader>
+          <CardContent>
+          <ul className="space-y-2 text-sm">
+            {ratings.map((r) => (
+              <li key={r.title} className="flex justify-between gap-4">
+                <span className="min-w-0 truncate">{r.title}</span>
+                <span className="shrink-0 whitespace-nowrap tabular-nums">
+                  <span className="font-medium">★ {r.avg_rating}</span>
+                  <span className="text-muted-foreground"> · {r.n} rating(s)</span>
+                </span>
+              </li>
+            ))}
+            {ratings.length === 0 && <li className="text-muted-foreground">No feedback recorded yet.</li>}
+          </ul>
+        </CardContent>
+      </Card>
+
+        <Card>
+          <CardHeader>
             <CardTitle className={h2}>Time to hire</CardTitle>
           </CardHeader>
           <CardContent>
           <ul className="space-y-2 text-sm">
             {tth.map((t) => (
-              <li key={t.title} className="flex justify-between">
-                <span>{t.title}</span>
-                <span className="font-medium">{t.avg_days} days</span>
+              <li key={t.title} className="flex justify-between gap-4">
+                <span className="min-w-0 truncate">{t.title}</span>
+                <span className="shrink-0 font-medium whitespace-nowrap tabular-nums">{t.avg_days} days</span>
               </li>
             ))}
             {tth.length === 0 && <li className="text-muted-foreground">No hires yet.</li>}
+          </ul>
+        </CardContent>
+      </Card>
+
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle className={h2}>Recent hiring activity</CardTitle>
+          </CardHeader>
+          <CardContent>
+          <ul className="space-y-2 text-sm">
+            {activity.map((ev, i) => (
+              <li key={i} className="flex items-baseline justify-between gap-3">
+                <span>
+                  <Link href={`/app/candidates/${ev.app_id}`} className="font-medium hover:underline">
+                    {ev.name}
+                  </Link>{' '}
+                  <span className="text-muted-foreground">{ev.text}</span>
+                </span>
+                <span className="shrink-0 whitespace-nowrap text-xs text-muted-foreground tabular-nums">{fmtDateTime(ev.when)}</span>
+              </li>
+            ))}
+            {activity.length === 0 && <li className="text-muted-foreground">No activity yet.</li>}
           </ul>
         </CardContent>
       </Card>
