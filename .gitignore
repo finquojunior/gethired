@@ -10,3 +10,4 @@ db/postgres.log
 tsconfig.tsbuildinfo
 db/dump.sql
 supabase/.temp/
+.archify/
