@@ -157,10 +157,27 @@ export default async function TeamPage({ searchParams }: { searchParams: Promise
                       {p.id === me.id && <span className="ml-2 text-xs text-muted-foreground">(you)</span>}
                     </div>
                     <div className="text-sm text-muted-foreground">{p.email ?? 'no email'}</div>
+                    <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs">
+                      <Badge>{ROLE_LABEL[p.role] ?? p.role}</Badge>
+                      {!scoped(p.role) ? (
+                        <span className="text-muted-foreground">All departments and openings</span>
+                      ) : p.department_ids.length + p.openings.length === 0 ? (
+                        <span className="text-destructive">No access assigned yet</span>
+                      ) : (
+                        <>
+                          {p.department_ids.map((id) => (
+                            <Badge key={id} variant="secondary">{deptName.get(id) ?? 'removed department'}</Badge>
+                          ))}
+                          {p.openings.map((o) => (
+                            <Badge key={o.id} variant="outline">{o.title}</Badge>
+                          ))}
+                        </>
+                      )}
+                    </div>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     {admin && p.id !== me.id ? (
-                      <form action={setUserRole} className="flex items-center gap-2">
+                      <form key={p.role} action={setUserRole} className="flex items-center gap-2">
                         <input type="hidden" name="userId" value={p.id} />
                         <NativeSelect size="sm" name="role" defaultValue={p.role} aria-label={`Role for ${p.full_name}`} className="w-44">
                           {ROLES.map(([r, label]) => (
@@ -188,7 +205,7 @@ export default async function TeamPage({ searchParams }: { searchParams: Promise
 
                 {scoped(p.role) ? (
                   <div className="mt-4 grid gap-4 md:grid-cols-2">
-                    <form action={setUserDepartments} className="rounded-lg border border-border p-3">
+                    <form key={p.department_ids.join()} action={setUserDepartments} className="rounded-lg border border-border p-3">
                       <input type="hidden" name="userId" value={p.id} />
                       <p className="mb-1.5 text-sm leading-none font-medium">Departments</p>
                       {departments.length === 0 && <p className="text-xs text-muted-foreground">Add departments above first.</p>}

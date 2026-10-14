@@ -2,6 +2,10 @@ import pg, { Pool, type QueryResultRow } from 'pg';
 
 // int8 comes back as a string by default; our ids never exceed 2^53
 pg.types.setTypeParser(20, (v) => Number(v));
+// ...and int8[] too, or `ids.includes(id)` silently never matches
+const INT8_ARRAY = 1016 as never; // array OIDs aren't in pg's TypeId enum
+const parseTextArray = pg.types.getTypeParser(INT8_ARRAY);
+pg.types.setTypeParser(INT8_ARRAY, (v: string) => (parseTextArray(v) as string[]).map(Number));
 
 // Direct Postgres from the server (hosted Supabase in production, embedded
 // locally); never exposed to the client. On serverless, DATABASE_URL must be
