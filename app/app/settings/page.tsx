@@ -1,10 +1,11 @@
 import { q } from '@/lib/db';
 import { requireStaff } from '@/lib/auth';
 import { DEFAULT_TEMPLATES, getMailService, getMailUsage, mailConfigured, resendExhausted } from '@/lib/email';
-import { fmtDateTime } from '@/lib/tz';
+import { fmtDateTime, orgTimeToUtc } from '@/lib/tz';
 import SubmitButton from '@/components/SubmitButton';
 import { saveTemplate, setMailService, setResendLimits } from './actions';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -15,7 +16,20 @@ export const metadata = { title: 'Settings' };
 const AUDIT_LIMIT = 200;
 const ERROR_LIMIT = 100;
 
-export default async function SettingsPage() {
+const isDay = (s?: string) => !!s && /^\d{4}-\d{2}-\d{2}$/.test(s);
+const nextDay = (s: string) => new Date(Date.parse(`${s}T00:00Z`) + 86_400_000).toISOString().slice(0, 10);
+
+export default async function SettingsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ from?: string; to?: string }>;
+}) {
+  // activity log date filter: one day set = that day only; both = inclusive range (org-local days)
+  const sp = await searchParams;
+  const from = isDay(sp.from) ? sp.from! : isDay(sp.to) ? sp.to! : '';
+  const to = isDay(sp.to) ? sp.to! : from;
+  const [lo, hi] = from <= to ? [from, to] : [to, from];
+  const filtered = !!lo;
   const user = await requireStaff();
   const isAdmin = user.role === 'admin';
   const mailService = await getMailService();
@@ -45,7 +59,9 @@ export default async function SettingsPage() {
       }>(
         `select l.action, l.entity, l.entity_id, l.detail, l.actor_id, p.full_name as actor, l.created_at
          from public.audit_log l left join public.profiles p on p.id = l.actor_id
-         order by l.id desc limit ${AUDIT_LIMIT + 1}`
+         ${filtered ? 'where l.created_at >= $1 and l.created_at < $2' : ''}
+         order by l.id desc limit ${AUDIT_LIMIT + 1}`,
+        filtered ? [orgTimeToUtc(lo, '00:00'), orgTimeToUtc(nextDay(hi), '00:00')] : undefined
       )
     : { rows: [] };
   const moreAudit = auditRows.length > AUDIT_LIMIT;
@@ -250,6 +266,20 @@ export default async function SettingsPage() {
             Who did what, when — every action by staff and candidates across the system.
             Admins only.
           </p>
+          <form className="mt-4 flex flex-wrap items-end gap-3">
+            <label className="text-sm">
+              <span className="block text-xs text-muted-foreground">From</span>
+              <Input type="date" name="from" defaultValue={lo} className="mt-1 w-40" />
+            </label>
+            <label className="text-sm">
+              <span className="block text-xs text-muted-foreground">To (leave empty for a single day)</span>
+              <Input type="date" name="to" defaultValue={filtered && hi !== lo ? hi : ''} className="mt-1 w-40" />
+            </label>
+            <Button type="submit" variant="secondary">Filter</Button>
+            {filtered && (
+              <a href="/app/settings" className="text-sm text-muted-foreground underline">Clear</a>
+            )}
+          </form>
           <ul className="mt-4 divide-y divide-border rounded-xl bg-card text-sm ring-1 ring-foreground/10">
             {auditRows.map((r, i) => (
               <li key={i} className="flex flex-wrap items-center justify-between gap-2 px-4 py-2">
@@ -273,13 +303,15 @@ export default async function SettingsPage() {
               <li>
                 <Empty>
                   <EmptyHeader>
-                    <EmptyTitle>No activity recorded yet.</EmptyTitle>
+                    <EmptyTitle>{filtered ? 'No activity in this period.' : 'No activity recorded yet.'}</EmptyTitle>
                   </EmptyHeader>
                 </Empty>
               </li>
             )}
             {moreAudit && (
-              <li className="px-4 py-2 text-center text-xs text-muted-foreground">Showing the most recent {AUDIT_LIMIT}.</li>
+              <li className="px-4 py-2 text-center text-xs text-muted-foreground">Showing the most recent {AUDIT_LIMIT}
+                {filtered ? ' in this period — narrow the dates to see older entries.' : '. Filter by date to see older entries.'}
+              </li>
             )}
           </ul>
         </section>
