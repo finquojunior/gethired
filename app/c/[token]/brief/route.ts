@@ -10,10 +10,11 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ token: str
   const {
     rows: [a],
   } = await q<{ brief_file_path: string | null; kind: string | null; slug: string }>(
-    `select s.brief_file_path, s.kind, o.slug
+    `select ta.brief_file_path, s.kind, o.slug
      from public.applications a
      join public.openings o on o.id = a.opening_id
      left join public.stages s on s.id = a.current_stage_id
+     left join public.task_assignments ta on ta.application_id = a.id and ta.stage_id = s.id
      where a.portal_token = $1 and a.status = 'active'`,
     [token]
   );

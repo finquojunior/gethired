@@ -173,9 +173,11 @@ export default async function CandidatePage({
         [appId]
       ),
       q<{ stage: string; submission_fields: unknown }>(
-        `select name as stage, submission_fields from public.stages
-         where opening_id = $1 and kind = 'task' order by position`,
-        [a.opening_id]
+        `select s.name as stage, coalesce(ta.submission_fields, s.submission_fields) as submission_fields
+         from public.stages s
+         left join public.task_assignments ta on ta.stage_id = s.id and ta.application_id = $2
+         where s.opening_id = $1 and s.kind = 'task' order by s.position`,
+        [a.opening_id, appId]
       ),
       q<{ response: string; created_at: Date }>(
         `select response, created_at from public.task_responses

@@ -214,6 +214,9 @@ export async function openingIdForFile(relPath: string): Promise<number | null> 
        where su.file_path = $1
      union all
      select opening_id from public.stages where brief_file_path = $1
+     union all
+     select s.opening_id from public.task_assignments ta join public.stages s on s.id = ta.stage_id
+       where ta.brief_file_path = $1
      limit 1`,
     [relPath]
   );

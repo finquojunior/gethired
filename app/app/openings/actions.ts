@@ -251,7 +251,10 @@ export async function deleteOpeningData(formData: FormData) {
        join public.applications a on a.id = s.application_id
      where a.opening_id = $1 and s.file_path <> ''
      union all
-     select brief_file_path from public.stages where opening_id = $1 and brief_file_path <> ''`,
+     select brief_file_path from public.stages where opening_id = $1 and brief_file_path <> ''
+     union
+     select ta.brief_file_path from public.task_assignments ta join public.stages s on s.id = ta.stage_id
+     where s.opening_id = $1 and ta.brief_file_path <> ''`,
     [openingId]
   );
   const {
@@ -433,9 +436,28 @@ export async function updateTaskMaterials(formData: FormData) {
       Math.min(365, Math.max(0, Math.floor(Number(formData.get('taskDays')) || 0))),
     ]
   );
-  if (docPath !== null && stage.brief_file_path) await deleteFile(stage.brief_file_path);
+  const applyToCurrent = formData.get('applyToCurrent') === '1';
+  if (applyToCurrent) {
+    // explicit opt-in: re-copy the saved task onto everyone currently in the stage;
+    // deadlines are recounted from when each of them was moved in
+    await q(
+      `update public.task_assignments ta set task_days = s.task_days, brief = s.brief,
+         brief_links = s.brief_links, brief_file_path = s.brief_file_path, submission_fields = s.submission_fields
+       from public.stages s
+       where s.id = $1 and ta.stage_id = s.id
+         and ta.application_id in (select id from public.applications where current_stage_id = $1)`,
+      [stageId]
+    );
+  }
+  // earlier batches may still hold the replaced document — only delete it once nobody does
+  if (docPath !== null && stage.brief_file_path) {
+    const {
+      rows: [held],
+    } = await q(`select 1 from public.task_assignments where brief_file_path = $1 limit 1`, [stage.brief_file_path]);
+    if (!held) await deleteFile(stage.brief_file_path);
+  }
 
-  await audit(user.id, 'update_task_materials', 'stage', stageId);
+  await audit(user.id, 'update_task_materials', 'stage', stageId, applyToCurrent ? { applyToCurrent } : undefined);
   // no redirect here, so the page must be told to re-render with the new brief
   revalidatePath(`/app/openings/${openingId}/task`);
   revalidatePath('/app/tasks');

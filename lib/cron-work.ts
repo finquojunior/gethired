@@ -56,7 +56,7 @@ export async function runCronWork() {
   }
 
   // 2b. task reminders: deadline within 24h, nothing submitted for this stage, once
-  //     (deadline = stage entry + task_days — same expression as the candidate portal)
+  //     (deadline = the candidate's own task copy: entered_at + task_days — same as the portal)
   const { rows: dueTasks } = await q<{
     application_id: number;
     name: string;
@@ -67,11 +67,10 @@ export async function runCronWork() {
   }>(
     `with t as (
        select a.id as application_id, a.name, a.email, a.portal_token, o.title, s.id as stage_id,
-              coalesce((select max(h.created_at) from public.stage_history h
-                         where h.application_id = a.id and h.to_stage_id = s.id), a.created_at)
-              + make_interval(days => s.task_days) as deadline
+              ta.entered_at + make_interval(days => ta.task_days) as deadline
        from public.applications a
-       join public.stages s on s.id = a.current_stage_id and s.kind = 'task' and s.task_days > 0
+       join public.stages s on s.id = a.current_stage_id and s.kind = 'task'
+       join public.task_assignments ta on ta.application_id = a.id and ta.stage_id = s.id and ta.task_days > 0
        join public.openings o on o.id = a.opening_id
        where a.status = 'active'
      )

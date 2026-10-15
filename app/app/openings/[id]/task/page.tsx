@@ -100,11 +100,7 @@ export default async function TaskPage({
   }>(
     `select * from (
        select s.id as stage_id, a.id, a.name, a.status, a.current_stage_id, cs.name as current_stage,
-            case when s.task_days > 0 then
-              coalesce((select max(h.created_at) from public.stage_history h
-                         where h.application_id = a.id and h.to_stage_id = s.id), a.created_at)
-              + make_interval(days => s.task_days)
-            end as deadline,
+            case when ta.task_days > 0 then ta.entered_at + make_interval(days => ta.task_days) end as deadline,
             (select tr.response from public.task_responses tr
               where tr.application_id = a.id and tr.stage_id = s.id
               order by tr.id desc limit 1) as response,
@@ -123,6 +119,7 @@ export default async function TaskPage({
            select 1 from public.stage_history h
            where h.application_id = a.id and h.to_stage_id = s.id))
        left join public.stages cs on cs.id = a.current_stage_id
+       left join public.task_assignments ta on ta.application_id = a.id and ta.stage_id = s.id
        where s.opening_id = $1 and s.kind = 'task'
      ) c
      order by ${TASK_SORTS[sortKey]}`,
@@ -237,7 +234,8 @@ export default async function TaskPage({
                 <Label htmlFor={`days-${t.id}`}>Days to complete</Label>
                 <FieldDescription>
                   Each candidate&apos;s deadline is counted from the day they were moved into this
-                  stage. Leave 0 for no deadline.
+                  stage. Leave 0 for no deadline. Candidates keep the task and deadline they were
+                  moved in with — saving changes only affects people moved here afterwards.
                 </FieldDescription>
                 <Input
                   id={`days-${t.id}`}
@@ -293,6 +291,12 @@ export default async function TaskPage({
                   initial={parseSubmissionFields(t.submission_fields)}
                 />
               </Field>
+
+              <label className="flex items-center gap-2 text-sm">
+                <input type="checkbox" name="applyToCurrent" value="1" />
+                Also apply to candidates already in this stage (their deadline is recounted from when
+                they were moved in)
+              </label>
 
               <div className="flex items-center gap-3">
                 <SubmitButton pendingLabel="Saving…" doneMessage="Task saved">Save task</SubmitButton>

@@ -36,10 +36,11 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ token: str
     kind: string | null;
     submission_fields: unknown;
   }>(
-    `select a.id, a.name, a.email, o.title, a.current_stage_id as stage_id, s.kind, s.submission_fields
+    `select a.id, a.name, a.email, o.title, a.current_stage_id as stage_id, s.kind, ta.submission_fields
      from public.applications a
      join public.openings o on o.id = a.opening_id
      left join public.stages s on s.id = a.current_stage_id
+     left join public.task_assignments ta on ta.application_id = a.id and ta.stage_id = s.id
      where a.portal_token = $1 and a.status = 'active'`,
     [token]
   );

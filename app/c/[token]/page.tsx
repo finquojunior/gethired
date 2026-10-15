@@ -106,18 +106,15 @@ export default async function PortalPage({
               select 1 from public.email_log e
               where e.application_id = a.id and e.template = any($2) and e.status = 'draft'
             )) as rejection_pending,
-            s.brief as stage_brief, s.brief_file_path as stage_brief_file,
-            s.brief_links as stage_brief_links, s.submission_fields,
-            case when s.task_days > 0 then
-              coalesce((select max(h.created_at) from public.stage_history h
-                         where h.application_id = a.id and h.to_stage_id = s.id), a.created_at)
-              + make_interval(days => s.task_days)
-            end as deadline,
+            ta.brief as stage_brief, ta.brief_file_path as stage_brief_file,
+            ta.brief_links as stage_brief_links, ta.submission_fields,
+            case when ta.task_days > 0 then ta.entered_at + make_interval(days => ta.task_days) end as deadline,
             a.answers, f.schema, a.created_at
      from public.applications a
      join public.openings o on o.id = a.opening_id
      join public.forms f on f.id = a.form_id
      left join public.stages s on s.id = a.current_stage_id
+     left join public.task_assignments ta on ta.application_id = a.id and ta.stage_id = s.id
      where a.portal_token = $1`,
     [token, CLOSING_TEMPLATES]
   );
