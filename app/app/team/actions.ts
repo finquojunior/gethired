@@ -2,7 +2,7 @@
 
 import { redirect } from 'next/navigation';
 import { q, tx } from '@/lib/db';
-import { hashPassword, requireAdmin, requireStaff } from '@/lib/auth';
+import { createSession, hashPassword, requireAdmin, requireStaff } from '@/lib/auth';
 import { audit } from '@/lib/audit';
 
 const ROLES = ['admin', 'hr', 'dept_head', 'interviewer'];
@@ -63,8 +63,10 @@ export async function addUser(formData: FormData) {
      values ($1, $2, $3, $4)
      on conflict (id) do update set full_name = excluded.full_name, role = excluded.role,
        password_hash = case when excluded.password_hash <> '' then excluded.password_hash
-                            else public.profiles.password_hash end`,
-    [u.id, name, role, password ? hashPassword(password) : '']
+                            else public.profiles.password_hash end,
+       password_changed_at = case when excluded.password_hash <> '' then to_timestamp($5 / 1000.0)
+                                  else public.profiles.password_changed_at end`,
+    [u.id, name, role, password ? hashPassword(password) : '', Date.now()]
   );
   const departmentIds = ids(formData, 'departmentIds');
   const openingIds = ids(formData, 'openingIds');
@@ -82,6 +84,24 @@ export async function setUserRole(formData: FormData) {
   await q(`update public.profiles set role = $2 where id = $1`, [userId, role]);
   await audit(admin.id, 'set_role', 'profile', userId, { role });
   back('role');
+}
+
+/** Admin sets a new password for anyone, admins included. */
+export async function resetPassword(formData: FormData) {
+  const admin = await requireAdmin();
+  const userId = String(formData.get('userId'));
+  const password = String(formData.get('password') ?? '');
+  if (password.length < 8) back(undefined, 'password');
+  const { rowCount } = await q(
+    // app clock, not now(): session issue times come from the app clock too
+    `update public.profiles set password_hash = $2, password_changed_at = to_timestamp($3 / 1000.0) where id = $1`,
+    [userId, hashPassword(password), Date.now()]
+  );
+  if (!rowCount) back(undefined, 'invalid');
+  await audit(admin.id, 'reset_password', 'profile', userId);
+  // that signed out every session of theirs, including this one if it was the admin's own
+  if (userId === admin.id) await createSession(admin.id);
+  back('password');
 }
 
 export async function removeUser(formData: FormData) {

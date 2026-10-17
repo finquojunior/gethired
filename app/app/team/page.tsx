@@ -11,10 +11,12 @@ import {
   removeUser,
   removeUserOpening,
   renameDepartment,
+  resetPassword,
   setUserDepartments,
   setUserRole,
 } from './actions';
 import { Badge } from '@/components/ui/badge';
+import { buttonVariants } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -37,6 +39,7 @@ const OK: Record<string, string> = {
   updated: 'Person updated',
   role: 'Role updated',
   removed: 'Person removed',
+  password: 'Password reset and signed out everywhere — share the new one with them',
   departments: 'Departments saved',
   opening: 'Added to the opening',
   opening_removed: 'Removed from the opening',
@@ -188,6 +191,17 @@ export default async function TeamPage({ searchParams }: { searchParams: Promise
                       </form>
                     ) : (
                       <Badge variant="secondary">{ROLE_LABEL[p.role] ?? p.role}</Badge>
+                    )}
+                    {admin && (
+                      <details className="group relative">
+                        <summary className={buttonVariants({ variant: 'outline', size: 'sm', className: 'list-none' })}>Reset password</summary>
+                        <form action={resetPassword} className="absolute right-0 z-10 mt-1 flex w-72 items-center gap-2 rounded-lg border bg-card p-2 shadow-md">
+                          <input type="hidden" name="userId" value={p.id} />
+                          <Input name="password" type="password" required minLength={8} autoComplete="new-password"
+                            placeholder="New password (min 8)" aria-label={`New password for ${p.full_name}`} className="h-8" />
+                          <SubmitButton size="sm" pendingLabel="Saving…">Save</SubmitButton>
+                        </form>
+                      </details>
                     )}
                     {admin && p.id !== me.id && (
                       <form action={removeUser}>

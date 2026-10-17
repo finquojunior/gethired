@@ -78,13 +78,17 @@ export function verifySessionValue(value: string | undefined): string | null {
 }
 
 export async function currentUserOrNull(): Promise<SessionUser | null> {
-  const userId = verifySessionValue((await cookies()).get(SESSION_COOKIE)?.value);
+  const value = (await cookies()).get(SESSION_COOKIE)?.value;
+  const userId = verifySessionValue(value);
   if (!userId) return null;
+  // the cookie carries only its expiry, so issue time = expiry − lifetime
+  const issuedAt = Number(value!.split('.')[1]) - SESSION_DAYS * 86_400_000;
   const {
     rows: [p],
   } = await q<{ id: string; full_name: string; role: SessionUser['role'] }>(
-    `select id, full_name, role from public.profiles where id = $1`,
-    [userId]
+    `select id, full_name, role from public.profiles
+     where id = $1 and (password_changed_at is null or password_changed_at <= to_timestamp($2 / 1000.0))`,
+    [userId, issuedAt]
   );
   return p ? { id: p.id, name: p.full_name, role: p.role } : null;
 }
